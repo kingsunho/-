@@ -548,6 +548,9 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .mystery{text-align:center;border-color:var(--gold)}
 .my-q{font-size:48px;font-weight:900;color:var(--gold);line-height:1;margin:6px 0}
 .pc-att{font-size:10.5px;color:var(--clay);margin-top:4px}
+.pk-star{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.pk-pot{font-size:10px;color:var(--dim);display:flex;align-items:center;gap:4px}
+.pk-role{font-size:10.5px;color:#a9b4c2;margin-top:5px}
 
 </style>
 </head>
@@ -600,7 +603,7 @@ function makeRng(seed){
 /* ---------- 리그 기준선 (실측) ---------- */
 const LG = {
   K: 0.1447, BB: 0.1540, HBP: 0.035, BABIP: 0.4997,
-  H1: 0.741, H2: 0.163, H3: 0.075, HR: 0.022,
+  H1: 0.741, H2: 0.163, H3: 0.075, HR: 0.009,
   SB_PER_PA: 0.240, SB_SUCCESS: 0.90,
   ERR_PER_BIP: 0.075,
 };
@@ -1116,90 +1119,76 @@ const META = {
   swm:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:0.54,loyal:88,pot:6,
     traits:['리더','에이스','성실','유틸'],friends:['lg','jms','ujh'],rival:null,
     coach:{all:70},
-    pos:PR({P:70,C:60,'1B':65,'2B':58,'3B':60,SS:60,LF:55,CF:55,RF:55}),
+    pos:PR({P:70,'1B':62,C:58,'2B':0,'3B':0,SS:0,LF:0,CF:0,RF:0}),
     desc:'투타 겸업 에이스. 포수·내야 어디든 선다.'},
 
   lg:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:1.0,loyal:92,pot:4,
     traits:['리더','감독','철강','장비담당'],friends:['swm','jms','ujh'],rival:null,
     coach:{out:72},
-    pos:PR({CF:75,LF:65,RF:65,'2B':55,'3B':55,SS:50,'1B':55,C:40,P:30}),
+    pos:PR({CF:75,LF:68,RF:68,P:40,'2B':42,'3B':42,SS:38,'1B':0,C:0}),
     desc:'감독 겸 중견수. 포수 장비를 항상 이 사람이 챙긴다.'},
 
   jms:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:0.62,loyal:85,pot:4,
     traits:['성실','균형타구'],friends:['lg','swm','ujh'],rival:null,coach:{},
-    pos:PR({LF:50,RF:50,CF:45,'2B':45,'1B':45,'3B':40,SS:35,P:30}),
+    pos:PR({LF:50,RF:50,CF:46,'2B':42,'1B':44,'3B':0,SS:0,C:0,P:0}),
     desc:'좌익수. 좌측 44%로 팀에서 가장 균형 잡힌 타구.'},
 
   yjh:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:3,attend:0.54,loyal:74,pot:3,
     traits:['백업포수','건망증'],friends:['ujh','kig'],rival:null,coach:{},
-    pos:PR({'1B':50,C:45,RF:40,LF:40,'3B':40,'2B':35,CF:35,P:25}),
+    pos:PR({'1B':50,C:44,RF:40,LF:40,'2B':0,'3B':0,SS:0,CF:0,P:0}),
     desc:'1루·백업 포수. 미트를 자주 두고 온다.'},
 
   ujh:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:0.46,loyal:80,pot:3,
-    traits:['땅볼형','마당발'],friends:['yjh','lg','swm','jms','khj','lmh'],rival:null,coach:{},
-    pos:PR({RF:40,'2B':40,LF:40,'1B':40,'3B':35,CF:35,P:25}),
-    desc:'우익수. 99년생 사이에서 연결고리 역할.'},
+    traits:['과묵','수비약점'],friends:['yjh'],rival:null,coach:{},
+    pos:PR({LF:26,RF:26,CF:22,'1B':0,'2B':0,'3B':0,SS:0,C:0,P:0}),
+    desc:'외야수. 말수가 적다. 수비는 거의 불가.'},
 
   khj:{born:1999,speech:'ban',throws:'R',car:false,school:'군포고',drink:0,attend:0.38,loyal:90,pot:2,
     traits:['코치','리틀출신','헌신','금주'],friends:['ujh','lmh'],rival:null,
     coach:{inf:75},
-    pos:PR({SS:55,'3B':55,'2B':55,'1B':45,LF:35,CF:35,RF:35,P:25}),
+    pos:PR({'2B':54,SS:54,'3B':52,'1B':0,LF:0,CF:0,RF:0,C:0,P:0}),
     desc:'리틀야구단 출신. 내야 수비 지도를 맡는다. 술은 안 마신다.'},
 
   lmh:{born:1999,speech:'ban',throws:'R',car:false,school:'군포고',drink:2,attend:0.38,loyal:84,pot:4,
     traits:['제3포수','노력파'],friends:['ujh','khj'],rival:null,coach:{},
-    pos:PR({C:40,'1B':35,LF:30,RF:30,'3B':30,CF:25,'2B':25,SS:20,P:25}),
+    pos:PR({C:38,LF:20,RF:20,'1B':18,'2B':0,'3B':0,SS:0,CF:0,P:0}),
     desc:'제3포수 자원. 타격은 미완이지만 성실하다.'},
 
   ksh:{born:2000,speech:'jon',throws:'R',car:true,school:'흥진고',drink:2,attend:0.92,loyal:82,pot:8,
     traits:['대장','주루형','카풀'],friends:['kjh','ksw','ksn'],rival:null,coach:{},
-    pos:PR({'2B':55,SS:45,'3B':45,'1B':45,LF:40,CF:40,RF:40,P:25}),
+    pos:PR({'2B':56,C:0,'1B':0,'3B':0,SS:0,LF:0,CF:0,RF:0,P:0}),
     desc:'2루수. 팀 최다 안타·타점·득점. 차를 몰고 다닌다.'},
 
   kig:{born:2000,speech:'ban',throws:'R',car:true,school:'군포고',drink:3,attend:0.92,loyal:70,pot:5,
     traits:['포수','강견','카풀','형제'],friends:['yjh','ksn'],rival:'khg',coach:{},
-    pos:PR({C:60,'1B':50,'3B':50,'2B':40,SS:35,RF:40,LF:35,CF:30,P:45}),
+    pos:PR({C:60,'3B':50,'1B':50,'2B':0,SS:0,LF:0,CF:0,RF:0,P:44}),
     desc:'주전 포수. 어깨가 좋아 급하면 마운드도 오른다. 김한규와 형제.'},
 
   khg:{born:2000,speech:'ban',throws:'R',car:true,school:'군포고',drink:1,attend:0.92,loyal:52,pot:6,
     traits:['불만러','분석가','유리몸','카풀','형제'],friends:[],rival:'kig',coach:{},
-    pos:PR({'3B':45,'1B':45,'2B':40,SS:35,LF:40,RF:40,CF:35,C:30,P:50}),
+    pos:PR({P:50,'3B':46,C:0,'1B':0,'2B':0,SS:0,LF:0,CF:0,RF:0}),
     desc:'3루·투수. 스카우팅 담당. 어깨 재발 이력. 이건에게는 어릴 때부터 반말.'},
 
   kjh:{born:2000,speech:'jon',throws:'R',car:true,school:'군포고',drink:3,attend:0.77,loyal:76,pot:12,
     traits:['강견','미완성','카풀','홈보살','농구'],friends:['ksh','ksn'],rival:null,coach:{},
-    pos:PR({RF:55,LF:50,CF:45,'1B':45,'3B':40,'2B':35,SS:30,P:60}),
+    pos:PR({P:58,RF:54,LF:50,C:0,'1B':0,'2B':0,'3B':0,SS:0,CF:0}),
     desc:'우익수. 어깨 70 팀 1위. 투수 전향 후보.'},
 
   ksn:{born:2000,speech:'jon',throws:'L',car:true,school:'흥진고',drink:3,attend:0.69,loyal:78,pot:5,
     traits:['장타형','좌투','카풀'],friends:['ksw','kig','ksh','kjh'],rival:null,coach:{},
-    pos:PR({'1B':50,LF:45,RF:45,CF:35,P:40,C:0,'2B':0,'3B':0,SS:0}),
+    pos:PR({'1B':50,LF:44,RF:44,C:0,'2B':0,'3B':0,SS:0,CF:0,P:38}),
     desc:'1루수. 좌투우타라 내야는 1루만 가능하다.'},
 
   ksw:{born:2000,speech:'jon',throws:'R',car:false,school:'군포고',drink:0,attend:0.38,loyal:80,pot:10,
     traits:['복귀','안정형','금주','장교'],friends:['ksn','ksh'],rival:null,coach:{},
-    pos:PR({SS:55,'2B':55,'3B':50,'1B':45,LF:40,CF:40,RF:40,P:35}),
+    pos:PR({SS:54,'2B':54,'3B':50,'1B':0,LF:0,CF:0,RF:0,C:0,P:0}),
     desc:'유격수. 송구 실책 0건. 술은 안 마신다.'},
 
   lsm:{born:2000,speech:'jon',throws:'L',car:true,school:'군포고',drink:2,attend:0.38,loyal:72,pot:14,
     traits:['좌완','희소','미완성','좌투'],friends:[],rival:null,coach:{},
-    pos:PR({LF:40,'1B':40,RF:35,CF:30,P:55,C:0,'2B':0,'3B':0,SS:0}),
+    pos:PR({P:54,LF:42,RF:40,'1B':22,C:0,'2B':0,'3B':0,SS:0,CF:0}),
     desc:'팀 유일 좌완·좌타. 실전 이닝 0.'},
 };
-
-/* 학교 인연 자동 연결 (군포고 99년생끼리) */
-(function(){
-  const ids=Object.keys(META);
-  ids.forEach(a=>{
-    ids.forEach(b=>{
-      if(a===b)return;
-      const A=META[a],B=META[b];
-      if(A.school===B.school && A.born===B.born && A.born===1999){
-        if(!A.friends.includes(b))A.friends.push(b);
-      }
-    });
-  });
-})();
 
 const TRAIT_INFO = {
   '리더':'팀 사기 하락을 완화하고 분위기를 수습한다',
@@ -1229,7 +1218,8 @@ const TRAIT_INFO = {
   '백업포수':'포수를 볼 수 있다',
   '건망증':'가끔 장비를 두고 온다',
   '땅볼형':'내야 타구가 많다',
-  '마당발':'팀 내 인간관계의 연결고리',
+  '과묵':'단톡방에서 말을 거의 안 한다',
+  '수비약점':'수비 포지션 적합도가 낮다',
   '코치':'훈련 효과를 높인다',
   '리틀출신':'정식 유소년 경력',
   '헌신':'팀을 우선한다',
@@ -1268,7 +1258,13 @@ function calcPA(p, meta){
   const youth = age<=21?14:age<=24?10:age<=26?7:3;
   return Math.min(80, calcCA(p) + youth*0.6 + (meta?meta.pot:4));
 }
-function stars(v){ return Math.max(0.5, Math.min(5, Math.round(v/8*2)/2)); }
+function stars(v){
+  /* FM 기준. 사회인 4부에서 리그 최상위가 3.5~4.0, 주전급 2~3.
+     CA 20~72 구간을 눌러서 상위권만 별이 높게 나오게 한다. */
+  const t = Math.max(0, Math.min(1, (v-20)/58));
+  const s = Math.pow(t, 1.60) * 5.0;
+  return Math.max(0.5, Math.min(5, Math.round(s*2)/2));
+}
 function starHTML(v, dim){
   const s=stars(v); let h='';
   for(let i=1;i<=5;i++){
@@ -1366,39 +1362,68 @@ function resolveCarpool(ST){
   return {rides:out, stranded};
 }
 
-/* ---------- 기념일 ---------- */
+/* ---------- 일정 (2~9월, 주말 경기) ---------- */
 const HOLIDAYS = [
-  {md:'08-15', name:'광복절'},
-  {md:'06-06', name:'현충일'},
   {md:'03-01', name:'삼일절'},
-  {md:'10-03', name:'개천절'},
+  {md:'06-06', name:'현충일'},
+  {md:'08-15', name:'광복절'},
+  {md:'10-01', name:'국군의 날'},
 ];
-function holidayFor(round){
-  // 라운드를 3~10월에 균등 배치한 가상 날짜로 환산
-  const start=new Date(2026,2,1).getTime();
-  const end=new Date(2026,9,31).getTime();
-  const t=start+(end-start)*(round/22);
-  const dt=new Date(t);
+function seasonDates(year){
+  const out=[];
+  const d=new Date(year,1,1);
+  while(d.getDay()!==0) d.setDate(d.getDate()+1);
+  while(out.length<26 && d.getMonth()<9){ out.push(new Date(d)); d.setDate(d.getDate()+7); }
+  return out;
+}
+function holidayFor(round, year){
+  const y=year||2026;
+  const dates=seasonDates(y);
+  const dt=dates[Math.min(round, dates.length-1)]||new Date(y,7,1);
   const md=String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
-  const h=HOLIDAYS.find(x=>x.md===md);
-  return {date:`${dt.getFullYear()}-${md}`, holiday:h?h.name:null, month:dt.getMonth()+1};
+  let hol=null;
+  HOLIDAYS.forEach(function(h){
+    const p=h.md.split('-');
+    const hdate=new Date(y, Number(p[0])-1, Number(p[1]));
+    if(Math.abs(hdate-dt)<=3*86400000) hol=h.name;
+  });
+  return {date:y+'-'+md, holiday:hol, month:dt.getMonth()+1,
+    label:(dt.getMonth()+1)+'월 '+dt.getDate()+'일 (일)'};
 }
 
-/* ---------- 날씨 ---------- */
+/* ---------- 날씨 (월별) ---------- */
 const WEATHERS = [
-  {id:'clear', name:'맑음', w:38, cond:0, err:1.00, babip:1.00, desc:'경기하기 좋은 날씨다.'},
-  {id:'hot',   name:'폭염', w:16, cond:-10, err:1.05, babip:1.00, desc:'체감 35도. 후반에 다리가 안 나간다.',
-   risk:'탈수'},
-  {id:'humid', name:'무더위', w:14, cond:-6, err:1.03, babip:1.00, desc:'습도가 높아 땀이 안 마른다.'},
-  {id:'wind',  name:'강풍', w:12, cond:-2, err:1.10, babip:0.96, desc:'뜬공 처리가 어렵다.', fly:0.88},
-  {id:'cold',  name:'쌀쌀함', w:10, cond:-4, err:1.06, babip:0.97, desc:'손이 시려 배트가 안 돈다.', pow:0.92},
-  {id:'dust',  name:'미세먼지', w:6, cond:-7, err:1.02, babip:1.00, desc:'목이 칼칼하다.'},
-  {id:'drizzle',name:'가랑비', w:4, cond:-3, err:1.18, babip:1.04, desc:'공이 미끄럽다.'},
+  {id:'clear', name:'맑음',     cond:0,   err:1.00, babip:1.00, desc:'경기하기 좋은 날씨다.'},
+  {id:'cloud', name:'흐림',     cond:-1,  err:1.01, babip:1.00, desc:'구름이 많지만 할 만하다.'},
+  {id:'cold',  name:'쌀쌀함',   cond:-5,  err:1.06, babip:0.97, desc:'손이 시려 배트가 안 돈다.'},
+  {id:'freeze',name:'한파',     cond:-12, err:1.14, babip:0.94, desc:'입김이 나온다. 공이 손에 안 붙는다.'},
+  {id:'snow',  name:'눈',       cond:-10, err:1.25, babip:0.92, desc:'그라운드에 눈이 남아 있다.', cancel:0.45},
+  {id:'wind',  name:'강풍',     cond:-2,  err:1.10, babip:0.96, desc:'뜬공 처리가 어렵다.'},
+  {id:'hot',   name:'폭염',     cond:-10, err:1.05, babip:1.00, desc:'체감 35도. 후반에 다리가 안 나간다.', risk:'탈수'},
+  {id:'humid', name:'무더위',   cond:-6,  err:1.03, babip:1.00, desc:'습도가 높아 땀이 안 마른다.'},
+  {id:'drizzle',name:'가랑비',  cond:-3,  err:1.18, babip:1.04, desc:'공이 미끄럽다.', cancel:0.20},
+  {id:'rainy', name:'장맛비',   cond:-5,  err:1.22, babip:1.05, desc:'비가 계속 온다.', cancel:0.55},
+  {id:'dust',  name:'미세먼지', cond:-7,  err:1.02, babip:1.00, desc:'목이 칼칼하다.'},
 ];
-function rollWeather(rng){
-  const tot=WEATHERS.reduce((s,w)=>s+w.w,0);
+const WX_BY_MONTH = {
+  2:{freeze:26,snow:20,cold:30,cloud:12,clear:10,wind:2},
+  3:{cold:34,cloud:20,clear:26,wind:10,dust:10},
+  4:{clear:38,cloud:20,wind:14,cold:10,dust:14,drizzle:4},
+  5:{clear:40,cloud:18,wind:12,humid:12,drizzle:10,dust:8},
+  6:{humid:26,clear:22,rainy:18,drizzle:14,cloud:12,hot:8},
+  7:{hot:30,rainy:24,humid:22,drizzle:10,cloud:10,clear:4},
+  8:{hot:38,humid:26,rainy:14,clear:12,drizzle:6,cloud:4},
+  9:{clear:40,cloud:20,humid:14,wind:12,drizzle:8,cold:6},
+};
+function rollWeather(rng, month){
+  const tbl=WX_BY_MONTH[month]||WX_BY_MONTH[5];
+  const keys=Object.keys(tbl);
+  let tot=0; keys.forEach(function(k){tot+=tbl[k];});
   let r=rng()*tot;
-  for(const w of WEATHERS){ r-=w.w; if(r<=0) return w; }
+  for(let i=0;i<keys.length;i++){
+    r-=tbl[keys[i]];
+    if(r<=0){ const w=WEATHERS.find(function(x){return x.id===keys[i];}); if(w) return w; }
+  }
   return WEATHERS[0];
 }
 
@@ -1632,8 +1657,15 @@ function rollWeekEvents(ST, rng){
   const evts=[];
   const us=TBYID['wwzw'];
   const alive=us.players.filter(p=>!ST.injury[p.id]);
-  ST.calendar=holidayFor(ST.round);
+  ST.calendar=holidayFor(ST.round, ST.year||2026);
 
+  /* 학생 야구부 대관으로 구장 사용 불가 */
+  if(rng()<0.06){
+    evts.push({type:'postpone',title:'구장 대관 취소',
+      body:'중고등학교 야구부가 구장을 쓰게 되어 우리 경기가 밀렸다.',
+      effect:'경기 연기 · 전원 컨디션 +5'});
+    return evts;
+  }
   if(rng()<0.10){
     evts.push({type:'rain',title:'우천 취소',
       body:'아침부터 비가 쏟아졌다. 그라운드 사정으로 경기가 순연됐다.',
@@ -1642,8 +1674,14 @@ function rollWeekEvents(ST, rng){
   }
 
   /* 날씨 */
-  const wx=rollWeather(rng);
+  const wx=rollWeather(rng, (ST.calendar&&ST.calendar.month)||5);
   ST.weather=wx.id;
+  if(wx.cancel && rng()<wx.cancel){
+    evts.push({type:'rain',title:wx.name+'으로 경기 취소',
+      body:wx.desc+' 결국 경기가 순연됐다.',
+      effect:'전원 컨디션 +8 · 투수 휴식 +1'});
+    return evts;
+  }
   if(wx.id!=='clear'){
     evts.push({type:'weather',title:`날씨 · ${wx.name}`,body:wx.desc,
       effect:`컨디션 ${wx.cond} · 실책 ${Math.round(wx.err*100-100)>0?'+':''}${Math.round(wx.err*100-100)}%`});
@@ -1656,7 +1694,7 @@ function rollWeekEvents(ST, rng){
 
   /* 기념일 — 김선우 장교 */
   const cal=ST.calendar;
-  if(cal.holiday==='광복절'||cal.holiday==='현충일'){
+  if(cal.holiday==='광복절'||cal.holiday==='현충일'||cal.holiday==='국군의 날'){
     if(isAvailable('ksw')){
       evts.push({type:'holiday',pid:'ksw',title:`${cal.holiday} · 김선우 각성`,
         body:'김선우가 각 잡고 나타났다. "오늘은 좀 다릅니다."',
@@ -1670,7 +1708,8 @@ function rollWeekEvents(ST, rng){
     const m=META[p.id]; if(!m)return;
     if(m.traits.includes('금주'))return;          // 김선우·권혁준
     if(rng()<0.16){
-      if(rng()<0.22) clubbed.push(p.id);          // 누구든 클럽 갈 수 있다
+      const clubP = p.id==='kig' ? 0.35 : 0.006;   // 김인규만 클럽 자주 간다
+      if(rng()<clubP) clubbed.push(p.id);
       else drunk.push(p.id);
     }
   });
@@ -1709,16 +1748,25 @@ function rollWeekEvents(ST, rng){
   }
 
   /* 개인 사정 */
-  const reasons=['가족 여행이 잡혔다','여자친구랑 약속이 있다','회사 야근이 잡혔다',
-    '결혼식 사회를 봐야 한다','장염에 걸렸다','차가 고장났다','아이가 아프다',
-    '집안 제사가 있다','예비군 훈련이 잡혔다','전날 당직이었다'];
+  const REASON_CAR=['차가 고장났다'];
+  const REASON_COMMON=['가족 여행이 잡혔다','여자친구랑 약속이 있다','회사에 일이 생겼다',
+    '결혼식 사회를 봐야 한다','장염에 걸렸다','전날 회식이 늦게 끝났다','몸살이 났다',
+    '이사를 해야 한다','친구 결혼식에 간다'];
+  const REASON_KSW=['부대에 일이 생겼다','당직 근무가 잡혔다','훈련 일정이 잡혔다',
+    '휴가가 안 나왔다','비상소집이 걸렸다'];
+  const reasonFor=(pid)=>{
+    if(pid==='ksw') return pickOne(REASON_KSW,rng);
+    const m2=META[pid];
+    const pool = (m2&&m2.car) ? REASON_COMMON.concat(REASON_CAR) : REASON_COMMON;
+    return pickOne(pool,rng);
+  };
   alive.forEach(p=>{
     const m=META[p.id];
     const att = m&&m.attend!=null ? m.attend : 0.85;
-    const missP = Math.max(0.01, Math.min(0.55, (1-att)*0.82));
+    const missP = Math.max(0.02, Math.min(0.34, (1-att)*0.48));
     if(rng()<missP){
       evts.push({type:'absent',pid:p.id,title:`${p.name} 결장`,
-        body:`${p.name}이(가) ${pickOne(reasons,rng)}고 한다.`,effect:'출전 불가'});
+        body:`${p.name}이(가) ${reasonFor(p.id)}고 한다.`,effect:'출전 불가'});
     }
   });
 
@@ -1732,7 +1780,7 @@ function rollWeekEvents(ST, rng){
     else if(rng()<0.06)evts.push({type:'gear',title:'포수 장비 일부 누락',
       body:`${gm.name}이(가) 레그가드를 빼놓고 왔다.`,effect:'포수 수비 하락'});
   }
-  if(rng()<0.12&&isAvailable('yjh')&&!evts.some(e=>e.type==='absent'&&e.pid==='yjh')){
+  if(rng()<0.035&&isAvailable('yjh')&&!evts.some(e=>e.type==='absent'&&e.pid==='yjh')){
     evts.push({type:'mitt',pid:'yjh',title:'유지효 미트 미지참',
       body:'유지효가 1루 미트를 집에 두고 왔다.',effect:'유지효 수비 하락'});
   }
@@ -1784,6 +1832,7 @@ function applyWeekEvents(ST,evts){
 
   evts.forEach(e=>{
     switch(e.type){
+      case 'postpone':
       case 'rain':
         rained=true;
         us.players.forEach(p=>ST.cond[p.id]=Math.min(100,ST.cond[p.id]+8));
@@ -1897,6 +1946,9 @@ function checkDischarge(ST){
 
 /* ================= 형제 ================= */
 function rollBrotherEvent(ST, rng){
+  const us=TBYID['wwzw'];
+  // 로스터에 둘 다 있어야 한다 (이적/방출 반영)
+  if(!us.players.some(p=>p.id==='kig')||!us.players.some(p=>p.id==='khg'))return null;
   if(!isAvailable('kig')||!isAvailable('khg'))return null;
   if(!ST.lineup.some(s=>s.id==='kig')||!ST.lineup.some(s=>s.id==='khg'))return null;
   if(rng()<0.03){
@@ -2026,7 +2078,7 @@ function buildKakaoPre(ST){
         uniqPush(msgs,{who:p.id,text:jon?pickOne(['저는 계속 벤치인가요?','언제쯤 나갈 수 있을까요'],rng)
           :pickOne(['나 계속 벤치냐','언제 나가냐 진짜'],rng),mood:'angry'});
         ST.morale[p.id]=Math.max(15,ST.morale[p.id]-9);
-      } else if(rng()<0.32){
+      } else if(rng()< (m.traits.includes('과묵')?0.06:0.32)){
         uniqPush(msgs,{who:p.id,text:jon
           ?pickOne(['넵 준비하고 있겠습니다','대기하겠습니다','언제든 말씀하세요','넵 벤치에 있겠습니다'],rng)
           :pickOne(['ㅇㅋ 대기할게','알겠다','부르면 나간다','벤치냐 ㅋㅋ 알겠다'],rng),mood:'flat'});
@@ -2054,7 +2106,7 @@ function buildKakaoPre(ST){
       const LOWJ=['컨디션이 좀 안 좋은데 나가겠습니다','몸이 좀 무겁습니다','어제 잠을 못 잤습니다',
         '일단 나가보겠습니다','안 되면 빼주세요','몸이 덜 풀렸습니다'];
       uniqPush(msgs,{who:p.id,text:pickOne(jon?LOWJ:LOWB,rng),mood:'flat'});
-    } else if(rng()<0.20){
+    } else if(rng()< (m.traits.includes('과묵')?0.04:0.20)){
       const BAN=['ㅇㅋ','오늘 이기자','늦지들 마라','ㄱㄱ','ㅇㅇ','간다','몇 시까지지',
         '오늘 날씨 좋네','그라운드 상태 어떻냐','배트 하나 빌려줄 사람','스파이크 챙겼나',
         '오늘 심판 누구냐','물 좀 사갈게','ㅇㅋㅇㅋ'];
@@ -2076,7 +2128,7 @@ function buildKakaoPre(ST){
       `오늘 ${ST.calendar.holiday}입니다. 각 잡고 하겠습니다`,
       `${ST.calendar.holiday}이라 오늘은 좀 다릅니다`,
       '오늘만큼은 제대로 하겠습니다'],rng),mood:'happy'});
-    if(rng()<0.45)uniqPush(msgs,{who:pickOne(['ujh','jms','lg'],rng),
+    if(rng()<0.45)uniqPush(msgs,{who:pickOne(['jms','lg','swm'],rng),
       text:pickOne(['선우 오늘 눈빛 다르다 ㅋㅋ','오늘 선우 믿는다','ㅋㅋ 각 잡혔네'],rng),mood:'happy'});
   }
 
@@ -2176,24 +2228,27 @@ function buildKakaoPre(ST){
 
   /* 번복 불참 — 라인업 발표 뒤에 갑자기 못 온다는 사람 */
   ST.dropouts=[];
-  const DROP_REASONS=[
+  const DROP_COMMON=[
     ['갑자기 회사에서 호출 왔다','회사에서 갑자기 호출이 왔습니다'],
     ['어제 마신 게 아직 안 깼다','어제 마신 게 아직 안 깨서요...'],
-    ['차가 시동이 안 걸린다','차 시동이 안 걸립니다'],
-    ['애가 갑자기 열이 난다','아이가 갑자기 열이 나서요'],
     ['허리가 삐끗했다','허리를 삐끗했습니다'],
     ['여자친구가 화났다','여자친구가 화가 나서...'],
     ['늦잠 잤다 미안하다','늦잠 잤습니다 죄송합니다'],
-    ['처가에 일이 생겼다','처가에 일이 생겼습니다'],
     ['배탈났다','배탈이 났습니다'],
+    ['갑자기 일이 생겼다','갑자기 일이 생겼습니다'],
   ];
+  const DROP_CAR=[['차가 시동이 안 걸린다','차 시동이 안 걸립니다']];
+  const DROP_KSW=[['부대에서 비상 걸렸다','부대에서 비상이 걸렸습니다'],
+    ['갑자기 당직으로 바뀌었다','갑자기 당직으로 바뀌었습니다']];
   ST.lineup.slice().forEach(sl=>{
     const p=us.players.find(x=>x.id===sl.id); if(!p)return;
     const mm=META[p.id]; if(!mm)return;
     const att=mm.attend!=null?mm.attend:0.85;
     const dp=Math.max(0.01,Math.min(0.12,(1-att)*0.20));
     if(rng()<dp){
-      const r=pickOne(DROP_REASONS,rng);
+      const pool2 = p.id==='ksw' ? DROP_KSW
+        : (mm.car ? DROP_COMMON.concat(DROP_CAR) : DROP_COMMON);
+      const r=pickOne(pool2,rng);
       uniqPush(msgs,{who:p.id,text:say(p.id,r[0],r[1]),mood:'sad'});
       ST.dropouts.push(p.id);
       ST.absent[p.id]='갑자기 못 온다고 함';
@@ -2288,6 +2343,24 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
 
   (milestones||[]).slice(0,4).forEach(m=>{
     msgs.push({who:'lg',type:'record',text:`📋 ${m.text}`});
+    /* 큰 기록이면 축하 + 놀리기 */
+    if(m.mark>=25&&m.pid){
+      const others=us.players.filter(p=>p.id!==m.pid&&isAvailable(p.id));
+      if(others.length){
+        const a=pickOne(others,rng);
+        uniqPush(msgs,{who:a.id,text:sayTo(a.id,m.pid,
+          pickOne(['오 축하한다 ㅋㅋ','이걸 하네','대단하다 진짜'],rng),
+          pickOne(['축하드립니다!','대단하십니다','축하드려요 ㅎㅎ'],rng)),mood:'happy'});
+        const rest=others.filter(p=>p.id!==a.id);
+        if(rest.length&&rng()<0.6){
+          const b=pickOne(rest,rng);
+          uniqPush(msgs,{who:b.id,text:sayTo(b.id,m.pid,
+            pickOne(['근데 내야안타 몇 개냐','경기를 많이 나갔으니까','오늘 한 잔 사라'],rng),
+            pickOne(['내야안타도 포함인가요 ㅋㅋ','한 잔 사주셔야죠'],rng)),mood:'happy'});
+          uniqPush(msgs,{who:m.pid,text:say(m.pid,'기록은 기록이다','기록은 기록이죠 ㅎㅎ'),mood:'happy'});
+        }
+      }
+    }
   });
   if((milestones||[]).length){
     const m0=milestones[0];
@@ -2323,8 +2396,13 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
       '오늘은 내가 못 막았다 미안하다','제구가 안 잡히더라','다음엔 잘 던질게','오늘 공이 안 들어갔다'],rng),mood:'sad'});
   }
 
-  if(ST.feud)uniqPush(msgs,{who:'ujh',text:'형제끼리 좀 그만 싸워라 진짜',mood:'flat'});
-  if(ST.broGood)uniqPush(msgs,{who:'jms',text:'오늘 저 둘 보기 좋았다',mood:'happy'});
+  if(ST.feud && us.players.some(p=>p.id==='kig') && us.players.some(p=>p.id==='khg')
+     ){
+    const w=['jms','lg','swm','ksh'].filter(isAvailable);
+    if(w.length)uniqPush(msgs,{who:pickOne(w,Math.random),
+      text:pickOne(['형제끼리 좀 그만 싸워라 진짜','다음엔 둘 따로 앉히자','오늘 분위기 최악이었다'],Math.random),mood:'flat'});
+  }
+  if(ST.broGood&&isAvailable('jms'))uniqPush(msgs,{who:'jms',text:'오늘 저 둘 보기 좋았다',mood:'happy'});
 
   (res.injuries||[]).forEach(iv=>{
     uniqPush(msgs,{who:iv.id,text:say(iv.id,'아 나 어디 좀 삐끗한 것 같다','저 어디 좀 삐끗한 것 같습니다'),mood:'sad'});
@@ -2482,7 +2560,7 @@ function LiveGame(cfg){
   this.park = cfg.park || {hr:1,d2:1,d3:1,err:1,babip:1};
   this.gearPenalty = cfg.gearPenalty||0;
   this.buff = cfg.buff||{};
-  this.dpCount=0; this.assists=0;
+  this.dpCount=0; this.assists=0; this.wp=0;
   this.timeouts = 5;      // 작전 지시 가능 횟수
 
   const mk = (team, slots, rot, tac, cond, isUser) => {
@@ -2612,6 +2690,17 @@ LiveGame.prototype.step = function(){
         }
       }
     }
+  }
+
+  /* 폭투 — 주자가 있고 제구가 나쁠수록 */
+  if((this.bases[0]||this.bases[1]||this.bases[2]) && rng() < clamp(0.009+(42-pit.ctl)*0.0009, 0.002, 0.038)){
+    for(let b=2;b>=0;b--){
+      if(!this.bases[b])continue;
+      if(b===2){ this.box[this.bases[2]].r++; off.runs++; this.curIR++; pl.r++; pl.er++; this.bases[2]=null; }
+      else { this.bases[b+1]=this.bases[b]; this.bases[b]=null; }
+    }
+    this.wp=(this.wp||0)+1;
+    events.push({text:`${pit.name} 폭투`,cls:'err'});
   }
 
   pl.bf++; bl.pa++;
@@ -2752,7 +2841,7 @@ LiveGame.prototype.finish = function(){
     wp:tie?null:win.rot[0],
     lp:tie?null:lose.rot[Math.min(lose.pIdx,lose.rot.length-1)],
     innings:this.inning, mercy:this.mercy, injuries:this.injuries,
-    dpCount:this.dpCount||0, assists:this.assists||0, assistBy:this.assistBy||null,
+    dpCount:this.dpCount||0, assists:this.assists||0, assistBy:this.assistBy||null, wp:this.wp||0,
   };
 };
 
@@ -2911,6 +3000,53 @@ function newSeason(){
     caStart:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=calcCA(p));return o;})()};
 }
 
+function autoFixLineup(){
+  if(!ST.lineup)return;
+  const t=TBYID['wwzw'];
+  const bad=ST.lineup.filter(s=>!isAvailable(s.id));
+  if(!bad.length){ sanitizeRotation(); return; }
+  const avail=t.players.filter(p=>isAvailable(p.id));
+  if(avail.length>=9){
+    const pool=avail.filter(p=>!ST.lineup.some(x=>x.id===p.id));
+    bad.forEach(b=>{
+      const i=ST.lineup.findIndex(x=>x.id===b.id);
+      if(i<0)return;
+      const rep=pool.find(p=>posFit(p.id,ST.lineup[i].pos)>0)||pool[0];
+      if(rep){ ST.lineup[i].id=rep.id; pool.splice(pool.indexOf(rep),1); }
+    });
+    // 포지션 적합도 재정리
+    optimizePositions();
+  }
+  sanitizeRotation();
+}
+
+/* 라인업 인원 그대로 두고 포지션만 최적 배치 */
+function optimizePositions(){
+  const t=TBYID['wwzw'];
+  const ids=ST.lineup.map(s=>s.id);
+  const needP = !ST.useDH;
+  const slots = needP ? ['P','C','1B','2B','3B','SS','LF','CF','RF']
+                      : ['C','1B','2B','3B','SS','LF','CF','RF','DH'];
+  // 헝가리안 대신 탐욕: 적합도 높은 순으로 배정
+  const pairs=[];
+  ids.forEach(id=>slots.forEach(pos=>pairs.push({id,pos,v:pos==='DH'?30:posFit(id,pos)})));
+  pairs.sort((a,b)=>b.v-a.v);
+  const usedId=new Set(), usedPos=new Set(), assign={};
+  pairs.forEach(p=>{
+    if(p.v<=0)return;
+    if(usedId.has(p.id)||usedPos.has(p.pos))return;
+    assign[p.id]=p.pos; usedId.add(p.id); usedPos.add(p.pos);
+  });
+  // 남은 인원은 빈 자리에 강제 배치
+  ids.forEach(id=>{
+    if(assign[id])return;
+    const free=slots.find(x=>!usedPos.has(x));
+    if(free){assign[id]=free;usedPos.add(free);}
+  });
+  ST.lineup.forEach(s=>{ if(assign[s.id])s.pos=assign[s.id]; });
+  syncStarter();
+}
+
 function recommendLineup(){
   const t=TBYID['wwzw'];
   const pool=t.players.filter(p=>isAvailable(p.id));
@@ -3063,6 +3199,7 @@ function runWeek(){
   const pend=ST.pendingAbsent||{};
   const evs=rollWeekEvents(ST,rng);
   if(evs.some(e=>e.type==='discharge')) ST.justDischarged=true;
+  ST.gameDate=(ST.calendar&&ST.calendar.label)||'';
   Object.keys(pend).forEach(id=>{
     if(ST.injury[id])return;
     evs.push({type:'absent',pid:id,title:`${nameOf(id)} 결장`,
@@ -3074,7 +3211,7 @@ function runWeek(){
   ST.events=carried.concat(evs);
   const rained=applyWeekEvents(ST,evs);
   // 결장자가 라인업에 있으면 자동 교체
-  if(ST.lineup && ST.lineup.some(s=>!isAvailable(s.id))) ST.lineup=recommendLineup();
+  autoFixLineup();
   ST.kakao=[]; ST.kakaoPost=[]; ST.partyDone=false; ST.weekDone=true;
   ST.sentPre=false; ST.sentPost=false; ST.teamBuff=null; ST.canParty=false; ST.dropouts=[];
   const anId=TBYID['wwzw'].players.find(p=>META[p.id]&&META[p.id].traits.includes('분석가'));
@@ -3096,15 +3233,20 @@ function renderPick(){
   const posLabel=p=>{
     const m=META[p.id];
     if(!m||!m.pos)return '';
-    const best=Object.entries(m.pos).filter(([k])=>k!=='DH')
-      .sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k])=>POSNAMES[k]);
-    return best.join(' · ');
+    return Object.entries(m.pos).filter(([k,v])=>k!=='DH'&&v>0)
+      .sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>POSNAMES[k]).join(' · ');
+  };
+  const roleLabel=p=>{
+    const m=META[p.id]; if(!m)return '';
+    const show=(m.traits||[]).filter(t=>['리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형','대장'].includes(t));
+    return show.slice(0,2).join(' · ');
   };
   us.players.forEach(p=>{
     const b=el('button','pickcard'+(MYID===p.id?' on':''));
     b.innerHTML=`<div class="pk-top"><span class="pk-nm">${p.name}</span>
       <span class="pk-age">${posLabel(p)}</span></div>
-      ${starHTML(calcCA(p))}`;
+      <div class="pk-star">${starHTML(effCA(p.id))}<span class="pk-pot">잠재 ${starHTML(effPA(p.id),true)}</span></div>
+      ${roleLabel(p)?`<div class="pk-role">${roleLabel(p)}</div>`:''}`;
     b.onclick=async()=>{
       MYID=p.id;
       if(ST){ST.playerId=p.id;await saveGame(true);}
@@ -3279,7 +3421,7 @@ function renderHome(){
     c.appendChild(ec);
   }
 
-  const rain=ST.events&&ST.events.some(e=>e.type==='rain');
+  const rain=ST.events&&ST.events.some(e=>e.type==='rain'||e.type==='postpone');
   const park=PARKS.find(p=>p.id===ST.park)||PARKS[0];
   const card=el('div','card');
   card.innerHTML=`<div class="card-h">${next.round}차전 · ${next.homeGame?'홈':'원정'}</div>
@@ -3452,7 +3594,8 @@ function renderLineup(){
   head.appendChild(dhRow);
   const br=el('div','btn-row');
   const b1=el('button','btn','추천 라인업');
-  b1.onclick=()=>{ST.lineup=recommendLineup();applyDHRule();saveGame(true);renderLineup();toast('추천 적용');};
+  b1.onclick=()=>{ST.lineup=recommendLineup();optimizePositions();applyDHRule();sanitizeRotation();
+    saveGame(true);renderLineup();toast('추천 라인업 · 포지션 최적화');};
   const b0=el('button','btn','지난 경기 그대로');
   b0.onclick=()=>{
     if(!ST.lastLineup){toast('저장된 지난 라인업이 없다');return;}
@@ -3770,7 +3913,7 @@ function renderGame(){
   const c=$('#view'); c.innerHTML='';
   if(ST.seasonOver){c.appendChild(el('div','card','시즌이 끝났다.'));return;}
   if(!ST.weekDone){c.appendChild(el('div','card','홈에서 이번 주를 먼저 시작해라.'));return;}
-  if(ST.events&&ST.events.some(e=>e.type==='rain')){c.appendChild(el('div','card','우천 취소된 주다.'));return;}
+  if(ST.events&&ST.events.some(e=>e.type==='rain'||e.type==='postpone')){c.appendChild(el('div','card','우천 취소된 주다.'));return;}
 
   const avail=TBYID['wwzw'].players.filter(p=>isAvailable(p.id)).length;
   const bad=ST.lineup.filter(s=>!isAvailable(s.id));
@@ -3834,7 +3977,26 @@ function renderGame(){
   const st=el('div','stage'); st.id='stage'; c.appendChild(st);
 }
 
+function sanitizeRotation(){
+  // 결장·부상자는 로테이션에서 제외한다
+  const t=TBYID['wwzw'];
+  let rot=(ST.rotation||[]).filter(id=>isAvailable(id)&&t.pitchers.some(p=>p.id===id));
+  if(!rot.length){
+    rot=t.pitchers.filter(p=>isAvailable(p.id))
+      .sort((a,b)=>(b.stf*1.1+b.ctl*1.3+b.sta*0.8)-(a.stf*1.1+a.ctl*1.3+a.sta*0.8))
+      .slice(0,6).map(p=>p.id);
+  }
+  // 라인업에 투수 포지션이 있으면 그 선수를 선발로
+  const pSlot=ST.lineup.find(x=>x.pos==='P');
+  if(pSlot&&isAvailable(pSlot.id)){
+    rot=[pSlot.id].concat(rot.filter(id=>id!==pSlot.id));
+  }
+  ST.rotation=rot;
+  return rot;
+}
+
 function makeLive(){
+  sanitizeRotation();
   const next=ST.schedule[ST.round];
   const opp=TBYID[next.opp];
   const raw=TBYID['wwzw'];
@@ -4101,10 +4263,11 @@ function showResult(){
     stage.appendChild(ex);
   }
   const wA=ST.rotation.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0);
-  const idx=wA+usSide.sbAllowed;
+  const wpN=res.wp||0;
+  const idx=wA+usSide.sbAllowed+wpN;
   const fp=el('div','card fpcard');
   fp.innerHTML=`<div class="card-h">공짜진루 지수</div><div class="fp-num ${idx<=14?'good':'bad'}">${idx}</div>
-    <p class="muted">볼넷 허용 ${wA} + 도루 허용 ${usSide.sbAllowed}<br>실제 13경기 무예외: 14 이하 승 / 16 이상 패</p>`;
+    <p class="muted">볼넷 ${wA} + 도루 허용 ${usSide.sbAllowed} + 폭투 ${wpN}<br>실제 13경기 무예외: 14 이하 승 / 16 이상 패</p>`;
   stage.appendChild(fp);
 
   const btn=el('button','btn primary','결과 확정');
@@ -4160,7 +4323,7 @@ function commitGame(res,usSide,thSide,uSlots){
   if(tie){u.t++;t.t++;}else if(won){u.w++;t.l++;}else{u.l++;t.w++;}
   ST.budget+=won?9:(tie?6:4);
 
-  ST.lastFreePass = ST.rotation.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0)+usSide.sbAllowed;
+  ST.lastFreePass = ST.rotation.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0)+usSide.sbAllowed+(res.wp||0);
   ST.lastLineup = uSlots.map(s=>({id:s.id,pos:s.pos}));
   updateUnhappy(ST, uSlots);
   if(ST.promise){ Object.keys(ST.promise).forEach(pid=>{ ST.promise[pid]--;
