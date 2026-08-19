@@ -551,6 +551,11 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .pk-star{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
 .pk-pot{font-size:10px;color:var(--dim);display:flex;align-items:center;gap:4px}
 .pk-role{font-size:10.5px;color:#a9b4c2;margin-top:5px}
+.gdate{font-size:11.5px;color:var(--gold);margin:4px 0 6px;font-weight:600}
+.daterow{display:flex;align-items:center;gap:8px;margin:7px 0 2px;flex-wrap:wrap}
+.daterow b{font-size:13px;color:var(--ink)}
+.daterow span{font-size:11.5px;color:var(--gold)}
+.daterow i{font-style:normal;font-size:10.5px;background:rgba(201,162,39,.16);color:var(--gold);padding:2px 7px;border-radius:10px}
 
 </style>
 </head>
@@ -611,7 +616,7 @@ const LG = {
 /* ---------- 우완좌완 실제 선수 ---------- */
 const WWZW = [
   {id:'swm',name:'송승민',bats:'R',con:87,pow:74,eye:60,spd:58,def:60,arm:65,
-   pos:['P','SS','C','3B'],pitch:{stf:70,ctl:60,sta:64},
+   pos:['P','SS','C','3B'],pitch:{stf:60,ctl:44,sta:56},
    real:{g:7,pa:20,ab:15,h:10,d2:5,d3:0,hr:0,bb:2,hbp:3,k:2,sb:5,cs:0,rbi:12,r:10},
    note:'투타 겸업 에이스. OPS 1.750'},
   {id:'ksh',name:'김선호',bats:'R',con:67,pow:55,eye:36,spd:66,def:38,arm:50,
@@ -619,7 +624,7 @@ const WWZW = [
    real:{g:12,pa:37,ab:33,h:17,d2:0,d3:3,hr:1,bb:4,hbp:0,k:7,sb:11,cs:0,rbi:15,r:17},
    note:'팀 최다 안타·타점·득점. 실책 8개'},
   {id:'lg',name:'이건',bats:'R',con:80,pow:48,eye:44,spd:70,def:55,arm:45,
-   pos:['CF','C','LF'],pitch:{stf:34,ctl:24,sta:44},
+   pos:['CF','C','LF'],pitch:{stf:28,ctl:18,sta:38},
    real:{g:13,pa:37,ab:29,h:15,d2:2,d3:2,hr:0,bb:2,hbp:6,k:1,sb:13,cs:1,rbi:3,r:17},
    note:'전 경기 출장. 37타석 삼진 1개'},
   {id:'kig',name:'김인규',bats:'R',con:63,pow:64,eye:30,spd:24,def:50,arm:62,
@@ -631,7 +636,7 @@ const WWZW = [
    real:{g:8,pa:21,ab:18,h:10,d2:1,d3:0,hr:0,bb:2,hbp:1,k:2,sb:3,cs:1,rbi:6,r:4},
    note:'좌측 44%로 팀 두 번째 균형 타구'},
   {id:'yjh',name:'유지효',bats:'R',con:60,pow:28,eye:46,spd:45,def:45,arm:45,
-   pos:['1B','C','RF'],pitch:{stf:24,ctl:20,sta:30},
+   pos:['1B','C','RF'],pitch:{stf:22,ctl:16,sta:26},
    real:{g:7,pa:20,ab:17,h:7,d2:1,d3:0,hr:0,bb:2,hbp:0,k:1,sb:4,cs:0,rbi:6,r:5},
    note:'백업 포수 자원. 미트 지참 필수'},
   {id:'ksn',name:'김상훈',bats:'R',con:39,pow:62,eye:42,spd:40,def:45,arm:50,
@@ -643,7 +648,7 @@ const WWZW = [
    real:{g:5,pa:12,ab:11,h:4,d2:1,d3:0,hr:0,bb:0,hbp:0,k:3,sb:3,cs:0,rbi:3,r:3},
    note:'송구 실책 0건. 표본 12타석'},
   {id:'khg',name:'김한규',bats:'R',con:48,pow:20,eye:62,spd:30,def:40,arm:44,
-   pos:['3B','DH','LF'],pitch:{stf:50,ctl:45,sta:50},
+   pos:['3B','DH','LF'],pitch:{stf:44,ctl:34,sta:44},
    real:{g:12,pa:27,ab:22,h:7,d2:0,d3:0,hr:0,bb:4,hbp:1,k:3,sb:1,cs:0,rbi:7,r:4},
    note:'BB/K 1.33 팀 2위. 22타수 장타 0'},
   {id:'ujh',name:'우진혁',bats:'R',con:34,pow:20,eye:46,spd:40,def:40,arm:40,
@@ -651,11 +656,11 @@ const WWZW = [
    real:{g:6,pa:14,ab:11,h:3,d2:0,d3:0,hr:0,bb:2,hbp:1,k:5,sb:3,cs:1,rbi:3,r:3},
    note:'내야 타구 84%'},
   {id:'kjh',name:'김준희',bats:'R',con:26,pow:24,eye:42,spd:45,def:52,arm:70,
-   pos:['RF','P','LF'],pitch:{stf:60,ctl:30,sta:55},
+   pos:['RF','P','LF'],pitch:{stf:54,ctl:20,sta:46},
    real:{g:10,pa:23,ab:19,h:4,d2:1,d3:0,hr:0,bb:3,hbp:1,k:5,sb:4,cs:0,rbi:2,r:4},
    note:'어깨 70 팀 1위. 8/9 우익 노바운드 홈 보살'},
   {id:'lsm',name:'이승민',bats:'L',con:26,pow:30,eye:32,spd:25,def:35,arm:45,
-   pos:['LF','1B','P'],pitch:{stf:55,ctl:25,sta:45},
+   pos:['LF','1B','P'],pitch:{stf:48,ctl:17,sta:38},
    real:{g:5,pa:11,ab:10,h:2,d2:1,d3:0,hr:0,bb:1,hbp:0,k:4,sb:0,cs:0,rbi:0,r:2},
    note:'팀 유일 좌완·좌타. 우측 67%'},
   {id:'khj',name:'권혁준',bats:'R',con:18,pow:18,eye:30,spd:35,def:52,arm:45,
@@ -899,7 +904,7 @@ function simPA(bat,pit,offTeam,defTeam,rng,tac,cond,park){
   const pBB = Math.exp((43-pit.ctl)*0.013);
   const pBip= Math.exp(-(pit.stf-45)*0.005);
 
-  const dFactor = Math.exp(-(defTeam.mean.def-46)*0.006);
+  const dFactor = Math.exp(-((defTeam._slotDef!=null?defTeam._slotDef:defTeam.mean.def)-46)*0.006);
 
   let tK=1, tBB=1, tBip=1, tPow=1;
   if(tac.bat==='patient'){ tK=1.18; tBB=1.45; tBip=0.97; }
@@ -1134,8 +1139,8 @@ const META = {
     desc:'좌익수. 좌측 44%로 팀에서 가장 균형 잡힌 타구.'},
 
   yjh:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:3,attend:0.54,loyal:74,pot:3,
-    traits:['백업포수','건망증'],friends:['ujh','kig'],rival:null,coach:{},
-    pos:PR({'1B':50,C:44,RF:40,LF:40,'2B':0,'3B':0,SS:0,CF:0,P:0}),
+    traits:['백업포수','건망증','외야미숙','포수부담'],friends:['ujh','kig'],rival:null,coach:{},
+    pos:PR({'1B':50,'3B':46,LF:36,RF:36,C:44,'2B':0,SS:0,CF:0,P:0}),
     desc:'1루·백업 포수. 미트를 자주 두고 온다.'},
 
   ujh:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:0.46,loyal:80,pot:3,
@@ -1165,18 +1170,18 @@ const META = {
     desc:'주전 포수. 어깨가 좋아 급하면 마운드도 오른다. 김한규와 형제.'},
 
   khg:{born:2000,speech:'ban',throws:'R',car:true,school:'군포고',drink:1,attend:0.92,loyal:52,pot:6,
-    traits:['불만러','분석가','유리몸','카풀','형제'],friends:[],rival:'kig',coach:{},
-    pos:PR({P:50,'3B':46,C:0,'1B':0,'2B':0,SS:0,LF:0,CF:0,RF:0}),
+    traits:['불만러','분석가','유리몸','형제','좁은범위','더위약함'],friends:[],rival:'kig',coach:{},
+    pos:PR({P:50,'3B':48,SS:34,'2B':34,C:0,'1B':0,LF:0,CF:0,RF:0}),
     desc:'3루·투수. 스카우팅 담당. 어깨 재발 이력. 이건에게는 어릴 때부터 반말.'},
 
   kjh:{born:2000,speech:'jon',throws:'R',car:true,school:'군포고',drink:3,attend:0.77,loyal:76,pot:12,
     traits:['강견','미완성','카풀','홈보살','농구'],friends:['ksh','ksn'],rival:null,coach:{},
-    pos:PR({P:58,RF:54,LF:50,C:0,'1B':0,'2B':0,'3B':0,SS:0,CF:0}),
+    pos:PR({P:58,RF:54,LF:52,CF:38,C:0,'1B':0,'2B':0,'3B':0,SS:0}),
     desc:'우익수. 어깨 70 팀 1위. 투수 전향 후보.'},
 
   ksn:{born:2000,speech:'jon',throws:'L',car:true,school:'흥진고',drink:3,attend:0.69,loyal:78,pot:5,
-    traits:['장타형','좌투','카풀'],friends:['ksw','kig','ksh','kjh'],rival:null,coach:{},
-    pos:PR({'1B':50,LF:44,RF:44,C:0,'2B':0,'3B':0,SS:0,CF:0,P:38}),
+    traits:['장타형','좌투','외야미숙'],friends:['ksw','kig','ksh','kjh'],rival:null,coach:{},
+    pos:PR({'1B':52,LF:38,RF:38,C:0,'2B':0,'3B':0,SS:0,CF:0,P:38}),
     desc:'1루수. 좌투우타라 내야는 1루만 가능하다.'},
 
   ksw:{born:2000,speech:'jon',throws:'R',car:false,school:'군포고',drink:0,attend:0.38,loyal:80,pot:10,
@@ -1230,6 +1235,14 @@ const TRAIT_INFO = {
   '장교':'광복절·현충일에 각성한다',
   '좌완킬러':'좌타 상대에 강하다',
   '전역':'군 복무를 마치고 돌아왔다',
+  '좁은범위':'자기 앞 타구는 다 막지만 범위가 좁다',
+  '더위약함':'폭염에 2이닝을 넘기면 구위가 급락한다',
+  '포수부담':'포수로 나가면 타격이 떨어진다',
+  '외야미숙':'외야 수비가 크게 떨어진다',
+  '좁은범위':'자기한테 오는 건 다 막지만 수비 범위가 좁다',
+  '더위약함':'폭염 경기에서 2이닝을 넘기면 구위가 급락한다',
+  '외야미숙':'외야에 서면 수비가 떨어진다',
+  '포수부담':'포수로 나가면 타격이 떨어진다',
   '영입':'외부에서 데려온 선수',
 };
 
@@ -2072,7 +2085,9 @@ function buildKakaoPre(ST){
 
     if(i<0){
       if(m.traits.includes('불만러')){
-        uniqPush(msgs,{who:p.id,text:pickOne(['또 벤치네 ㅋ 알겠다','내가 뭘 잘못했는지 모르겠는데'],rng),mood:'angry'});
+        uniqPush(msgs,{who:p.id,text:pickOne([
+          '또 벤치네 ㅋ 알겠다','내가 뭘 잘못했는지 모르겠는데','이럴 거면 왜 부르냐',
+          '분석은 내가 다 하는데','ㅇㅋ 구경이나 할게','언제까지 이럴 거냐'],rng),mood:'angry'});
         ST.morale[p.id]=Math.max(15,ST.morale[p.id]-12);
       } else if(un>=2){
         uniqPush(msgs,{who:p.id,text:jon?pickOne(['저는 계속 벤치인가요?','언제쯤 나갈 수 있을까요'],rng)
@@ -2273,59 +2288,99 @@ function buildKakaoPre(ST){
 /* ================= 카톡 발신 선택지 ================= */
 function kakaoOptions(ST, phase){
   const us=TBYID['wwzw'];
+  const me=ST.playerId||'ksh';
+  /* 선택한 선수가 99년생 리더(이건·송승민)면 반말, 아니면 존댓말 */
+  const ban = ['lg','swm'].includes(me) || (META[me]&&META[me].born<=1999);
+  const T=(jon,banT)=>ban?banT:jon;
+  const rng=Math.random;
+
+  /* 반응 생성: 사기·컨디션·성격에 따라 여러 갈래 */
+  const react=(mood)=>{
+    const out=[];
+    const cands=us.players.filter(p=>p.id!==me&&isAvailable(p.id));
+    if(!cands.length)return out;
+    const shuffled=cands.slice().sort(()=>rng()-0.5);
+    const n=1+((rng()*2)|0);
+    shuffled.slice(0,n).forEach(p=>{
+      const m=META[p.id]; if(!m)return;
+      const jon=speechTo(p.id,me)==='jon';
+      let pool;
+      if(mood==='fire'){
+        pool = ST.morale[p.id]>=65
+          ? (jon?['넵 오늘 잡죠','좋습니다 가시죠','오늘은 다르게 해보겠습니다']:['그래 오늘 잡자','ㅇㅋ 가보자','오늘은 다르다'])
+          : (jon?['...넵','노력해보겠습니다','부담되네요']:['말은 쉽지','알겠다','부담스럽네']);
+      } else if(mood==='calm'){
+        pool = m.traits.includes('불만러')
+          ? (jon?['그러다 또 지는 거 아닌가요','편하게만 하면 늘 이렇죠']:['그러다 또 지는 거 아니냐','편하게만 하니까 이렇지'])
+          : (jon?['ㅋㅋ 좋습니다','이게 맞죠','부담 없이 하겠습니다']:['ㅇㅇ 이게 맞지','좋다','부담 없이 하자']);
+      } else if(mood==='defense'){
+        pool = p.def<45
+          ? (jon?['...제 얘기죠','죄송합니다 신경쓰겠습니다','연습 더 하겠습니다']:['내 얘기냐','알겠다 신경쓸게'])
+          : (jon?['넵 집중하겠습니다','일찍 나가서 펑고 치죠','좋습니다']:['ㅇㅋ 집중하자','일찍 나가서 펑고 치자']);
+      } else if(mood==='praise'){
+        pool = jon?['갑자기 왜 그러세요 ㅋㅋ','감사합니다','기분 좋네요']:['갑자기 왜 그래 ㅋㅋ','고맙다','기분 좋네'];
+      } else if(mood==='thanks'){
+        pool = jon?['고생하셨습니다','수고하셨습니다','다음에 또 하죠']:['고생했다','수고했다','다음에 또 하자'];
+      } else if(mood==='scold'){
+        pool = m.traits.includes('불만러')
+          ? (jon?['저만 못한 것도 아닌데요','...']:['나만 못한 것도 아닌데','...'])
+          : (jon?['죄송합니다','다음엔 잘하겠습니다','맞는 말씀입니다']:['미안하다','다음엔 잘할게','맞는 말이다']);
+      } else if(mood==='review'){
+        pool = m.traits.includes('코치')
+          ? (jon?['좋습니다 제가 준비하겠습니다']:['좋다 내가 준비할게'])
+          : (jon?['넵','또 훈련인가요 ㅋㅋ','알겠습니다']:['ㅇㅋ','또 훈련이냐 ㅋㅋ']);
+      } else return;
+      out.push({who:p.id,text:pickOne(pool,rng),
+        mood: mood==='scold'||mood==='fire'&&ST.morale[p.id]<65 ? 'flat' : 'ok'});
+    });
+    return out;
+  };
+
   if(phase==='pre'){
     return [
-      {id:'fire',label:'오늘 무조건 이긴다',desc:'사기 높은 선수는 오르고, 낮은 선수는 부담을 느낀다',
-       run:()=>{ const t=[];
-         us.players.forEach(p=>{
+      {id:'fire',label:T('오늘 무조건 이겨봐요','오늘 무조건 이기자'),
+       desc:'사기 높은 선수는 오르고, 낮은 선수는 부담을 느낀다',
+       run:()=>{ us.players.forEach(p=>{
            if(ST.morale[p.id]>=60)ST.morale[p.id]=Math.min(100,ST.morale[p.id]+7);
-           else ST.morale[p.id]=Math.max(10,ST.morale[p.id]-5);
-         });
-         t.push({who:'swm',text:'그래 오늘 잡자',mood:'happy'});
-         const low=us.players.find(p=>ST.morale[p.id]<50&&isAvailable(p.id));
-         if(low)t.push({who:low.id,text:say(low.id,'말은 쉽지','...넵'),mood:'flat'});
-         return t; }},
-      {id:'calm',label:'다치지 말고 재밌게 하자',desc:'전원 사기·컨디션 소폭 상승. 불만러는 시큰둥',
-       run:()=>{ const t=[];
-         us.players.forEach(p=>{ ST.morale[p.id]=Math.min(100,ST.morale[p.id]+3);
+           else ST.morale[p.id]=Math.max(10,ST.morale[p.id]-5); });
+         return react('fire'); }},
+      {id:'calm',label:T('다치지 말고 재밌게 해요','다치지 말고 재밌게 하자'),
+       desc:'전원 사기·컨디션 소폭 상승',
+       run:()=>{ us.players.forEach(p=>{ ST.morale[p.id]=Math.min(100,ST.morale[p.id]+3);
            ST.cond[p.id]=Math.min(100,ST.cond[p.id]+3); });
-         t.push({who:'ujh',text:'ㅇㅇ 이게 맞지',mood:'happy'});
-         const c=us.players.find(p=>META[p.id]&&META[p.id].traits.includes('불만러'));
-         if(c)t.push({who:c.id,text:'그러니까 맨날 지는 거 아니냐',mood:'angry'});
-         return t; }},
-      {id:'defense',label:'오늘 수비 집중하자',desc:'팀 실책 감소. 수비 약한 선수는 사기 하락',
-       run:()=>{ const t=[];
-         us.players.forEach(p=>{ if(p.def<45)ST.morale[p.id]=Math.max(10,ST.morale[p.id]-8); });
+         return react('calm'); }},
+      {id:'defense',label:T('오늘 수비 집중해요','오늘 수비 집중하자'),
+       desc:'팀 실책 감소 · 수비 약한 선수 사기 하락',
+       run:()=>{ us.players.forEach(p=>{ if(p.def<45)ST.morale[p.id]=Math.max(10,ST.morale[p.id]-8); });
          ST.teamBuff={err:0.88,label:'수비 집중'};
-         t.push({who:'khj',text:'내가 일찍 나가서 펑고 쳐줄게',mood:'ok'});
-         if(ST.playerId&&(us.players.find(p=>p.id===ST.playerId)||{}).def<45)
-           t.push({who:ST.playerId,text:'...제 얘기죠',mood:'sad'});
-         return t; }},
-      {id:'praise',label:'다들 잘하고 있다',desc:'전원 사기 상승',
+         return react('defense'); }},
+      {id:'praise',label:T('다들 잘하고 있어요','다들 잘하고 있다'),
+       desc:'전원 사기 상승',
        run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.min(100,ST.morale[p.id]+5));
-         return [{who:'jms',text:'ㅋㅋ 갑자기 왜 그래',mood:'happy'}]; }},
+         return react('praise'); }},
       {id:'quiet',label:'아무 말 안 한다',desc:'변화 없음',run:()=>[]},
     ];
   }
+
   const opts=[
-    {id:'thanks',label:'다들 고생했다',desc:'전원 사기 소폭 상승',
+    {id:'thanks',label:T('다들 고생하셨어요','다들 고생했다'),desc:'전원 사기 소폭 상승',
      run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.min(100,ST.morale[p.id]+4));
-       return [{who:'kjh',text:'고생하셨습니다!',mood:'happy'}]; }},
-    {id:'review',label:'다음 주 수비 훈련 하자',desc:'훈련을 수비로 고정. 사기 소폭 하락',
+       return react('thanks'); }},
+    {id:'review',label:T('다음 주엔 수비 훈련해요','다음 주엔 수비 훈련하자'),
+     desc:'훈련을 수비로 고정 · 사기 소폭 하락',
      run:()=>{ ST.trainFocus='field';
        us.players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-3));
-       return [{who:'khj',text:'좋다 내가 준비할게',mood:'ok'},{who:'kig',text:'또 훈련이냐',mood:'flat'}]; }},
-    {id:'scold',label:'오늘 집중력이 없었다',desc:'전원 사기 하락. 불만러 이탈 위험',
-     run:()=>{ const t=[];
-       us.players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-7));
+       return react('review'); }},
+    {id:'scold',label:T('오늘 집중력이 없었어요','오늘 집중력이 없었다'),
+     desc:'전원 사기 하락 · 불만러 이탈 위험',
+     run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-7));
        const c=us.players.find(p=>META[p.id]&&META[p.id].traits.includes('불만러'));
-       if(c){ t.push({who:c.id,text:'나만 못한 것도 아닌데',mood:'angry'});
-         if(ST.unhappy&&ST.unhappy[c.id])ST.unhappy[c.id].level=Math.min(4,ST.unhappy[c.id].level+1); }
-       return t; }},
+       if(c&&ST.unhappy&&ST.unhappy[c.id])ST.unhappy[c.id].level=Math.min(4,ST.unhappy[c.id].level+1);
+       return react('scold'); }},
     {id:'quiet2',label:'조용히 넘어간다',desc:'변화 없음',run:()=>[]},
   ];
   if(ST.canParty&&!ST.partyDone){
-    opts.unshift({id:'party',label:'오늘 회식 간다',
+    opts.unshift({id:'party',label:T('오늘 회식 가시죠','오늘 회식 가자'),
       desc:'사기 크게 상승 · 컨디션 하락 · 갈등 해소 가능',run:null,action:'party'});
   }
   return opts;
@@ -2391,7 +2446,11 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
     uniqPush(msgs,{who:'swm',text:pickOne(['아쉽다 다음에 잡자','한 점만 더 냈으면','비긴 것도 나쁘진 않다'],rng),mood:'flat'});
   } else {
     const fp=ST.lastFreePass||0;
-    if(fp>=16)uniqPush(msgs,{who:'khg',text:`오늘 공짜진루 ${fp}개다. 이러면 못 이긴다`,mood:'angry'});
+    if(fp>=16&&isAvailable('khg'))uniqPush(msgs,{who:'khg',text:pickOne([
+      `오늘 공짜진루 ${fp}개다. 이러면 못 이긴다`,
+      '볼넷만 줄여도 이겼다',
+      `데이터상 ${fp}개면 진다. 예외가 없다`,
+      '내가 몇 번을 말하냐 공짜진루'],rng),mood:'angry'});
     else uniqPush(msgs,{who:'swm',text:pickOne([
       '오늘은 내가 못 막았다 미안하다','제구가 안 잡히더라','다음엔 잘 던질게','오늘 공이 안 들어갔다'],rng),mood:'sad'});
   }
@@ -2561,6 +2620,7 @@ function LiveGame(cfg){
   this.gearPenalty = cfg.gearPenalty||0;
   this.buff = cfg.buff||{};
   this.dpCount=0; this.assists=0; this.wp=0;
+  this.hot = !!cfg.hot;
   this.timeouts = 5;      // 작전 지시 가능 횟수
 
   const mk = (team, slots, rot, tac, cond, isUser) => {
@@ -2587,7 +2647,14 @@ LiveGame.prototype.userSide = function(){ return this.userIsHome ? this.home : t
 LiveGame.prototype.oppSide = function(){ return this.userIsHome ? this.away : this.home; };
 LiveGame.prototype.curPitcher = function(s){
   const pid = s.rot[Math.min(s.pIdx, s.rot.length-1)];
-  return s.team.pitchers.find(x=>x.id===pid) || s.team.pitchers[0];
+  const p = s.team.pitchers.find(x=>x.id===pid) || s.team.pitchers[0];
+  if(!p) return p;
+  const mm = (typeof META!=='undefined') ? META[p.id] : null;
+  if(s.isUser && mm && mm.traits.includes('더위약함') && this.hot){
+    const outs = (this.pbox[p.id]||{}).outs||0;
+    if(outs > 6) return {...p, stf: Math.round(p.stf*0.62), ctl: Math.round(p.ctl*0.78)};
+  }
+  return p;
 };
 LiveGame.prototype.batter = function(){
   const s=this.off(); const slot=s.slots[s.order%9];
@@ -2706,6 +2773,12 @@ LiveGame.prototype.step = function(){
   pl.bf++; bl.pa++;
   const cond = off.cond[bat.id];
   let batE = bat;
+  /* 포수부담 — 포수로 출전하면 타격이 떨어진다 */
+  const mySlot = off.slots[(off.order)%9];
+  const mm = (typeof META!=='undefined') ? META[bat.id] : null;
+  if(off.isUser && mm && mm.traits.includes('포수부담') && mySlot && mySlot.pos==='C'){
+    batE = {...batE, con: batE.con*0.86, pow: batE.pow*0.86};
+  }
   const bf = off.isUser && this.buff ? this.buff[bat.id] : null;
   if(bf){
     batE = {...bat};
@@ -2713,7 +2786,12 @@ LiveGame.prototype.step = function(){
     if(bf.spd) batE.spd = Math.min(80, bat.spd*bf.spd);
     if(bf.all){ batE.con=bat.con*bf.all; batE.pow=bat.pow*bf.all; batE.spd=bat.spd*bf.all; }
   }
-  const res = simPA(batE, pit, off.team, def.team, rng, off.tac, cond, this.park);
+  let pitE = pit;
+  if(pit.heatFade && pl.outs>=6){
+    const over=Math.min(12,pl.outs-6);
+    pitE={...pit, stf:Math.max(14,pit.stf-8-over*1.6), ctl:Math.max(10,pit.ctl-5-over*1.1)};
+  }
+  const res = simPA(batE, pitE, off.team, def.team, rng, off.tac, cond, this.park);
 
   const score=(rid,e)=>{ if(!rid)return; this.box[rid].r++; off.runs++; this.curIR++; pl.r++; if(e)pl.er++; };
   const adv=(n,e)=>{ for(let b=2;b>=0;b--){ if(this.bases[b]){ const nb=b+n;
@@ -3096,12 +3174,18 @@ function recommendRotation(){
 }
 function recalcTeamDefense(team, slots, gearPenalty){
   if(!team.isUser) return;
-  // 포지션 적합도가 낮으면 수비력 하락
   let sum=0;
   slots.forEach(sl=>{
     const p=team.players.find(x=>x.id===sl.id); if(!p)return;
+    const m=META[sl.id];
     const fit=posFit(sl.id, sl.pos);
-    const penalty = fit<=0 ? 22 : Math.max(0,(45-fit)*0.55);
+    let penalty = fit<=0 ? 22 : Math.max(0,(45-fit)*0.55);
+    if(m){
+      /* 좁은 범위 — 내야에서 특히 손해 */
+      if(m.traits.includes('좁은범위')&&['2B','3B','SS'].includes(sl.pos)) penalty+=9;
+      /* 외야 미숙 */
+      if(m.traits.includes('외야미숙')&&['LF','CF','RF'].includes(sl.pos)) penalty+=8;
+    }
     sum += Math.max(15, p.def - penalty);
   });
   team._slotDef = sum/Math.max(1,slots.length);
@@ -3112,6 +3196,12 @@ function aiLineup(team){
   const s=team.players.slice().sort((a,b)=>(b.con+b.pow+b.eye+b.spd*0.4)-(a.con+a.pow+a.eye+a.spd*0.4));
   const u=new Set(),o=[];
   for(const p of s){if(o.length>=9)break;const pos=p.pos.find(x=>!u.has(x))||ALLPOS.find(x=>!u.has(x));if(!pos)break;u.add(pos);o.push({id:p.id,pos});}
+  // AI도 수비 배치에 따른 손실을 반영 (우리만 최적화 이득 보지 않게)
+  let sum=0;
+  o.forEach(sl=>{ const p=team.players.find(x=>x.id===sl.id); if(!p)return;
+    const fit=(p.pos&&p.pos.indexOf(sl.pos)>=0)?50:32;
+    sum+=Math.max(15,p.def-Math.max(0,(45-fit)*0.55)); });
+  team._slotDef=sum/Math.max(1,o.length);
   return o;
 }
 function aiRotation(t){return t.pitchers.slice().sort((a,b)=>(b.stf+b.ctl+b.sta)-(a.stf+a.ctl+a.sta)).map(p=>p.id);}
@@ -3280,7 +3370,7 @@ function renderHome(){
     <div><b>${st.t}</b><span>무</span></div><div class="rsep"></div>
     <div><b>${st.rf}</b><span>득점</span></div><div><b>${st.ra}</b><span>실점</span></div></div>
     <div class="progress"><div class="bar" style="width:${played/22*100}%"></div></div>
-    <div class="hero-foot">${played} / 22 경기 · 리그 ${leagueRank('wwzw')}위 · 운영비 ${ST.budget.toFixed(0)}만원</div>
+    <div class="hero-foot">${played} / 22 경기 · 리그 ${leagueRank('wwzw')}위 · 운영비 ${ST.budget.toFixed(0)}만원<br>${holidayFor(ST.round,ST.year||2026).label} 예정</div>
     <div class="hero-me">플레이 중: <b>${nameOf(ST.playerId||MYID)}</b></div>`;
   c.appendChild(hero);
 
@@ -3404,6 +3494,7 @@ function renderHome(){
     card.innerHTML=`<div class="card-h">${next.round}차전 준비</div>
       <div class="opp-name">${opp.name}</div>
       <div class="opp-ops">${next.homeGame?'홈':'원정'} · 팀 OPS ${opp.ops.toFixed(3)}</div>
+      <div class="gdate">${(holidayFor(ST.round, ST.year||2026)||{}).label||''}</div>
       <p class="muted">주간을 시작하면 회식·우취·개인 사정 같은 변수가 확정된다.</p>`;
     const b=el('button','btn primary','이번 주 시작');
     b.onclick=()=>{const r=runWeek();saveGame(true);if(r)toast('우천 취소');go('home');};
@@ -3423,8 +3514,11 @@ function renderHome(){
 
   const rain=ST.events&&ST.events.some(e=>e.type==='rain'||e.type==='postpone');
   const park=PARKS.find(p=>p.id===ST.park)||PARKS[0];
+  const wxN=(WEATHERS.find(w=>w.id===ST.weather)||WEATHERS[0]).name;
+  const dateLbl=(ST.calendar&&ST.calendar.label)||'';
   const card=el('div','card');
   card.innerHTML=`<div class="card-h">${next.round}차전 · ${next.homeGame?'홈':'원정'}</div>
+    <div class="gdate">${dateLbl}${ST.calendar&&ST.calendar.holiday?` · ${ST.calendar.holiday}`:''} · ${wxN}</div>
     <div class="opp-name">${opp.name}</div>
     <div class="opp-ops">팀 OPS ${opp.ops.toFixed(3)} · 타율 ${fmt3(opp.avg)}</div>
     <div class="park"><b>${park.name}</b><span>${park.desc}</span></div>
@@ -3584,7 +3678,7 @@ function renderLineup(){
   const park=PARKS.find(p=>p.id===ST.park)||PARKS[0];
   const head=el('div','card');
   head.appendChild(el('div','card-h','타순 · 수비'));
-  head.appendChild(el('div','park-mini',`${park.name} — ${park.note}`));
+  head.appendChild(el('div','park-mini',`${(ST.calendar&&ST.calendar.label)||''} · ${park.name} — ${park.note}`));
   const dhRow=el('div','dh-row');
   dhRow.innerHTML=`<span>지명타자 사용</span>`;
   const dhBtn=el('button','toggle'+(ST.useDH?' on':''), ST.useDH?'사용':'미사용');
@@ -3961,6 +4055,8 @@ function renderGame(){
   const head=el('div','card');
   head.innerHTML=`<div class="card-h">${next.round}차전</div>
     <div class="vs"><span>${next.homeGame?opp.name:'우완좌완'}</span><b>vs</b><span>${next.homeGame?'우완좌완':opp.name}</span></div>
+    <div class="gdate">${(ST.calendar&&ST.calendar.label)||''} · ${(PARKS.find(p=>p.id===ST.park)||PARKS[0]).name} · ${(WEATHERS.find(w=>w.id===ST.weather)||WEATHERS[0]).name}</div>
+    <div class="daterow"><b>${(ST.calendar&&ST.calendar.label)||''}</b><span>${((WEATHERS.find(w=>w.id===ST.weather)||WEATHERS[0]).name)}</span></div>
     <p class="muted">${next.homeGame?'홈':'원정'} · 7이닝 · 콜드게임 있음</p>
     <div class="scout">${ST.scoutBlocked?'상대 정보 없음':scoutLine(opp)}</div>`;
   c.appendChild(head);
@@ -4000,21 +4096,31 @@ function makeLive(){
   const next=ST.schedule[ST.round];
   const opp=TBYID[next.opp];
   const raw=TBYID['wwzw'];
+  const hotDay = ST.weather==='hot'||ST.weather==='humid';
   const us={...raw, pitchers: raw.pitchers.map(p=>{
     const r=ST.rest[p.id]!==undefined?ST.rest[p.id]:3;
-    const f=r>=2?1:(r===1?0.86:0.70);
-    return f===1?p:{...p,stf:Math.round(p.stf*f),ctl:Math.round(p.ctl*f),sta:Math.round(p.sta*f)};
+    let f=r>=2?1:(r===1?0.86:0.70);
+    let np = f===1?{...p}:{...p,stf:Math.round(p.stf*f),ctl:Math.round(p.ctl*f),sta:Math.round(p.sta*f)};
+    const mm=META[p.id];
+    if(hotDay&&mm&&mm.traits.includes('더위약함')){
+      np.sta = Math.min(np.sta, 26);          // 약 2이닝에서 한계
+      np.heatFade = true;
+    }
+    return np;
   })};
+  const rng=makeRng((ST.seed+ST.round*7919+(Date.now()%100000))>>>0);
+  const uLine=ST.lineup.map(s=>({id:s.id,pos:s.pos}));
   const cond={};
   raw.players.forEach(p=>{
     let cv=(ST.cond[p.id]||70)+((ST.morale[p.id]||70)-70)*0.18;
     if(ST.mittMissing&&p.id==='yjh')cv-=6;
+    const mm=META[p.id];
+    const sl=uLine.find(x=>x.id===p.id);
+    if(mm&&sl&&mm.traits.includes('포수부담')&&sl.pos==='C') cv-=14;
     const bf=ST.buff&&ST.buff[p.id];
-    if(bf){ if(bf.all)cv*=bf.all; if(bf.pow)cv+= (bf.pow-1)*40; if(bf.spd)cv+=(bf.spd-1)*30; }
+    if(bf){ if(bf.all)cv*=bf.all; if(bf.pow)cv+=(bf.pow-1)*40; if(bf.spd)cv+=(bf.spd-1)*30; }
     cond[p.id]=Math.max(20,Math.min(100,cv));
   });
-  const rng=makeRng((ST.seed+ST.round*7919+(Date.now()%100000))>>>0);
-  const uLine=ST.lineup.map(s=>({id:s.id,pos:s.pos}));
   const neutral={bat:'normal',run:'normal',hook:'normal'};
   const park=PARKS.find(p=>p.id===ST.park)||PARKS[0];
   const gearPenalty = ST.gearLevel===2?30:(ST.gearLevel===1?10:0);
@@ -4043,7 +4149,7 @@ function makeLive(){
     awayTactics: next.homeGame?neutral:{...ST.tactics},
     homeCond: next.homeGame?cond:{},
     awayCond: next.homeGame?{}:cond,
-    park, gearPenalty, buff: ST.buff||{},
+    park, gearPenalty, buff: ST.buff||{}, hot: ST.weather==='hot',
   });
 }
 
