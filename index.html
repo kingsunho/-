@@ -3411,7 +3411,7 @@ const MEET_REPLY = {
     ['상위타순이면 나야 좋지','상위타순이면 저야 좋죠'],
     ['클린업이면 책임지고 친다','클린업이면 책임지고 치겠습니다'],
     ['알겠다. 타점 뽑아올게','알겠습니다. 타점 뽑아오겠습니다'],
-    ['3번이면 초구부터 노린다','3번이면 초구부터 노리겠습니다'],
+    ['5번 안쪽이면 초구부터 노린다','5번 안쪽이면 초구부터 노리겠습니다'],
   ],
   soothe_ok:[
     ['뭐 알겠다. 좀만 더 기다려본다','뭐 알겠습니다. 좀만 더 기다려보겠습니다'],
@@ -6222,8 +6222,8 @@ function renderMeet(){
     const opts=[
       {k:'start', label:'약속한다 — 다음 5경기 선발 보장',
        desc:'지키면 사기 +15 · 불만 초기화. 어기면 사기 -20 · 불만 +2'},
-      {k:'order', label:'약속한다 — 다음 5경기 3번 타순 이상',
-       desc:'상위타순 보장. 어기면 더 크게 삐진다'},
+      {k:'order', label:'약속한다 — 다음 5경기 5번 타순 이상',
+       desc:'5번 안쪽 보장. 어기면 더 크게 삐진다'},
       {k:'calm',  label:'달랜다',
        desc:'60% 확률로 사기 +8 · 불만 1단계 감소. 실패하면 아무 변화 없음'},
       {k:'ignore',label:'무시한다',
@@ -6254,9 +6254,9 @@ function doMeet(kind){
 
   if(kind==='start'||kind==='order'){
     log.push({who:ST.playerId,
-      text:kind==='order'?'다음 5경기 3번 타순 이상으로 쓴다':'다음 5경기 선발로 쓴다',mood:'ok'});
+      text:kind==='order'?'다음 5경기 5번 타순 안으로 쓴다':'다음 5경기 선발로 쓴다',mood:'ok'});
     ST.promise=ST.promise||{};
-    ST.promise[pid]={type:kind,games:5,orderMax:3};
+    ST.promise[pid]={type:kind,games:5,orderMax:5};
     ST.morale[pid]=Math.min(100,(ST.morale[pid]||70)+10);
     u.level=Math.max(0,u.level-1); u.streak=0;
     log.push({who:pid,text:meetReplyLine(ST,pid,kind),mood:'happy'});
