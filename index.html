@@ -160,6 +160,9 @@ button{font-family:inherit;cursor:pointer}
 .fl.bb{color:#9fb4cc}
 .fl.sb{color:#8fc9e8}
 .fl.out{color:#79838f}
+/* 내가 고른 선수 관련 플레이 강조 */
+.fl.me{border-left:2px solid var(--gold);padding-left:7px;background:rgba(201,162,39,.07)}
+.fl.meline{color:var(--gold);font-weight:800;font-size:12px;letter-spacing:-.2px}
 
 .linescore{margin-top:11px;background:var(--panel);border:1px solid var(--line);
   border-radius:13px;padding:11px;overflow-x:auto}
@@ -531,6 +534,11 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .park-row .pk-d{font-size:11.5px;color:#a9b4c2;margin-top:3px;line-height:1.5}
 .park-row .pk-e{font-size:10.5px;color:var(--gold);margin-top:4px}
 .decb.alt{border-color:#3c4450;color:#a9b4c2}
+.decb.wide.on{background:rgba(201,162,39,.15)}
+.dec-b .meb{color:var(--gold)}
+.dec-b .metag{font-size:9.5px;background:rgba(201,162,39,.18);color:var(--gold);
+  border-radius:20px;padding:2px 7px;font-weight:800;vertical-align:middle}
+.dec-b .ttlx{font-size:10px;color:var(--blue);font-style:normal}
 
 /* ===== v4 ===== */
 .hero-me{font-size:11px;color:var(--gold);margin-top:5px;position:relative}
@@ -2830,10 +2838,16 @@ function LiveGame(cfg){
   this.buff = cfg.buff||{};
   this.dpCount=0; this.assists=0; this.wp=0;
   this.hot = !!cfg.hot;
-  this.timeouts = 5;      // 작전 지시 가능 횟수
+  this.timeouts = 5;      // 공격 작전 지시 가능 횟수
+  this.defTimeouts = 3;   // 수비 판단(고의4구·시프트) 가능 횟수
+  this.myId = cfg.myId||null;      // 플레이어가 고른 선수 — 피드 강조용
+  this.tacTTL = {bat:0, run:0};    // 공격 지시 잔여 타석. 0이 되면 자동 해제된다
+  this.shiftTTL = 0;               // 수비 시프트 잔여 타석
+  this._buntRun = false;
 
   const mk = (team, slots, rot, tac, cond, isUser) => {
-    const s = {team, slots: slots.map(x=>({...x})), rot: rot.slice(), tac:{...tac}, cond:cond||{},
+    const s = {team, slots: slots.map(x=>({...x})), rot: rot.slice(), tac:{...tac}, tacBase:{...tac},
+      cond:cond||{},
       isUser, order:0, pIdx:0, runs:0, hits:0, errs:0, bbs:0, sbAllowed:0, line:[]};
     const c = s.slots.find(x=>x.pos==='C');
     const cp = c ? team.players.find(p=>p.id===c.id) : null;
@@ -2898,6 +2912,22 @@ LiveGame.prototype.curPitcherNext = function(s){
 LiveGame.prototype.detectDecision = function(){
   if(this.pending) return this.pending;
   const off=this.off();
+
+  /* 우리가 수비 중일 때의 판단 지점 — 투수 교체·고의4구·시프트 */
+  if(!off.isUser && this.def().isUser){
+    if(this.defTimeouts<=0) return null;
+    const usD=this.userSide(), thD=this.oppSide();
+    const dd=usD.runs-thD.runs;
+    const rispD=this.bases[1]||this.bases[2];
+    const pitD=this.curPitcher(this.def()), plD=this.pbox[pitD.id];
+    if(rispD && this.outs<2 && this.rng()<0.30) return {kind:'defense', label:'실점 위기'};
+    if((plD.bb+plD.hbp)>=3 && this.rng()<0.35) return {kind:'defense', label:'투수가 흔들린다'};
+    if(plD.r>=4 && this.rng()<0.30) return {kind:'defense', label:'투수 난조'};
+    if(this.inning>=this.INN-2 && Math.abs(dd)<=2 && this.outs<2 && this.rng()<0.22)
+      return {kind:'defense', label:'후반 승부처'};
+    return null;
+  }
+
   if(!off.isUser) return null;
   if(this.timeouts<=0) return null;
 
@@ -2932,11 +2962,49 @@ LiveGame.prototype.detectDecision = function(){
   return null;
 };
 
-/* 한 타석 진행 */
+/* 지시 유효기간 관리
+   ---------------------------------------------------------
+   예전에는 '적극 스윙' 을 한 번 누르면 경기가 끝날 때까지 유지돼서
+   초구 스윙만 무한 반복됐다. 이제 타석 수를 세서 자동으로 풀린다.
+   해제하면 라인업 화면에서 정한 기본 전술(tacBase)로 돌아간다.        */
+LiveGame.prototype.tickTactics = function(offWasUser){
+  const s=this.userSide();
+  // 시프트는 우리가 수비할 때만 닳는다
+  if(this.shiftTTL>0 && !offWasUser){
+    this.shiftTTL--;
+    if(this.shiftTTL===0) this.log.push({t:'sub',text:'수비 시프트 해제 — 지시 종료'});
+  }
+  if(!offWasUser) return;
+  if(this.tacTTL.bat>0){
+    this.tacTTL.bat--;
+    if(this.tacTTL.bat===0){
+      const back=s.tacBase.bat||'normal';
+      if(s.tac.bat!==back){ s.tac.bat=back; this._buntRun=false;
+        this.log.push({t:'sub',text:'타격 지시 종료 — 평소대로'}); }
+    }
+  }
+  if(this.tacTTL.run>0){
+    this.tacTTL.run--;
+    if(this.tacTTL.run===0){
+      const back=s.tacBase.run||'normal';
+      if(s.tac.run!==back){ s.tac.run=back;
+        this.log.push({t:'sub',text:'주루 지시 종료 — 평소대로'}); }
+    }
+  }
+};
+
+/* 한 타석 진행 — 실제 계산은 stepPA, step 은 지시 만료를 처리하는 껍데기 */
 LiveGame.prototype.step = function(){
   if(this.over) return {done:true};
   if(this.pending) return {pending:this.pending};
+  const offWasUser=this.off().isUser;
+  this._paDone=false;
+  const r=this.stepPA();
+  if(this._paDone) this.tickTactics(offWasUser);
+  return r;
+};
 
+LiveGame.prototype.stepPA = function(){
   const off=this.off(), def=this.def();
   const pit=this.curPitcher(def), pl=this.pbox[pit.id];
   const slot=off.slots[off.order%9];
@@ -2980,6 +3048,9 @@ LiveGame.prototype.step = function(){
   }
 
   pl.bf++; bl.pa++;
+  this._paDone=true;                       // 이 타석이 소비됐다 → 지시 카운트 차감
+  // 플레이어가 고른 선수의 타석은 피드에서 따로 알려준다
+  if(this.myId && bat.id===this.myId) this.log.push({t:'me',text:`▶ ${bat.name} 타석`});
   const cond = off.cond[bat.id];
   let batE = bat;
   /* 포수부담 — 포수로 출전하면 타격이 떨어진다 */
@@ -3000,7 +3071,16 @@ LiveGame.prototype.step = function(){
     const over=Math.min(12,pl.outs-6);
     pitE={...pit, stf:Math.max(14,pit.stf-8-over*1.6), ctl:Math.max(10,pit.ctl-5-over*1.1)};
   }
-  const res = simPA(batE, pitE, off.team, def.team, rng, off.tac, cond, this.park);
+  /* 수비 시프트 — 정면 타구는 잘 잡히지만 반대쪽으로 빠지면 장타가 된다.
+     simPA 를 고치지 않고 구장 배수(park)만 갈아끼워서 표현한다.        */
+  let parkE=this.park;
+  if(def.isUser && this.shiftTTL>0){
+    parkE={...this.park, babip:this.park.babip*0.92,
+           d2:this.park.d2*1.18, err:this.park.err*1.06};
+  }
+  const res = simPA(batE, pitE, off.team, def.team, rng, off.tac, cond, parkE);
+  // 번트 앤 런은 주자가 한 베이스 더 간다
+  const advOdds = (off.isUser && this._buntRun) ? 0.62 : 0.35;
 
   const score=(rid,e)=>{ if(!rid)return; this.box[rid].r++; off.runs++; this.curIR++; pl.r++; if(e)pl.er++; };
   const adv=(n,e)=>{ for(let b=2;b>=0;b--){ if(this.bases[b]){ const nb=b+n;
@@ -3022,7 +3102,9 @@ LiveGame.prototype.step = function(){
   else if(res.type==='OUT'){
     bl.ab++;pl.outs++;this.outs++;
     const dpB = def.isUser ? (typeof dpBonus==='function'?dpBonus(def.slots).bonus:0) : 0;
-    if(res.gb&&this.bases[0]&&this.outs<3&&rng()<(0.030+dpB)){this.bases[0]=null;pl.outs++;this.outs++;
+    // 번트 앤 런은 굴러가면 주자가 걸릴 위험이 조금 더 크다
+    const dpRisk = 0.030 + dpB + ((off.isUser&&this._buntRun)?0.050:0);
+    if(res.gb&&this.bases[0]&&this.outs<3&&rng()<dpRisk){this.bases[0]=null;pl.outs++;this.outs++;
       this.dpCount=(this.dpCount||0)+1;
       events.push({text:`${bat.name} 병살타`,cls:'out'});}
     else if(this.bases[2]&&this.outs<3&&!res.gb&&rng()<0.30){
@@ -3055,9 +3137,9 @@ LiveGame.prototype.step = function(){
         pl.outs++; this.outs++;
         this.assists=(this.assists||0)+1; this.assistBy=of.id;
         events.push({text:`${bat.name} 안타 — ${of.name} 홈 보살! 3루 주자 아웃`,cls:'sb'});
-        if(this.outs<3){ adv(rng()<0.35?2:1,true); this.bases[0]=bat.id; }
+        if(this.outs<3){ adv(rng()<advOdds?2:1,true); this.bases[0]=bat.id; }
       } else {
-        adv(rng()<0.35?2:1,true);this.bases[0]=bat.id;
+        adv(rng()<advOdds?2:1,true);this.bases[0]=bat.id;
         events.push({text:`${bat.name} 안타`,cls:'hit'});
       }
     }
@@ -3071,7 +3153,15 @@ LiveGame.prototype.step = function(){
   }
 
   off.order++;
-  events.forEach(e=>this.log.push({t:'play',...e}));
+  // 내가 고른 선수가 주인공인 플레이는 표시를 달아 피드에서 강조한다
+  const meP = this.myId ? (off.team.players.find(p=>p.id===this.myId)||def.team.players.find(p=>p.id===this.myId)) : null;
+  const meName = meP ? meP.name : null;
+  events.forEach(e=>{
+    const mine = !!(meName && (e.text.indexOf(meName)===0 || e.text.indexOf('— '+meName)>=0));
+    this.log.push({t:'play', me:mine, ...e});
+    if(mine && (e.cls==='hr'||e.text.indexOf('3루타')>=0))
+      this.log.push({t:'me',text:pickOne(['벤치가 뒤집어졌다','더그아웃에서 다 뛰어나왔다','오늘 주인공이다'])});
+  });
 
   // 끝내기
   if(this.half===1 && this.inning>=this.INN && this.home.runs>this.away.runs){
@@ -3152,26 +3242,89 @@ LiveGame.prototype.applyDecision = function(choice){
     }
     return;
   }
+  /* ---- 수비 판단 ---- */
+  if(choice==='pchange'){                      // 투수 교체는 작전 횟수를 안 먹는다
+    if(!this.userPitcherChange()) this.log.push({t:'sub',text:'바꿀 투수가 없다'});
+    return;
+  }
+  if(choice==='ibb'){ this.defTimeouts--; this.intentionalWalk(); return; }
+  if(choice==='shift'){ this.defTimeouts--; this.setShift(true); return; }
+  if(choice==='unshift'){ this.setShift(false); return; }
+  if(choice==='defnone'){ this.defTimeouts--; this.log.push({t:'sub',text:'그대로 간다'}); return; }
+
+  /* ---- 공격 작전 ---- 전부 유효 타석 수가 붙는다 (무한 지속 버그 수정) */
   this.timeouts--;
   if(choice==='bunt'){
-    s.tac.bat='contact'; this._bunt=true;
-    this.log.push({t:'sub',text:'작전: 번트 · 진루타 지시'});
+    s.tac.bat='contact'; this._buntRun=false; this.tacTTL.bat=1;
+    this.log.push({t:'sub',text:'작전: 번트 · 진루타 지시 (1타석)'});
+  } else if(choice==='buntrun'){
+    s.tac.bat='contact'; s.tac.run='aggressive'; this._buntRun=true;
+    this.tacTTL.bat=1; this.tacTTL.run=1;
+    this.log.push({t:'sub',text:'작전: 번트 앤 런 (1타석)'});
   } else if(choice==='steal'){
-    s.tac.run='aggressive';
-    this.log.push({t:'sub',text:'작전: 적극 주루 지시'});
+    s.tac.run='aggressive'; this.tacTTL.run=2;
+    this.log.push({t:'sub',text:'작전: 적극 주루 지시 (2타석)'});
   } else if(choice==='patient'){
-    s.tac.bat='patient';
-    this.log.push({t:'sub',text:'작전: 공 많이 보기'});
+    s.tac.bat='patient'; this.tacTTL.bat=1;
+    this.log.push({t:'sub',text:'작전: 공 많이 보기 (1타석)'});
   } else if(choice==='swing'){
-    s.tac.bat='aggressive';
-    this.log.push({t:'sub',text:'작전: 초구부터 적극 타격'});
+    s.tac.bat='aggressive'; this.tacTTL.bat=1;
+    this.log.push({t:'sub',text:'작전: 초구부터 적극 타격 (1타석)'});
   } else if(choice==='hold'){
-    s.tac.run='hold';
-    this.log.push({t:'sub',text:'작전: 주루 자제'});
+    s.tac.run='hold'; this.tacTTL.run=2;
+    this.log.push({t:'sub',text:'작전: 주루 자제 (2타석)'});
   } else if(choice==='normal'){
-    s.tac.bat='normal'; s.tac.run='normal';
+    s.tac.bat=s.tacBase.bat||'normal'; s.tac.run=s.tacBase.run||'normal';
+    this.tacTTL.bat=0; this.tacTTL.run=0; this._buntRun=false;
     this.log.push({t:'sub',text:'작전: 지시 해제'});
   }
+};
+
+/* 유저가 직접 투수를 바꾼다 */
+LiveGame.prototype.userPitcherChange = function(){
+  const s=this.userSide();
+  if(s.pIdx>=s.rot.length-1) return false;
+  const old=this.curPitcher(s).name;
+  s.pIdx++;
+  const now=this.curPitcher(s).name;
+  this.log.push({t:'sub',text: this.off().isUser
+    ? `투수 교체 예고 · ${old} → ${now} (다음 수비부터)`
+    : `투수 교체 · ${old} → ${now}`});
+  return true;
+};
+
+/* 고의4구 — 한 타석을 그냥 내준다.
+   볼넷이므로 공짜진루 지수(볼넷+도루허용+폭투)에 그대로 잡힌다.
+   13경기 무예외로 14 이하면 승, 16 이상이면 패였다. 공짜로 주는 게 아니다. */
+LiveGame.prototype.intentionalWalk = function(){
+  const off=this.off(), def=this.def();
+  const pit=this.curPitcher(def), pl=this.pbox[pit.id];
+  const slot=off.slots[off.order%9];
+  const bat=off.team.players.find(p=>p.id===slot.id);
+  if(!bat){ this.pending=null; return; }
+  const bl=this.box[bat.id]=this.box[bat.id]||newBoxL();
+  pl.bf++; bl.pa++; bl.bb++; pl.bb++; off.bbs++;
+  if(this.bases[0]&&this.bases[1]&&this.bases[2]){       // 만루면 밀어내기 실점
+    this.box[this.bases[2]].r++; off.runs++; this.curIR=(this.curIR||0)+1;
+    pl.r++; pl.er++; bl.rbi++;
+    this.bases[2]=this.bases[1]; this.bases[1]=this.bases[0];
+    this.log.push({t:'play',cls:'score',text:`고의4구 밀어내기 · 1점`});
+  }
+  else if(this.bases[0]&&this.bases[1]){this.bases[2]=this.bases[1];this.bases[1]=this.bases[0];}
+  else if(this.bases[0]){this.bases[1]=this.bases[0];}
+  this.bases[0]=bat.id;
+  off.order++;
+  this.log.push({t:'sub',text:`고의4구 · ${bat.name}을(를) 거른다`});
+  this.pending=null;
+  this.tickTactics(false);
+};
+
+/* 수비 시프트 — 3타석 동안 유지되고 자동으로 풀린다 */
+LiveGame.prototype.setShift = function(on){
+  this.shiftTTL = on?3:0;
+  this.log.push({t:'sub',text: on
+    ? '수비 시프트 — 당겨치는 쪽으로 몰았다 (3타석)'
+    : '수비 시프트 해제'});
 };
 
 /* 수비 위치 변경 */
@@ -4524,6 +4677,7 @@ function makeLive(){
     homeCond: next.homeGame?cond:{},
     awayCond: next.homeGame?{}:cond,
     park, gearPenalty, buff: ST.buff||{}, hot: ST.weather==='hot',
+    myId: ST.playerId||MYID,          // 내 선수 연출용
   });
 }
 
@@ -4564,8 +4718,8 @@ function flushLog(){
   const fresh=LIVE.log.slice(LIVE._logSeen||0);
   LIVE._logSeen=LIVE.log.length;
   fresh.forEach(l=>{
-    const cls=l.t==='inning'?'inn':(l.t==='sub'?'sub':(l.cls||''));
-    const d=el('div','fl '+cls); d.textContent=l.text; feed.appendChild(d);
+    const cls=l.t==='inning'?'inn':(l.t==='sub'?'sub':(l.t==='me'?'meline':(l.cls||'')));
+    const d=el('div','fl '+cls+(l.me?' me':'')); d.textContent=l.text; feed.appendChild(d);
   });
   while(feed.children.length>50)feed.removeChild(feed.firstChild);
   feed.scrollTop=feed.scrollHeight;
@@ -4596,11 +4750,63 @@ function runLive(){
   },speed);
 }
 
+/* 판단창을 닫고 경기를 다시 굴린다 */
+function decDone(box){ box.classList.remove('on'); box.innerHTML=''; flushLog(); updateLiveUI(); runLive(); }
+
+/* '투수 교체' 상시 버튼 — 공격 중에도 미리 예고해 둘 수 있다 */
+function pchangeBtn(box){
+  const s=LIVE.userSide();
+  if(s.pIdx>=s.rot.length-1) return null;
+  const cur=LIVE.curPitcher(s);
+  const nxt=LIVE.curPitcherNext(s);
+  const l=LIVE.pbox[cur.id]||{};
+  const b=el('button','decb wide alt');
+  b.innerHTML=`<b>투수 교체 → ${nxt}</b><span>${cur.name} ${ipStr(l)}이닝 ${l.r||0}실점 ${l.bb||0}볼넷 · 작전 횟수 안 씀</span>`;
+  b.onclick=()=>{ LIVE.applyDecision('pchange'); decDone(box); };
+  return b;
+}
+
 function showDecision(d){
   const box=$('#decision'); if(!box)return;
   box.innerHTML=''; box.classList.add('on');
   const us=LIVE.userIsHome?LIVE.home:LIVE.away;
   const th=LIVE.userIsHome?LIVE.away:LIVE.home;
+
+  /* ---------- 수비 판단 ---------- */
+  if(d.kind==='defense'){
+    const off=LIVE.off();
+    const slot=off.slots[off.order%9];
+    const bat=off.team.players.find(x=>x.id===slot.id);
+    const bs=LIVE.bases.map((b,i)=>b?['1루','2루','3루'][i]:null).filter(Boolean).join('·')||'주자 없음';
+    const diff=us.runs-th.runs;
+    box.innerHTML=`<div class="dec-t">${d.label} · 남은 수비 판단 ${LIVE.defTimeouts}회</div>
+      <div class="dec-b">${LIVE.inning}회 ${LIVE.outs}아웃 · ${bs} · ${diff>0?'+':''}${diff}점<br>
+        상대 타석 <b>${bat?bat.name:'—'}</b> · 마운드 <b>${LIVE.curPitcher(LIVE.def()).name}</b></div>`;
+    const g=el('div','dec-g');
+    const pb=pchangeBtn(box); if(pb)g.appendChild(pb);
+
+    // 고의4구 — 1루가 비어 있어야 의미가 있다
+    if(!LIVE.bases[0]&&(LIVE.bases[1]||LIVE.bases[2])){
+      const ib=el('button','decb wide');
+      ib.innerHTML=`<b>고의4구</b><span>${bat?bat.name:'이 타자'}을(를) 거르고 다음 타자와 붙는다 · 볼넷이라 공짜진루 지수 +1</span>`;
+      ib.onclick=()=>{ LIVE.applyDecision('ibb'); decDone(box); };
+      g.appendChild(ib);
+    }
+    // 수비 시프트
+    const sh=el('button','decb wide'+(LIVE.shiftTTL>0?' on':''));
+    sh.innerHTML=LIVE.shiftTTL>0
+      ? `<b>시프트 해제</b><span>남은 ${LIVE.shiftTTL}타석 · 지금 푼다</span>`
+      : `<b>수비 시프트</b><span>3타석 · 인플레이 타구를 더 잡지만 빠지면 2루타가 된다</span>`;
+    sh.onclick=()=>{ LIVE.applyDecision(LIVE.shiftTTL>0?'unshift':'shift'); decDone(box); };
+    g.appendChild(sh);
+
+    const nb=el('button','decb wide');
+    nb.innerHTML=`<b>그대로 간다</b><span>지시 없음</span>`;
+    nb.onclick=()=>{ LIVE.applyDecision('defnone'); decDone(box); };
+    g.appendChild(nb);
+    box.appendChild(g);
+    return;
+  }
 
   if(d.kind==='pitcherChange'){
     box.innerHTML=`<div class="dec-t">투수 교체 판단</div>
@@ -4617,17 +4823,26 @@ function showDecision(d){
   const bat=LIVE.batter();
   const diff=us.runs-th.runs;
   const bs=LIVE.bases.map((b,i)=>b?['1루','2루','3루'][i]:null).filter(Boolean).join('·')||'주자 없음';
+  const isMine=bat&&bat.id===(ST.playerId||MYID);
+  const ttl=[];
+  if(LIVE.tacTTL.bat>0)ttl.push(`타격 지시 ${LIVE.tacTTL.bat}타석 남음`);
+  if(LIVE.tacTTL.run>0)ttl.push(`주루 지시 ${LIVE.tacTTL.run}타석 남음`);
   box.innerHTML=`<div class="dec-t">${d.label} · 남은 작전 ${LIVE.timeouts}회</div>
-    <div class="dec-b">${LIVE.inning}회 ${LIVE.outs}아웃 · ${bs} · ${diff>0?'+':''}${diff}점<br>타석 <b>${bat.name}</b></div>`;
+    <div class="dec-b">${LIVE.inning}회 ${LIVE.outs}아웃 · ${bs} · ${diff>0?'+':''}${diff}점<br>
+      타석 <b class="${isMine?'meb':''}">${bat.name}</b>${isMine?' <span class="metag">내 선수</span>':''}
+      ${ttl.length?`<br><i class="ttlx">${ttl.join(' · ')}</i>`:''}</div>`;
   const g=el('div','dec-g');
-  [['patient','공 보고 가기','볼넷↑'],['swing','적극 타격','장타↑'],['bunt','진루 우선','삼진↓'],
-   ['steal','뛰어라','도루↑'],['hold','주루 자제','도루 안 함'],['normal','지시 없음','']]
+  [['patient','공 보고 가기','볼넷↑ · 1타석'],['swing','적극 타격','장타↑ · 1타석'],
+   ['bunt','진루 우선','삼진↓ · 1타석'],['buntrun','번트 앤 런','주자 한 베이스 더 · 병살 위험'],
+   ['steal','뛰어라','도루↑ · 2타석'],['hold','주루 자제','도루 안 함 · 2타석'],
+   ['normal','지시 해제','기본 전술로']]
   .forEach(([v,n,s])=>{
     const b=el('button','decb');
     b.innerHTML=`<b>${n}</b>${s?`<span>${s}</span>`:''}`;
-    b.onclick=()=>{LIVE.applyDecision(v);box.classList.remove('on');box.innerHTML='';flushLog();runLive();};
+    b.onclick=()=>{LIVE.applyDecision(v);decDone(box);};
     g.appendChild(b);
   });
+  const pb2=pchangeBtn(box); if(pb2)g.appendChild(pb2);
 
   // 수비 위치 변경
   const dz=el('button','decb wide alt');
