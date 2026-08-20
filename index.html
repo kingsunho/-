@@ -471,6 +471,9 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .po-next{margin-top:8px;font-size:13px;font-weight:700;color:var(--gold)}
 .po-fin{margin-top:8px;font-size:16px;font-weight:800;color:var(--gold)}
 .ftag{font-size:12px;margin-left:4px}
+.ot-no{font-style:normal;font-size:14px;font-weight:800;color:var(--or,#e8762c);
+  letter-spacing:-.02em;margin-left:2px}
+.pc-no{font-size:11px;font-weight:700;color:var(--gold);margin-left:4px}
 .hall-pick{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
 .hall-p{background:var(--panel2);border:1px solid var(--line);color:var(--dim);
   border-radius:14px;padding:5px 10px;font-size:11px;font-family:inherit;cursor:pointer}
@@ -823,24 +826,24 @@ const LG = {
 
 /* ---------- 우완좌완 실제 선수 ---------- */
 const WWZW = [
-  {id:'swm',name:'송승민',bats:'R',con:87,pow:74,eye:60,spd:58,def:60,arm:65,
+  {id:'swm',name:'송승민',bats:'R',no:37,con:87,pow:74,eye:60,spd:58,def:60,arm:65,
    pos:['P','SS','C','3B'],pitch:{stf:60,ctl:44,sta:56},
    real:{g:7,pa:20,ab:15,h:10,d2:5,d3:0,hr:0,bb:2,hbp:3,k:2,sb:5,cs:0,rbi:12,r:10},
    note:'투타 겸업 에이스. OPS 1.750'},
-  {id:'ksh',name:'김선호',bats:'R',con:67,pow:55,eye:36,spd:66,def:38,arm:50,
+  {id:'ksh',name:'김선호',bats:'R',no:1,con:67,pow:55,eye:36,spd:66,def:38,arm:50,
    pos:['2B','SS'],pitch:null,
    real:{g:12,pa:37,ab:33,h:17,d2:0,d3:3,hr:1,bb:4,hbp:0,k:7,sb:11,cs:0,rbi:15,r:17},
    note:'팀 최다 안타·타점·득점. 실책 8개'},
-  {id:'lg',name:'이건',bats:'R',con:80,pow:48,eye:44,spd:70,def:55,arm:45,
+  {id:'lg',name:'이건',bats:'R',no:11,con:80,pow:48,eye:44,spd:70,def:55,arm:45,
    pos:['CF','LF','C'],pitch:{stf:28,ctl:18,sta:38},
    real:{g:13,pa:37,ab:29,h:15,d2:2,d3:2,hr:0,bb:2,hbp:6,k:1,sb:13,cs:1,rbi:3,r:17},
    note:'전 경기 출장. 37타석 삼진 1개'},
-  {id:'kig',name:'김인규',bats:'R',con:63,pow:64,eye:30,spd:24,def:50,arm:62,
+  {id:'kig',name:'김인규',bats:'R',no:7,con:63,pow:64,eye:30,spd:24,def:50,arm:62,
    pos:['C','3B','1B'],pitch:{stf:50,ctl:13,sta:22},
    real:{g:12,pa:34,ab:28,h:12,d2:5,d3:0,hr:0,bb:1,hbp:4,k:4,sb:1,cs:0,rbi:13,r:11},
    realPit:{g:2,ip:0.667,h:4,r:12,er:9,bb:10,k:2,era:94.50},
    note:'주전 포수. 2루타 5개 팀 공동 1위. 공은 빠른데 0.2이닝 10사사구 ERA 94.50'},
-  {id:'jms',name:'정민수',bats:'R',con:73,pow:33,eye:46,spd:40,def:45,arm:45,
+  {id:'jms',name:'정민수',bats:'R',no:8,con:73,pow:33,eye:46,spd:40,def:45,arm:45,
    pos:['LF','RF','2B'],pitch:null,
    real:{g:8,pa:21,ab:18,h:10,d2:1,d3:0,hr:0,bb:2,hbp:1,k:2,sb:3,cs:1,rbi:6,r:4},
    note:'좌측 44%로 팀 두 번째 균형 타구'},
@@ -848,35 +851,35 @@ const WWZW = [
    pos:['1B','C','RF'],pitch:{stf:22,ctl:16,sta:26},
    real:{g:7,pa:20,ab:17,h:7,d2:1,d3:0,hr:0,bb:2,hbp:0,k:1,sb:4,cs:0,rbi:6,r:5},
    note:'백업 포수 자원. 20타석 OPS .921'},
-  {id:'ksn',name:'김상훈',bats:'R',con:39,pow:62,eye:42,spd:40,def:45,arm:50,
+  {id:'ksn',name:'김상훈',bats:'R',no:18,con:39,pow:62,eye:42,spd:40,def:45,arm:50,
    pos:['1B','LF'],pitch:null,
    real:{g:9,pa:25,ab:21,h:6,d2:4,d3:0,hr:0,bb:4,hbp:0,k:7,sb:3,cs:1,rbi:6,r:6},
    note:'ISO .190. 외야 타구 58%로 팀 2위'},
-  {id:'ksw',name:'김선우',bats:'R',con:46,pow:40,eye:26,spd:45,def:56,arm:55,
+  {id:'ksw',name:'김선우',bats:'R',no:39,con:46,pow:40,eye:26,spd:45,def:56,arm:55,
    pos:['SS','2B','3B'],pitch:null,
    real:{g:5,pa:12,ab:11,h:4,d2:1,d3:0,hr:0,bb:0,hbp:0,k:3,sb:3,cs:0,rbi:3,r:3},
    note:'송구 실책 0건. 표본 12타석'},
-  {id:'khg',name:'김한규',bats:'R',con:48,pow:20,eye:62,spd:30,def:40,arm:44,
+  {id:'khg',name:'김한규',bats:'R',no:52,con:48,pow:20,eye:62,spd:30,def:40,arm:44,
    pos:['3B','DH','LF'],pitch:{stf:44,ctl:34,sta:44},
    real:{g:12,pa:27,ab:22,h:7,d2:0,d3:0,hr:0,bb:4,hbp:1,k:3,sb:1,cs:0,rbi:7,r:4},
    note:'BB/K 1.33 팀 2위. 22타수 장타 0'},
-  {id:'ujh',name:'우진혁',bats:'R',con:34,pow:20,eye:46,spd:40,def:40,arm:40,
+  {id:'ujh',name:'우진혁',bats:'R',no:10,con:34,pow:20,eye:46,spd:40,def:40,arm:40,
    pos:['RF','2B','LF'],pitch:null,
    real:{g:6,pa:14,ab:11,h:3,d2:0,d3:0,hr:0,bb:2,hbp:1,k:5,sb:3,cs:1,rbi:3,r:3},
    note:'내야 타구 84%'},
-  {id:'kjh',name:'김준희',bats:'R',con:26,pow:24,eye:42,spd:45,def:52,arm:70,
+  {id:'kjh',name:'김준희',bats:'R',no:29,con:26,pow:24,eye:42,spd:45,def:52,arm:70,
    pos:['RF','P','LF'],pitch:{stf:54,ctl:20,sta:46},
    real:{g:10,pa:23,ab:19,h:4,d2:1,d3:0,hr:0,bb:3,hbp:1,k:5,sb:4,cs:0,rbi:2,r:4},
    note:'어깨 70 팀 1위. 8/9 우익 노바운드 홈 보살'},
-  {id:'lsm',name:'이승민',bats:'L',con:26,pow:30,eye:32,spd:25,def:35,arm:45,
+  {id:'lsm',name:'이승민',bats:'L',no:56,con:26,pow:30,eye:32,spd:25,def:35,arm:45,
    pos:['LF','1B','P'],pitch:{stf:48,ctl:17,sta:38},
    real:{g:5,pa:11,ab:10,h:2,d2:1,d3:0,hr:0,bb:1,hbp:0,k:4,sb:0,cs:0,rbi:0,r:2},
    note:'팀 유일 좌완·좌타. 우측 67%'},
-  {id:'khj',name:'권혁준',bats:'R',con:18,pow:18,eye:30,spd:35,def:52,arm:45,
+  {id:'khj',name:'권혁준',bats:'R',no:21,con:18,pow:18,eye:30,spd:35,def:52,arm:45,
    pos:['SS','3B','2B'],pitch:null,
    real:{g:5,pa:12,ab:10,h:1,d2:0,d3:0,hr:0,bb:2,hbp:0,k:6,sb:1,cs:0,rbi:0,r:3},
    note:'리틀야구단 출신. 수비 지도 자원'},
-  {id:'lmh',name:'이민혁',bats:'R',con:12,pow:16,eye:14,spd:25,def:35,arm:45,
+  {id:'lmh',name:'이민혁',bats:'R',no:32,con:12,pow:16,eye:14,spd:25,def:35,arm:45,
    pos:['LF','1B','C'],pitch:null,
    real:{g:5,pa:12,ab:12,h:0,d2:0,d3:0,hr:0,bb:0,hbp:0,k:11,sb:0,cs:0,rbi:0,r:0},
    note:'12타석 삼진 11개. 포수 출장은 1이닝'},
@@ -1412,17 +1415,17 @@ const META = {
    능력치는 우리 팀 최하위(이민혁 con12/pow16)보다 아래로 잡았다.
    ========================================================= */
 const MERCS = [
-  {id:'merc_cji', name:'조창익', fee:14,
+  {id:'merc_cji', name:'조창익', fee:14, no:null,   // 그날 남는 유니폼을 입는다
    bats:'R', throws:'R',
    con:22, pow:30, eye:20, spd:26, def:34, arm:40,
    pos:{C:0,'1B':40,'2B':0,'3B':0,SS:0,LF:0,CF:0,RF:0,DH:45,P:0},
    desc:'1루만 선다. 다른 자리는 아예 못 간다.'},
-  {id:'merc_pjm', name:'박재민', fee:11,
+  {id:'merc_pjm', name:'박재민', fee:11, no:null,
    bats:'R', throws:'R',
    con:14, pow:13, eye:15, spd:34, def:26, arm:32,
    pos:{C:25,'1B':26,'2B':25,'3B':25,SS:24,LF:26,CF:25,RF:26,DH:40,P:0},
    desc:'어디든 서지만 어디서도 잘하지 못한다.'},
-  {id:'merc_cms', name:'최민서', fee:11,
+  {id:'merc_cms', name:'최민서', fee:11, no:31,
    bats:'L', throws:'R',
    con:12, pow:11, eye:18, spd:30, def:25, arm:30,
    pos:{C:24,'1B':25,'2B':26,'3B':24,SS:25,LF:25,CF:24,RF:25,DH:40,P:0},
@@ -1431,6 +1434,21 @@ const MERCS = [
 const MERC_IDS = MERCS.map(m=>m.id);
 function isMerc(pid){ return MERC_IDS.indexOf(pid)>=0; }
 function mercDef(pid){ return MERCS.find(m=>m.id===pid)||null; }
+/* 용병 등번호 — 정해진 번호가 있으면 그걸, 없으면 그날 남는 유니폼을 입는다 */
+function mercNo(m){
+  if(m.no!=null)return m.no;
+  const taken=new Set(TBYID['wwzw'].players.map(p=>p.no).filter(n=>n!=null));
+  for(let i=0;i<60;i++){
+    const n=2+((Math.random()*97)|0);
+    if(!taken.has(n))return n;
+  }
+  return null;
+}
+/* 등번호 표기 — 없으면 빈 문자열 */
+function jerseyNo(pid){
+  const p=TBYID['wwzw'].players.find(x=>x.id===pid);
+  return (p&&p.no!=null)?p.no:null;
+}
 
 const TRAIT_INFO = {
   '리더':'팀 사기 하락을 완화하고 분위기를 수습한다',
@@ -2214,6 +2232,7 @@ function rollWeekEvents(ST, rng){
   /* 타팀 영입 제안 — 잘하는데 대우를 못 받는 선수에게 온다 */
   if(rng()<0.06){
     const cands=us.players.filter(p=>{
+      if(p.id===(ST.playerId||MYID))return false;   // 내 선수 영입 제안은 따로 다룬다
       if(!us.players.some(q=>q.id===p.id))return false;
       if(ST.injury[p.id])return false;
       if(ST.promise&&ST.promise[p.id])return false;        // 이미 약속한 선수는 빼준다
@@ -2303,6 +2322,7 @@ function rollWeekEvents(ST, rng){
 
   /* 이적 요구 */
   us.players.forEach(p=>{
+    if(p.id===(ST.playerId||MYID))return;      // 내 선수는 스스로 이적을 요구하지 않는다
     const u=ST.unhappy&&ST.unhappy[p.id];
     if(u&&u.level>=3&&rng()<0.30){
       evts.push({type:'transfer',pid:p.id,title:`${p.name} 이적 문의`,
@@ -2536,7 +2556,7 @@ function checkDischarge(ST){
   if(us.players.some(p=>p.id==='sjm')) { ST.discharged=true; return null; }
   const np={id:'sjm',name:'송정민',bats:'R',
     con:70,pow:62,eye:48,spd:48,def:50,arm:62,
-    pos:['P','1B','LF'],pitch:{stf:66,ctl:44,sta:62},real:null};
+    pos:['P','1B','LF'],pitch:{stf:66,ctl:44,sta:62},real:null,no:47};
   us.players.push(np);
   META['sjm']={born:2006,speech:'jon',throws:'R',car:false,school:'군포고',drink:1,loyal:88,pot:16,
     traits:['좌완킬러','미완성','성실','전역'],friends:['swm'],rival:null,coach:{},
@@ -2666,7 +2686,10 @@ function buildKakaoPre(ST){
 
   msgs.push({who:'lg',type:'notice',text:
     `${opp.name}전 · ${park.name} · ${wx.name}\n\n`+
-    ST.lineup.map((s,i)=>`${i+1}. ${nameOf(s.id)} (${POSNAMES[s.pos]})`).join('\n')+
+    ST.lineup.map((s,i)=>{
+      const n=jerseyNo(s.id);
+      return `${i+1}. ${n!=null?n+' ':''}${nameOf(s.id)} (${POSNAMES[s.pos]})`;
+    }).join('\n')+
     `\n선발 ${nameOf(ST.rotation[0])}`});
 
   if(ST.gearLevel===2){
@@ -5088,6 +5111,7 @@ function startPlayClock(){
     if(!ST)return;
     if(typeof document.hidden!=='undefined'&&document.hidden)return;
     ST.playSec=(ST.playSec||0)+5;
+    devTickTime();
     if((ST.playSec-ptSavedAt)>=300){ ptSavedAt=ST.playSec; saveGame(true); }
     const a=document.getElementById('pt-val'); if(a)a.textContent=fmtPlaySec(ST.playSec);
     const b=document.getElementById('pt-line'); if(b)b.textContent=playTimeLine(ST.playSec);
@@ -5109,9 +5133,51 @@ function ipStr(p){return Math.floor(p.outs/3)+(p.outs%3?'.'+(p.outs%3):'');}
 function blankBat(){return {g:0,pa:0,ab:0,h:0,d2:0,d3:0,hr:0,bb:0,hbp:0,k:0,rbi:0,r:0,sb:0,cs:0};}
 function blankPit(){return {g:0,gs:0,w:0,l:0,outs:0,h:0,r:0,er:0,bb:0,k:0,hbp:0,sbA:0};}
 
+/* ================= 내 선수 성장 =================
+   내가 고른 선수는 한계가 따로 없다. 대신 그냥 오르지는 않는다.
+   경기에 나가고, 훈련에 나가고, 실제로 붙잡고 있은 시간만큼만 열린다.
+   바로 캐리하면 금방 질리니까 천천히, 대신 끝까지 간다.
+
+   투자 1점당 잠재치 +0.16. 능력치 상한(80)까지 가려면 대략:
+     한 시즌 개근(22경기 + 훈련 22회) = 약 35점 → +5.6
+   즉 두세 시즌을 꾸준히 굴려야 리그 최상위에 닿는다.
+   게다가 열린 잠재치를 실제 능력치로 바꾸려면 훈련을 또 몰아줘야 한다.  */
+const DEV_PER_GAME  = 1.0;    // 라인업에 들어 경기를 뛰면
+const DEV_PER_TRAIN = 0.6;    // 훈련에 나오면
+const DEV_PER_20MIN = 0.15;   // 실제로 붙잡고 있은 시간 20분마다
+const DEV_TO_PA     = 0.16;   // 투자 1점 → 잠재치
+
+function devSlot(){
+  if(!ST.dev)ST.dev={pts:0,games:0,trains:0,minTick:0};
+  return ST.dev;
+}
+function devBonus(pid){
+  if(pid!==(ST.playerId||MYID))return 0;
+  const d=(ST&&ST.dev)?ST.dev:null;
+  return d ? d.pts*DEV_TO_PA : 0;
+}
+/* 경기·훈련·플레이타임을 투자 점수로 환산한다 */
+function devEarn(kind){
+  const d=devSlot();
+  if(kind==='game'){ d.games++; d.pts+=DEV_PER_GAME; }
+  else if(kind==='train'){ d.trains++; d.pts+=DEV_PER_TRAIN; }
+}
+/* 플레이타임은 20분 단위로 끊어서 준다 */
+function devTickTime(){
+  const d=devSlot();
+  const ticks=Math.floor((ST.playSec||0)/1200);
+  if(ticks>(d.minTick||0)){
+    d.pts += (ticks-(d.minTick||0))*DEV_PER_20MIN;
+    d.minTick=ticks;
+  }
+}
+
 function effCA(pid){const b=ST&&ST.ca?ST.ca[pid]:null; if(b!=null)return b;
   const p=TBYID['wwzw'].players.find(x=>x.id===pid); return p?calcCA(p):30;}
-function effPA(pid){const p=TBYID['wwzw'].players.find(x=>x.id===pid); return p?calcPA(p,META[pid]):40;}
+function effPA(pid){
+  const p=TBYID['wwzw'].players.find(x=>x.id===pid); if(!p)return 40;
+  return Math.min(80, calcPA(p,META[pid]) + devBonus(pid));
+}
 function condLabel(v){return v>=85?'최상':v>=70?'양호':v>=55?'보통':v>=40?'저하':'최악';}
 function condCls(v){return v>=70?'ok':v>=55?'mid':v>=40?'low':'bad';}
 function moraleLabel(v){return v>=85?'매우 높음':v>=70?'좋음':v>=55?'보통':v>=40?'불만':'매우 불만';}
@@ -5166,6 +5232,7 @@ function newSeason(){
     useDH:true, park:'benamul', gearLevel:0, feud:null, pendingAbsent:{},
     unhappy:{}, spark:{}, career:{}, teamCareer:null, milestones:[], firsts:{}, weather:'clear',
     playoff:null, form:{}, hall:[], awardBonus:{}, awardSnap:null, awardReply:null,
+    dev:{pts:0,games:0,trains:0,minTick:0},
     playSec:(typeof ST!=='undefined'&&ST&&ST.playSec)?ST.playSec:0,
     promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
@@ -5940,7 +6007,8 @@ function renderHome(){
       const keep={career:ST.career,teamCareer:ST.teamCareer,milestones:ST.milestones,firsts:ST.firsts,
         seasonNo:(ST.seasonNo||1)+1,discharged:ST.discharged,playerId:ST.playerId,
         ratings:{}, budget:ST.budget,
-        hall:ST.hall||[], awardBonus:ST.awardBonus||{}, gear:ST.gear||{}, playSec:ST.playSec||0};
+        hall:ST.hall||[], awardBonus:ST.awardBonus||{}, gear:ST.gear||{}, playSec:ST.playSec||0,
+        dev:ST.dev||null};
       TBYID['wwzw'].players.forEach(p=>keep.ratings[p.id]={con:p.con,pow:p.pow,eye:p.eye,spd:p.spd,def:p.def,arm:p.arm});
       TEAMS=buildAllTeams();TBYID={};TEAMS.forEach(t=>TBYID[t.id]=t);
       // 능력치 이월
@@ -5950,7 +6018,8 @@ function renderHome(){
       Object.assign(ST,{career:keep.career,teamCareer:keep.teamCareer,milestones:keep.milestones,
         firsts:keep.firsts,seasonNo:keep.seasonNo,discharged:keep.discharged,playerId:keep.playerId,
         year:2026+keep.seasonNo-1, budget:Math.round(keep.budget*0.4+120),
-        hall:keep.hall, awardBonus:keep.awardBonus, gear:keep.gear, playSec:keep.playSec});
+        hall:keep.hall, awardBonus:keep.awardBonus, gear:keep.gear, playSec:keep.playSec,
+        dev:keep.dev||{pts:0,games:0,trains:0,minTick:0}});
       ST.teamCareer.seasons=(ST.teamCareer.seasons||0)+1;
       normalizeState();
       ST.lineup=recommendLineup();ST.rotation=recommendRotation();
@@ -6072,7 +6141,7 @@ function ensureMercs(){
   ST.mercs.forEach(id=>{
     if(us.players.some(p=>p.id===id))return;
     const m=mercDef(id); if(!m)return;
-    us.players.push({id:m.id,name:m.name,bats:m.bats,
+    us.players.push({id:m.id,name:m.name,bats:m.bats,no:mercNo(m),
       con:m.con,pow:m.pow,eye:m.eye,spd:m.spd,def:m.def,arm:m.arm,
       pos:Object.keys(m.pos).filter(k=>m.pos[k]>0&&k!=='DH'),
       pitch:null,real:null});
@@ -6446,7 +6515,10 @@ function trainAdvice(p){
       d:`${pa2.how}. 지금 ${Math.round(pa2.fit)} → 최대 ${Math.round(pa2.cap)}. 집중 훈련 대상으로 걸어두면 된다.`});
 
   const ca=effCA(p.id), pa=effPA(p.id);
-  if(pa-ca>=8) out.push({h:'성장 여지 있음', d:`현재 ${ca.toFixed(0)} / 잠재 ${pa.toFixed(0)}. 아직 올라갈 자리가 남았다.`});
+  if(p.id===(ST.playerId||MYID))
+    out.push({h:'내 선수 — 한계 없음',
+      d:`현재 ${ca.toFixed(0)} / 지금 열린 잠재 ${pa.toFixed(0)}. 경기와 훈련에 계속 나가면 잠재치가 같이 올라간다. 집중 훈련 대상으로 걸어두면 제일 빨리 큰다.`});
+  else if(pa-ca>=8) out.push({h:'성장 여지 있음', d:`현재 ${ca.toFixed(0)} / 잠재 ${pa.toFixed(0)}. 아직 올라갈 자리가 남았다.`});
   else out.push({h:'거의 다 왔다', d:`현재 ${ca.toFixed(0)} / 잠재 ${pa.toFixed(0)}. 큰 성장은 기대하기 어렵다.`});
   return out;
 }
@@ -6485,7 +6557,7 @@ function renderHall(){
   const top=el('div','ot-top');
   top.innerHTML=`<div class="ot-pic">${avatarHTML(who)}</div>
     <div class="ot-nm">
-      <div class="ot-n1">${nameOf(who)}<b>전시장</b></div>
+      <div class="ot-n1">${nameOf(who)}${jerseyNo(who)!=null?`<i class="ot-no">#${jerseyNo(who)}</i>`:''}<b>전시장</b></div>
       <div class="ot-n2">${ST.year||2026}년 · ${ST.seasonNo||1}년차${who===meId?' · 내 선수':''}</div>
       <div class="ot-ov">
         <div class="ot-ovi"><span>수상</span><b>${hall.length}</b></div>
@@ -6610,7 +6682,7 @@ function renderPlayer(){
   const top=el('div','ot-top');
   top.innerHTML=`<div class="ot-pic">${avatarHTML(p.id)}</div>
     <div class="ot-nm">
-      <div class="ot-n1">${p.name}${formTag(p.id)?`<span class="ftag">${formTag(p.id)}</span>`:''}<b>${main?POSNAMES[main]:'DH'}</b></div>
+      <div class="ot-n1">${p.name}${p.no!=null?`<i class="ot-no">#${p.no}</i>`:''}${formTag(p.id)?`<span class="ftag">${formTag(p.id)}</span>`:''}<b>${main?POSNAMES[main]:'DH'}</b></div>
       <div class="ot-n2">${nickOf(p.id)?`'${nickOf(p.id)}' · `:''}${2026-m.born}세 · 타/투 ${p.bats==='L'?'좌':'우'}/${m.throws==='L'?'좌':'우'}</div>
       <div class="ot-ov">
         <div class="ot-ovi"><span>전체</span><b>${ca.toFixed(0)}</b></div>
@@ -6687,6 +6759,25 @@ function renderPlayer(){
   });
   pos+='<p class="ot-note">진한 칸이 지금 값, 흐린 칸이 포지션 적응 훈련으로 올릴 수 있는 한계다. 좌투수는 포수·2루·3루·유격이 아예 막혀 있다.</p>';
   add(otSec('포지션 평점', pos, '현재 / 훈련 한계'));
+
+  /* ---- 내 선수 성장 투자 ---- */
+  if(p.id===meId){
+    const d=(ST.dev||{pts:0,games:0,trains:0,minTick:0});
+    const bonus=devBonus(p.id);
+    const raw=calcPA(p,m);
+    const room=Math.max(0, 80-Math.min(80,raw+bonus));
+    const need=Math.ceil(room/DEV_TO_PA);
+    add(otSec('성장 투자',
+      `<p class="ot-note">내 선수는 한계가 따로 없다. 대신 그냥 오르지 않는다.
+        경기에 나가고, 훈련에 나가고, 실제로 붙잡고 있은 시간만큼만 열린다.</p>
+       ${otRow('출전', `${d.games||0}경기 · +${((d.games||0)*DEV_PER_GAME).toFixed(1)}`)}
+       ${otRow('훈련 참석', `${d.trains||0}회 · +${((d.trains||0)*DEV_PER_TRAIN).toFixed(1)}`)}
+       ${otRow('플레이타임', `${fmtPlaySec(ST.playSec)} · +${((d.minTick||0)*DEV_PER_20MIN).toFixed(1)}`)}
+       ${otRow('투자 합계', `${(d.pts||0).toFixed(1)}점`, true)}
+       ${otRow('열린 잠재치', `기본 ${raw.toFixed(0)} + ${bonus.toFixed(1)} = ${Math.min(80,raw+bonus).toFixed(1)}`, true)}
+       ${room>0?otRow('상한까지', `투자 ${need}점 더`):otRow('상한 도달','더 올릴 곳이 없다',true)}`,
+      '꾸준히 할수록'));
+  }
 
   /* ---- 훈련 방향 ---- */
   let adv='';
@@ -6769,7 +6860,7 @@ function renderSquad(){
     card.onclick=(ev)=>{ if(ev.target.closest('button'))return; openPlayer(p.id); };
     card.innerHTML=`
       <div class="pc-top">
-        <div class="pc-id"><span class="pc-name">${p.name}</span>${formTag(p.id)?`<span class="ftag" title="${formLabel(p.id)}">${formTag(p.id)}</span>`:''}
+        <div class="pc-id"><span class="pc-name">${p.name}</span>${p.no!=null?`<span class="pc-no">#${p.no}</span>`:''}${formTag(p.id)?`<span class="ftag" title="${formLabel(p.id)}">${formTag(p.id)}</span>`:''}
           <span class="pc-age">${2026-m.born}세</span>
           ${p.bats==='L'?'<span class="lh">좌</span>':''}
           ${injv?`<span class="tagx">${injv.name} ${injv.games}경기</span>`:''}
@@ -7279,6 +7370,20 @@ const TUTORIAL=[
      이 안내는 <b>설정 → 튜토리얼 다시 보기</b>에서 언제든 다시 볼 수 있다.<br><br>
      <b>게임이 업데이트돼도 링크가 같으면 기록은 그대로다.</b>
      링크가 바뀔 때만 <b>코드 복사</b>로 옮기면 된다.`},
+ {t:'내 선수는 끝까지 큰다',
+  b:`내가 고른 선수만은 <b>성장 한계가 따로 없다.</b> 다른 선수는 잠재치에 닿으면 멈추지만
+     내 선수는 계속 열린다.<br><br>
+     대신 그냥 오르지 않는다. <b>투자한 만큼만</b> 열린다.<br>
+     <span class="tut-g">경기 출전 1회 = 1.0점</span><br>
+     <span class="tut-g">훈련 참석 1회 = 0.6점</span><br>
+     <span class="tut-g">실제 플레이 20분 = 0.15점</span><br>
+     투자 1점당 잠재치가 <b>0.16</b>씩 열린다.<br><br>
+     한 시즌을 개근하면 대략 35점, 잠재치 +5~6 정도다.
+     즉 <b>두세 시즌은 꾸준히 굴려야</b> 리그 최상위에 닿는다.
+     열린 잠재치를 실제 능력치로 바꾸려면 훈련을 또 몰아줘야 한다.
+     바로 캐리하면 금방 질리니까 일부러 이렇게 잡았다.<br><br>
+     투자 현황은 <b>내 선수 프로필 → 성장 투자</b>에서 볼 수 있다.
+     집중 훈련 대상으로 걸어두면 열린 잠재치를 제일 빨리 채운다.`},
  {t:'그 밖에',
   b:`<b>선수 프로필</b> — 선수단에서 선수를 누르면 능력치·가능 포지션·훈련 방향·성격이
      한 장에 뜬다. 능력치 옆의 흐린 칸이 잠재치다.<br><br>
@@ -8208,6 +8313,9 @@ function commitGame(res,usSide,thSide,uSlots){
   if(mn)ST.kakaoPost.push({who:'lg',type:'notice',text:`용병 ${mn}명 오늘까지. 다음 주엔 사람 좀 채우자`});
   gearWearTick().forEach(m=>ST.kakaoPost.push(m));   // 장비는 쓸수록 닳는다
   updateForm(ST,res,uSlots).forEach(m=>ST.kakaoPost.push(m));   // 슬럼프·뜨거운 감각
+  // 내 선수가 실제로 뛰었으면 성장 투자로 쌓인다
+  if(uSlots.some(x=>x.id===(ST.playerId||MYID))) devEarn('game');
+  devTickTime();
   // 정규시즌 5경기마다 구간 시상
   if(!sch.po){
     const gp=ST.schedule.filter(x=>x.played&&!x.po).length;
@@ -8401,6 +8509,7 @@ function applyTraining(){
   }
   if(!tgt) gains.push('집중 대상 미지정 — 전원 곁다리 성장만');
 
+  if(att.indexOf(ST.playerId||MYID)>=0) devEarn('train');   // 내가 훈련에 나왔다
   att.forEach(pid=>{
     const p=us.players.find(x=>x.id===pid); if(!p)return;
     if(ST.injury[pid])return;
@@ -8420,6 +8529,7 @@ function applyTraining(){
     }
     if(m&&m.traits.includes('노력파'))rate*=1.25;
     if(m&&m.traits.includes('미완성'))rate*=1.30;
+    if(pid===(ST.playerId||MYID))rate*=1.30;   // 내가 붙잡고 하는 선수다
     if(f==='hard')rate*=1.9;
     rate*=gearTrainMul(f);                  // 산 장비만큼 훈련이 잘 된다
     // 1명 집중 훈련 — 지정한 선수만 제대로 크고 나머지는 곁다리로 조금 큰다.
@@ -9659,6 +9769,9 @@ function normalizeState(){
   if(!ST.awardBonus)ST.awardBonus={};
   if(ST.awardSnap===undefined)ST.awardSnap=null;
   if(ST.awardReply===undefined)ST.awardReply=null;
+  if(!ST.dev)ST.dev={pts:0,games:0,trains:0,minTick:Math.floor((ST.playSec||0)/1200)};
+  if(ST.dev.pts==null)ST.dev.pts=0;
+  if(ST.dev.minTick==null)ST.dev.minTick=Math.floor((ST.playSec||0)/1200);
   if(ST.duesCount==null)ST.duesCount=0;
   if(ST.gearMeeting===undefined)ST.gearMeeting=null;
   if(ST.feeDue==null)ST.feeDue=false;
