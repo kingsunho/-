@@ -419,6 +419,9 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .savestat{font-size:11px;color:var(--blue);background:var(--panel2);border:1px solid var(--line);
   border-radius:9px;padding:8px 10px;margin:8px 0}
 .savestat.bad{color:#ffb4a8;border-color:#7a3b34}
+.pt-role{font-size:10px;color:var(--blue);margin-top:2px}
+.pt-row.bad .pt-role{color:#c98a80}
+.pt-ctl .rm{color:#c98a80}
 .dimx{color:var(--dim);font-size:10.5px}
 
 /* 라인업 추가 */
@@ -1205,16 +1208,16 @@ const META = {
     desc:'제3포수 자원. 타격은 미완이지만 성실하다.'},
 
   ksh:{born:2000,speech:'jon',throws:'R',car:true,school:'흥진고',drink:2,attend:0.92,loyal:82,pot:8,
-    traits:['대장','주루형','카풀'],friends:['kjh','ksw','ksn'],rival:null,coach:{},
+    traits:['주루형','카풀'],friends:['kjh','ksw','ksn'],rival:null,coach:{},
     pos:PR({'2B':56,C:0,'1B':0,'3B':0,SS:0,LF:0,CF:0,RF:0,P:0}),
     desc:'2루수. 팀 최다 안타·타점·득점. 차를 몰고 다닌다.'},
 
-  kig:{born:2000,speech:'ban',throws:'R',car:true,school:'군포고',drink:3,attend:0.92,loyal:70,pot:5,
-    traits:['포수','강견','카풀','형제'],friends:['yjh','ksn'],rival:'khg',coach:{},
+  kig:{born:2000,speech:'ban',throws:'R',car:false,school:'군포고',drink:3,attend:0.92,loyal:70,pot:5,
+    traits:['포수','강견','형제'],friends:['yjh','ksn'],rival:'khg',coach:{},
     pos:PR({C:60,'3B':50,'1B':50,'2B':0,SS:0,LF:0,CF:0,RF:0,P:44}),
     desc:'주전 포수. 어깨가 좋아 급하면 마운드도 오른다. 김한규와 형제.'},
 
-  khg:{born:2000,speech:'ban',throws:'R',car:true,school:'군포고',drink:1,attend:0.92,loyal:52,pot:6,
+  khg:{born:2000,speech:'ban',throws:'R',car:false,school:'군포고',drink:1,attend:0.92,loyal:52,pot:6,
     traits:['불만러','분석가','유리몸','형제','좁은범위','더위약함'],friends:[],rival:'kig',coach:{},
     pos:PR({P:50,'3B':48,SS:34,'2B':34,C:0,'1B':0,LF:0,CF:0,RF:0}),
     desc:'3루·투수. 스카우팅 담당. 어깨 재발 이력. 이건에게는 어릴 때부터 반말.'},
@@ -1276,7 +1279,6 @@ const TRAIT_INFO = {
   '철강':'부상 확률이 낮다',
   '유틸':'어느 포지션에 세워도 손해가 적다',
   '장비담당':'포수 장비를 챙긴다. 결장하면 장비가 없다',
-  '대장':'플레이어 본인',
   '주루형':'도루 성공률이 높다',
   '카풀':'차가 있어 다른 선수를 태우고 온다',
   '금주':'회식에 영향받지 않는다',
@@ -1407,14 +1409,17 @@ function wonStr(v){
    driver: 운전자 / riders: 동승자 / fallback: 운전자 결장 시 대체 운전자 순서
 */
 const CARPOOL = [
-  {driver:'lg',  riders:['khj','jms'], fallback:['jms','khg'],
+  {driver:'lg',  riders:['khj','jms'],        fallback:['jms'],
    label:'이건 차'},
-  {driver:'kjh', riders:['kig','ksh','ksn'], fallback:['ksn','ksh'],
+  // 김인규·김한규는 차가 없다. 이민혁도 없어서 셋이 김준희 차를 얻어 탄다.
+  // 김준희가 못 나오면 김상훈 → 김선호 순으로 대신 태운다.
+  {driver:'kjh', riders:['kig','khg','lmh'],  fallback:['ksn','ksh'],
    label:'김준희 차'},
-  {driver:'lsm', riders:[],                  fallback:[],
+  {driver:'lsm', riders:[],                   fallback:[],
    label:'이승민 차', pickup:2000},
 ];
-const SOLO = ['swm','khg','yjh','ujh'];   // 각자 알아서 오는 사람
+// 각자 알아서 오는 사람 (차가 있거나 알아서 오는 쪽)
+const SOLO = ['swm','yjh','ujh','ksh','ksn'];
 
 function resolveCarpool(ST){
   /* 결장자를 고려해 실제 배차를 만든다.
@@ -1528,17 +1533,30 @@ function initPlayerState(){
 function speechOf(pid){ const m=META[pid]; return m?m.speech:'jon'; }
 
 /* 화자 → 청자 관계에 따른 말투 판정
-   같은 학번(동갑)이면 반말 / 손위면 존댓말 / 손아래면 반말
-   형제(김인규-김한규)는 항상 반말
-   김한규는 이건에게 어릴 때부터 반말                                  */
+   ---------------------------------------------------------
+   1. 00년생끼리는 서로 반말
+   2. 99년생(형) → 00년생은 반말
+   3. 00년생 → 99년생(형)은 존댓말
+   4. 예외: 김인규·김한규는 누구에게든 반말
+   5. 김인규·김한규는 쌍둥이라 서로 '형'이라 하지 않고 그냥 반말
+   BAN_TO_ALL 에 넣으면 그 선수는 전원에게 반말이 된다.               */
+const BAN_TO_ALL = ['kig','khg'];
 function speechTo(from, to){
   const A=META[from], B=META[to];
   if(!A||!B) return 'jon';
-  if(A.rival===to || B.rival===from) return 'ban';        // 형제
-  if(from==='khg' && to==='lg') return 'ban';             // 한규→건이형
+  if(BAN_TO_ALL.indexOf(from)>=0) return 'ban';           // 인규·한규는 모두에게 반말
+  if(A.rival===to || B.rival===from) return 'ban';        // 쌍둥이끼리
   if(A.born === B.born) return 'ban';                     // 동갑
   if(A.born < B.born) return 'ban';                       // 손위 → 손아래
   return 'jon';                                           // 손아래 → 손위
+}
+/* 상대를 부르는 호칭. 쌍둥이는 서로 '형'이라 부르지 않는다. */
+function callName(from, to){
+  const nm=nameOf(to);
+  if(!META[from]||!META[to]) return nm;
+  if(META[from].rival===to) return nm;                    // 쌍둥이 → 이름만
+  if(META[from].born > META[to].born) return nm.slice(-2)+'형';
+  return nm;
 }
 
 /* 단톡방 기본 말투 (불특정 다수 대상) */
@@ -1669,7 +1687,8 @@ function accrueCareer(ST, res, uSlots, won, tie, dpCount){
     ST.teamCareer.sb+=b.sb||0; ST.teamCareer.bb+=b.bb||0; ST.teamCareer.k+=b.k||0;
   });
 
-  ST.rotation.forEach(pid=>{
+  const gRot=(ST.gameRotation&&ST.gameRotation.length)?ST.gameRotation:ST.rotation;
+  gRot.forEach(pid=>{
     const l=res.pbox[pid]; if(!l||!l.bf)return;
     if(!ST.career[pid])ST.career[pid]=blankCareer();
     const c=ST.career[pid];
@@ -2098,24 +2117,28 @@ function rollBrotherEvent(ST, rng){
   if(rng()<0.03){
     return {kind:'good',title:'형제의 날',
       lines:[['kig','오늘 한규랑 배터리 맞춰봤는데 잘 맞더라'],
-             ['khg','형이 오늘따라 사인 잘 내네'],
+             ['khg','오늘따라 사인 잘 내더라'],
              ['lg','둘이 저러는 거 처음 본다']]};
   }
   const battery=ST.lineup.some(s=>s.id==='kig'&&s.pos==='C')&&ST.rotation[0]==='khg';
   if(rng()>=(battery?0.50:0.15))return null;
+  /* 쌍둥이라 서로 '형'이라 부르지 않는다. 둘 다 차가 없어서
+     기름값·배차로는 싸울 일이 없다 — 카풀은 김준희 차를 얻어 탄다. */
   const topics=[
     ['사인 미스',[['khg','사인을 그렇게 내면 어떡하냐고'],['kig','니가 못 던진 거지 사인 탓이냐'],
       ['khg','내가 언제 그 코스 던진다 했냐']]],
-    ['수비 위치',[['kig','3루 그렇게 서 있으면 다 뚫린다니까'],['khg','형이 언제부터 내야 봤다고'],
-      ['kig','포수가 제일 잘 보이는 자리다']]],
+    ['수비 위치',[['kig','3루 그렇게 서 있으면 다 뚫린다니까'],['khg','니가 언제부터 내야 봤다고'],
+      ['kig','포수가 제일 잘 보이는 자리야']]],
     ['볼 배합',[['khg','몸쪽만 계속 내니까 맞잖아'],['kig','니 제구가 안 되니까 그렇지']]],
-    ['묵은 감정',[['kig','너 저번 경기 때부터 태도가 왜 그러냐'],['khg','형이 먼저 그랬잖아']]],
+    ['묵은 감정',[['kig','너 저번 경기 때부터 태도가 왜 그러냐'],['khg','니가 먼저 그랬잖아']]],
     ['블로킹',[['khg','바운드 좀 막아라 진짜'],['kig','그걸 어떻게 막냐 폭투를 던져놓고']]],
-    ['타순',[['khg','형은 왜 맨날 위에서 치냐'],['kig','내가 니보다 잘 치니까']]],
-    ['차 문제',[['kig','너 저번에 기름값 안 줬다'],['khg','그거 형이 안 받는다 했잖아']]],
-    ['집안 얘기',[['khg','엄마가 형 야구 그만하래'],['kig','야 그 얘기를 여기서 왜 하냐']]],
+    ['타순',[['khg','너는 왜 맨날 위에서 치냐'],['kig','내가 너보다 잘 치니까']]],
+    ['얻어타기',[['khg','준희 차에서 자리 좀 넓게 앉지 마라'],['kig','니가 장비를 다 실었잖아']]],
+    ['집안 얘기',[['khg','엄마가 너 야구 그만하래'],['kig','야 그 얘기를 여기서 왜 하냐']]],
     ['등판 순서',[['khg','왜 나만 이런 팀 상대로 던지냐'],['kig','니가 그런 팀 상대로만 던질 수 있으니까']]],
-    ['장비',[['kig','내 배트 니가 썼지'],['khg','부러진 건 형이 부러뜨렸는데']]],
+    ['장비',[['kig','내 배트 니가 썼지'],['khg','부러진 건 니가 부러뜨렸는데']]],
+    ['먼저 태어난 거',[['khg','몇 분 먼저 나온 걸로 유세 떨지 마라'],['kig','유세는 무슨 사실을 말한 거지']]],
+    ['훈련',[['kig','너 저번 주 훈련 왜 안 왔냐'],['khg','축구 있었어']]],
   ];
   const t=pickOne(topics,rng);
   return {kind:'bad',title:'형제의 난',topic:t[0],lines:t[1],battery};
@@ -4082,7 +4105,7 @@ function renderPick(){
   };
   const roleLabel=p=>{
     const m=META[p.id]; if(!m)return '';
-    const show=(m.traits||[]).filter(t=>['리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형','대장'].includes(t));
+    const show=(m.traits||[]).filter(t=>['리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형'].includes(t));
     return show.slice(0,2).join(' · ');
   };
   us.players.forEach(p=>{
@@ -4758,19 +4781,67 @@ function renderLineup(){
 
   const pc=el('div','card');
   pc.appendChild(el('div','card-h','투수 로테이션'));
+  pc.appendChild(el('p','muted',
+    '위에서부터 선발 · 첫 번째 불펜 · 두 번째 불펜 순으로 올라간다. '+
+    '이번 주에 못 나오는 투수는 그 경기만 건너뛰고, 로테이션에서 사라지지 않는다.'));
+  const gRot=gameRotation();
   ST.rotation.forEach((pid,i)=>{
     const p=t.pitchers.find(x=>x.id===pid); if(!p)return;
-    const s=ST.pit[pid]||blankPit();
-    const row=el('div','pt-row'+(isAvailable(pid)?'':' bad'));
+    const s2=ST.pit[pid]||blankPit();
+    const out=!isAvailable(pid);
+    const gi=gRot.indexOf(pid);
+    const row=el('div','pt-row'+(out?' bad':''));
+    const roleNow = out ? '이번 주 결장' : (gi===0?'오늘 선발':`오늘 ${gi+1}번째`);
     row.innerHTML=`<div class="pt-n">${i===0?'선발':i+'번'}</div>
       <div class="pt-main"><div class="pt-name">${p.name}</div>
-      <div class="pt-stat">${s.outs?`${s.w}승 ${s.l}패 ERA ${era(s).toFixed(2)} ${ipStr(s)}이닝`:'등판 없음'}</div></div>
+      <div class="pt-stat">${s2.outs?`${s2.w}승 ${s2.l}패 ERA ${era(s2).toFixed(2)} ${ipStr(s2)}이닝`:'등판 없음'}</div>
+      <div class="pt-role">${roleNow}</div></div>
       <div class="pt-rate">구위 ${p.stf}<br>제구 ${p.ctl}<br>${restLabel(pid)}</div>
-      <div class="pt-ctl"><button class="up"${i===0?' disabled':''}>▲</button><button class="dn"${i===ST.rotation.length-1?' disabled':''}>▼</button></div>`;
+      <div class="pt-ctl"><button class="up"${i===0?' disabled':''}>▲</button>`+
+      `<button class="dn"${i===ST.rotation.length-1?' disabled':''}>▼</button>`+
+      `<button class="rm" title="로테이션에서 뺀다">×</button></div>`;
     row.querySelector('.up').onclick=()=>{if(i>0){const a=ST.rotation;[a[i-1],a[i]]=[a[i],a[i-1]];syncStarter();saveGame(true);renderLineup();}};
     row.querySelector('.dn').onclick=()=>{const a=ST.rotation;if(i<a.length-1){[a[i+1],a[i]]=[a[i],a[i+1]];syncStarter();saveGame(true);renderLineup();}};
+    row.querySelector('.rm').onclick=()=>{
+      if(ST.rotation.length<=1){toast('투수가 최소 한 명은 있어야 한다');return;}
+      ST.rotation=ST.rotation.filter(x=>x!==pid);
+      syncStarter(); saveGame(true); renderLineup(); toast(`${p.name} 로테이션에서 제외`);
+    };
     pc.appendChild(row);
   });
+
+  /* 로테이션에 없는 투수를 다시 넣는 버튼.
+     이게 없어서 한 번 빠진 투수를 되살릴 방법이 없었다.              */
+  const spare=t.pitchers.filter(p=>ST.rotation.indexOf(p.id)<0);
+  const addb=el('button','btn',`투수 추가 (대기 ${spare.length}명)`);
+  addb.onclick=()=>{
+    if(!spare.length){toast('모든 투수가 이미 로테이션에 있다');return;}
+    const body=$('#sheet-body'); body.innerHTML='';
+    $('#sheet-title').textContent='로테이션에 넣을 투수';
+    body.appendChild(el('div','sheet-note',
+      '사회인야구는 누구나 던진다. 포지션 적합도가 낮아도 넣을 수는 있다.'));
+    spare.slice().sort((a,b)=>(b.stf*1.1+b.ctl*1.3+b.sta*0.8)-(a.stf*1.1+a.ctl*1.3+a.sta*0.8))
+      .forEach(p=>{
+        const fit=posFit(p.id,'P');
+        const out=!isAvailable(p.id);
+        const r=el('button','pick-row'+(fit<=0?' bad':''));
+        r.innerHTML=`<div class="pk-l"><div class="pk-name">${p.name}</div>
+          <div class="pk-note">${fit<=0?'투수 경험 없음 — 크게 불리하다':`투수 적합도 ${fit}`}`+
+          `${out?' · 이번 주 결장(다음 주부터 등판)':''}</div></div>
+          <div class="pk-r"><div class="pk-stat">구위 ${p.stf} 제구 ${p.ctl}</div></div>`;
+        r.onclick=()=>{
+          ST.rotation.push(p.id);
+          closeSheet(); syncStarter(); saveGame(true); renderLineup();
+          toast(`${p.name} 로테이션 추가 — ${ST.rotation.length}번`);
+        };
+        body.appendChild(r);
+      });
+    $('#sheet').classList.add('open');
+  };
+  pc.appendChild(addb);
+  const rcb=el('button','btn','추천 로테이션으로 되돌리기');
+  rcb.onclick=()=>{ST.rotation=recommendRotation();syncStarter();saveGame(true);renderLineup();toast('추천 로테이션');};
+  pc.appendChild(rcb);
   c.appendChild(pc);
 
   const tc=el('div','card');
@@ -5197,26 +5268,45 @@ function renderGame(){
   const st=el('div','stage'); st.id='stage'; c.appendChild(st);
 }
 
+/* ST.rotation 자체의 유효성만 정리한다.
+   로스터에 없는 id(이적·방출·용병)만 걸러내고, 결장자는 건드리지 않는다.
+
+   [버그 이력] 예전에는 여기서 결장자를 지우고 ST.rotation 을 통째로
+   덮어썼다. 그래서 늦잠으로 한 경기 빠진 투수가 다음 주에 돌아와도
+   로테이션에 없었고, UI 에 '추가' 버튼도 없어서 되살릴 방법이 없었다.
+   "투수가 사라진다"는 제보가 전부 이것 때문이다.                      */
 function sanitizeRotation(){
-  // 결장·부상자는 로테이션에서 제외한다
   const t=TBYID['wwzw'];
-  let rot=(ST.rotation||[]).filter(id=>isAvailable(id)&&t.pitchers.some(p=>p.id===id));
+  ST.rotation=(ST.rotation||[]).filter(id=>t.pitchers.some(p=>p.id===id));
+  // 중복 제거
+  ST.rotation=ST.rotation.filter((id,i)=>ST.rotation.indexOf(id)===i);
+  if(!ST.rotation.length)ST.rotation=recommendRotation();
+  return ST.rotation;
+}
+
+/* 이번 경기에 실제로 쓸 등판 순서.
+   결장·부상자를 '이 경기에서만' 건너뛴다. ST.rotation 은 그대로 둔다.  */
+function gameRotation(){
+  const t=TBYID['wwzw'];
+  sanitizeRotation();
+  let rot=ST.rotation.filter(id=>isAvailable(id));
   if(!rot.length){
+    // 설정한 투수가 전부 결장이면 나온 사람 중에서 급히 채운다
     rot=t.pitchers.filter(p=>isAvailable(p.id))
       .sort((a,b)=>(b.stf*1.1+b.ctl*1.3+b.sta*0.8)-(a.stf*1.1+a.ctl*1.3+a.sta*0.8))
       .slice(0,6).map(p=>p.id);
   }
-  // 라인업에 투수 포지션이 있으면 그 선수를 선발로
+  // 라인업 투수 자리에 앉힌 선수가 있으면 그 사람이 선발이다
   const pSlot=ST.lineup.find(x=>x.pos==='P');
-  if(pSlot&&isAvailable(pSlot.id)){
+  if(pSlot&&isAvailable(pSlot.id)&&rot.indexOf(pSlot.id)>=0){
     rot=[pSlot.id].concat(rot.filter(id=>id!==pSlot.id));
   }
-  ST.rotation=rot;
   return rot;
 }
 
 function makeLive(){
   sanitizeRotation();
+  ST.gameRotation=gameRotation();     // 이번 경기 등판 순서 스냅샷
   const next=ST.schedule[ST.round];
   const opp=TBYID[next.opp];
   const raw=TBYID['wwzw'];
@@ -5269,8 +5359,8 @@ function makeLive(){
     away: next.homeGame?oppMod:us,
     homeLineup: next.homeGame?uLine:aiLineup(oppMod),
     awayLineup: next.homeGame?aiLineup(oppMod):uLine,
-    homeRotation: next.homeGame?ST.rotation.slice():aiRotation(oppMod),
-    awayRotation: next.homeGame?aiRotation(oppMod):ST.rotation.slice(),
+    homeRotation: next.homeGame?ST.gameRotation.slice():aiRotation(oppMod),
+    awayRotation: next.homeGame?aiRotation(oppMod):ST.gameRotation.slice(),
     homeTactics: next.homeGame?{...ST.tactics}:neutral,
     awayTactics: next.homeGame?neutral:{...ST.tactics},
     homeCond: next.homeGame?cond:{},
@@ -5585,7 +5675,8 @@ function commitGame(res,usSide,thSide,uSlots){
     if(lg){lg.g++;['pa','ab','h','d2','d3','hr','bb','hbp','k','rbi','r','sb','cs'].forEach(k=>lg[k]+=b[k]||0);}
     ST.cond[s.id]=Math.max(20,(ST.cond[s.id]||70)-(8+(b.pa||0)*1.2));
   });
-  ST.rotation.forEach((pid,i)=>{
+  const gRot=(ST.gameRotation&&ST.gameRotation.length)?ST.gameRotation:ST.rotation;
+  gRot.forEach((pid,i)=>{
     const l=res.pbox[pid]; if(!l||!l.bf)return;
     const acc=ST.pit[pid]; if(!acc)return;
     acc.g++; if(i===0)acc.gs++;
@@ -5612,7 +5703,7 @@ function commitGame(res,usSide,thSide,uSlots){
   });
 
   TBYID['wwzw'].pitchers.forEach(p=>{ST.rest[p.id]=Math.min(4,(ST.rest[p.id]||3)+1);});
-  ST.rotation.forEach(pid=>{
+  gRot.forEach(pid=>{
     const l=res.pbox[pid];
     if(l&&l.outs>=6)ST.rest[pid]=0; else if(l&&l.outs>0)ST.rest[pid]=1;
   });
@@ -6578,6 +6669,7 @@ function normalizeState(){
   if(ST.meet===undefined)ST.meet=null;
   if(ST.meet&&!us.players.some(p=>p.id===ST.meet.pid))ST.meet=null;
   if(!ST.gameStarters)ST.gameStarters=[];
+  if(!Array.isArray(ST.gameRotation))ST.gameRotation=[];
   if(!ST.career)ST.career={};
   if(!ST.teamCareer)ST.teamCareer=blankTeamCareer();
   if(!ST.milestones)ST.milestones=[];
@@ -6593,8 +6685,8 @@ function normalizeState(){
   ST.schedule.forEach((sc,i)=>{ if(!sc.park)sc.park=PARKS[(i*7+3)%PARKS.length].id; });
   if(!ST.lineup||ST.lineup.length<9||ST.lineup.some(s=>!us.players.some(p=>p.id===s.id)))
     ST.lineup=recommendLineup();
-  if(!ST.rotation||!ST.rotation.length||ST.rotation.some(id=>!us.pitchers.some(p=>p.id===id)))
-    ST.rotation=recommendRotation();
+  if(!ST.rotation||!ST.rotation.length)ST.rotation=recommendRotation();
+  else sanitizeRotation();
 }
 
 async function boot(){
