@@ -431,6 +431,12 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .sendopt i.gfor{font-style:normal;color:#7fd6a5}
 .sendopt i.gag{font-style:normal;color:#e0a08f}
 .warnx{color:#ffb4a8;font-weight:700}
+.pc-adv{font-size:11px;color:var(--blue);margin-top:3px}
+.pc-adv b{color:var(--gold)}
+.gdate i.gapx{font-style:normal;color:var(--blue);margin-left:6px;font-size:10.5px}
+.pc-val i{font-style:normal;font-size:10px;margin-left:4px}
+.pc-val i.vup{color:#7fd6a5}
+.pc-val i.vdn{color:#e0a08f}
 /* 경기 하이라이트 */
 .hl-dec{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:center;
   background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:9px}
@@ -1442,9 +1448,14 @@ function playerValue(p, meta, st){
   }
   const age=2026-(meta?meta.born:1999);
   if(age<=21)v*=1.15; else if(age>=30)v*=0.85;
-  if(st&&st.g>=3){
+  /* 성적에 따른 실시간 변동.
+     경기를 치를수록 반영 폭이 커진다(표본이 쌓이니까).
+     잘하면 최대 1.9배까지 뛰고 못하면 0.55배까지 떨어진다.           */
+  if(st&&st.g>=1){
+    const conf=Math.min(1, st.g/10);                 // 10경기면 완전 반영
     const o=(st.h+st.bb+st.hbp)/Math.max(1,st.pa)+(st.h+st.d2+st.d3*2+st.hr*3)/Math.max(1,st.ab);
-    v*=Math.max(0.72,Math.min(1.35,0.72+o*0.42));
+    const raw=Math.max(0.55,Math.min(1.90,0.50+o*0.52));
+    v*= 1 + (raw-1)*conf;
   }
   return Math.max(0.2, v);
 }
@@ -1509,12 +1520,48 @@ const HOLIDAYS = [
   {md:'08-15', name:'광복절'},
   {md:'10-01', name:'국군의 날'},
 ];
+/* 실제 사회인리그 일정은 매주 꼬박꼬박 잡히지 않는다.
+   다음 주에 바로 붙기도 하고, 대관이 안 되면 3주씩 비기도 한다.
+   2026 실제 기록도 2/22 → 3/29(5주) → 4/12(2주) → 4/26(2주) → 5/17(3주)
+   식으로 간격이 제각각이었다. 그 리듬을 그대로 흉내낸다.
+   연도만 넣으면 항상 같은 일정이 나오도록 연도 기반 시드를 쓴다.       */
 function seasonDates(year){
   const out=[];
   const d=new Date(year,1,1);
-  while(d.getDay()!==0) d.setDate(d.getDate()+1);
-  while(out.length<26 && d.getMonth()<9){ out.push(new Date(d)); d.setDate(d.getDate()+7); }
+  while(d.getDay()!==0) d.setDate(d.getDate()+1);   // 2월 첫 일요일
+  const END=new Date(year,9,20);                    // 10월 하순이 한계
+  const TARGET=24;                                  // 22경기 + 여유 2
+
+  /* 22경기를 2~9월에 넣으려면 평균 간격이 1.5주쯤 된다.
+     그래서 '기본 1주'로 깔고, 남는 여유 주를 시즌 전체에 무작위로
+     흩뿌린다. 앞에서부터 채우면 앞부분이 전부 연전이 돼버린다.       */
+  const rng=makeRng((year*7919+104729)>>>0);
+  for(let i=0;i<12;i++)rng();                       // 초기값 편향 제거
+  const totalWeeks=Math.floor((END-d)/(7*86400000));
+  const gaps=new Array(TARGET-1).fill(1);
+  let extra=Math.max(0, totalWeeks-(TARGET-1));
+  let guard=0;
+  while(extra>0 && guard++<600){
+    const i=(rng()*gaps.length)|0;
+    if(gaps[i]>=4) continue;                        // 한 번에 4주 이상은 안 쉰다
+    // 연속으로 길게 비는 건 드물게
+    if(gaps[i]>=2 && rng()<0.55) continue;
+    gaps[i]++; extra--;
+  }
+  out.push(new Date(d));
+  for(let i=0;i<gaps.length;i++){
+    d.setDate(d.getDate()+7*gaps[i]);
+    if(d>END) break;
+    out.push(new Date(d));
+  }
   return out;
+}
+/* 직전 경기와의 간격을 사람이 읽는 문장으로 */
+function gapLabel(round, year){
+  const dates=seasonDates(year||2026);
+  if(round<=0||!dates[round]||!dates[round-1]) return '개막전';
+  const wk=Math.round((dates[round]-dates[round-1])/(7*86400000));
+  return wk<=1?'지난주에 이어 바로':(wk===2?'2주 만에':(wk===3?'3주 만에':`${wk}주 만에`));
 }
 function holidayFor(round, year){
   const y=year||2026;
@@ -2917,6 +2964,86 @@ function doLesson(ST, pid){
 }
 
 /* =========================================================
+   감독 면담 — 내 성적을 두고 감독이 부른다
+   ---------------------------------------------------------
+   시즌 중간에 이건(감독)이 카톡으로 부른다.
+   리그 평균 대비 wRC+ 로 세 갈래: 잘함 / 보통 / 못함.
+   못하면 이모티콘까지 써가며 화낸다.
+   감독이 곧 플레이어면 송승민(주장)이 대신 부른다.
+   ========================================================= */
+function bossId(){
+  const us=TBYID['wwzw'];
+  const me=ST.playerId||'ksh';
+  const order=['lg','swm','khj','kig'];
+  return order.find(id=>id!==me&&us.players.some(p=>p.id===id))||null;
+}
+const BOSS_GOOD=[
+  ['요즘 너 진짜 잘한다','요즘 진짜 잘하시네요'],
+  ['타석에서 여유가 생겼더라','타석에서 여유가 생기셨더라고요'],
+  ['이 정도면 3번에 놔도 되겠다','이 정도면 3번에 놔도 되겠어요'],
+  ['숫자가 다 말해준다 계속 이렇게 가자','숫자가 다 말해줍니다 계속 이렇게 가시죠'],
+  ['다른 애들한테 너 얘기 많이 한다','다른 친구들한테 얘기 많이 합니다'],
+];
+const BOSS_MID=[
+  ['나쁘진 않은데 조금만 더 하자','나쁘진 않은데 조금만 더 하시죠'],
+  ['딱 평균이다. 여기서 한 발만 더 가면 된다','딱 평균입니다. 여기서 한 발만 더 가면 됩니다'],
+  ['배팅장 한 번만 같이 가자','배팅장 한 번만 같이 가시죠'],
+  ['컨택은 되는데 결정적일 때가 아쉽다','컨택은 되는데 결정적일 때가 아쉽습니다'],
+  ['조금만 참고 가면 터진다','조금만 참고 가면 터집니다'],
+];
+const BOSS_BAD=[
+  ['야 이건 좀 아니지 않냐 😤','이건 좀 아니지 않습니까 😤'],
+  ['지난 몇 경기 기록 봤냐 😡','지난 몇 경기 기록 보셨어요 😡'],
+  ['이럴 거면 왜 나오냐 진짜 😠','이럴 거면 왜 나오시는 겁니까 진짜 😠'],
+  ['내가 몇 번을 얘기했냐 🤬','제가 몇 번을 얘기했습니까 🤬'],
+  ['배팅장 좀 가라고 😤😤','배팅장 좀 가시라고요 😤😤'],
+];
+/* 감독 면담 선택지에 대한 반응 */
+const BOSS_REPLY={
+  humble:{good:['그래 그 자세 좋다','겸손하기까지 하네'],
+          mid:['그렇게 생각하면 된다','좋다 그 마음가짐이면 된다'],
+          bad:['말은 그렇게 하지 말고 좀 보여줘라 😤','알아들었으면 됐다']},
+  fight: {good:['ㅋㅋ 자신감 좋다','그래 그 정도는 돼야지'],
+          mid:['좋다 그 패기로 가자','오케이 기대한다'],
+          bad:['자신감은 좋은데 숫자가 안 따라온다 😐','말로 치면 4할이겠다']},
+  excuse:{good:['핑계는 무슨 잘하고 있는데','그런 소리 할 자격 없다 잘하잖아'],
+          mid:['핑계 대지 말고','다들 조건은 같다'],
+          bad:['그런 소리 들으려고 부른 거 아니다 🤬','됐다 진짜']},
+};
+
+/* 지금 내 성적이 리그에서 어느 정도인지 */
+function myGrade(){
+  const me=ST.playerId||'ksh';
+  const b=ST.bat[me]||blankBat();
+  if(!b.pa) return null;
+  const lgw=leagueWoba();
+  const w=wrcPlus(b,lgw);
+  return {pa:b.pa, wrc:w, avg:avg(b), ops:ops(b),
+    tier: w>=118?'good':(w>=85?'mid':'bad')};
+}
+
+/* 면담 개시 판정 — 시즌 중 최대 2회, 4경기 이상 뛰었을 때 */
+function rollBossTalk(){
+  if(ST.bossTalk) return;                        // 이미 대기 중
+  if((ST.bossTalkCount||0)>=2) return;
+  const played=ST.schedule.filter(x=>x.played).length;
+  if(played<4) return;
+  const last=ST.bossTalkAt!=null?ST.bossTalkAt:-99;
+  if(played-last<5) return;                      // 최소 5경기 간격
+  const g=myGrade(); if(!g||g.pa<8) return;
+  const boss=bossId(); if(!boss) return;
+  if(Math.random()<0.55){
+    ST.bossTalk={boss, tier:g.tier, wrc:g.wrc, pa:g.pa,
+      avg:g.avg, ops:g.ops, step:0, log:[]};
+    const pool = g.tier==='good'?BOSS_GOOD:(g.tier==='mid'?BOSS_MID:BOSS_BAD);
+    const pair=pickOne(pool);
+    ST.bossTalk.log.push({who:boss, text:sayTo(boss, ST.playerId, pair[0], pair[1])});
+    ST.bossTalk.log.push({who:boss, type:'notice',
+      text:`${g.pa}타석 · 타율 ${fmt3(g.avg)} · OPS ${g.ops.toFixed(3)} · wRC+ ${g.wrc}\n리그 평균은 100이다`});
+  }
+}
+
+/* =========================================================
    팀 재정 — 장비 · 리그 가입비 · 회비
    ---------------------------------------------------------
    운영비로 장비를 사고, 시즌이 끝나면 다음 시즌 리그 가입비(350만원)를
@@ -4082,6 +4209,14 @@ function isAvailable(pid){
   return true;
 }
 function nameOf(pid){const p=TBYID['wwzw'].players.find(x=>x.id===pid);return p?p.name:pid;}
+/* 몸값 변동 화살표 — 지난 경기 대비 */
+function valDelta(pid, now){
+  const prev=(ST.valuePrev&&ST.valuePrev[pid]);
+  if(prev==null) return '';
+  const d=now-prev;
+  if(Math.abs(d)<0.15) return '';
+  return d>0 ? `<i class="vup">▲${d.toFixed(1)}</i>` : `<i class="vdn">▼${Math.abs(d).toFixed(1)}</i>`;
+}
 /* 우리 팀·상대 팀 가리지 않고 투수 이름을 찾는다 (승패투수 표시용) */
 function pitcherName(pid){
   for(const t of TEAMS){
@@ -4122,6 +4257,7 @@ function newSeason(){
     mercs:[],                                              // 이번 경기 용병
     recruit:null,                                          // 영입 접촉 진행 상태
     gear:{}, duesCount:0, gearMeeting:null, feeDue:false,  // 장비·회비
+    bossTalk:null, bossTalkCount:0, bossTalkAt:-99, valuePrev:{},  // 감독 면담·몸값
     posTrain:{}, trainPos:null, trainStreak:0,             // 포지션 적응 훈련
     trainRain:false, trainPush:false,
     bond:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=50);return o;})(),
@@ -4519,6 +4655,58 @@ function renderHome(){
   }
 
 
+  /* ---- 감독 면담 ---- 내 성적을 두고 감독이 부른다 */
+  if(ST.bossTalk){
+    const B=ST.bossTalk;
+    const bc=el('div','card');
+    bc.innerHTML=`<div class="card-h">${nameOf(B.boss)}에게서 카톡</div>`;
+    const room=el('div','kakao');
+    B.log.forEach(m=>{
+      const mine=m.who===(ST.playerId||MYID);
+      const wd=el('div','kmsg'+(mine?' mine':'')+(m.type==='notice'?' notice':''));
+      wd.innerHTML=`${(mine||m.type==='notice')?'':`<div class="kname">${nameOf(m.who)}</div>`}`+
+        `<div class="kbub ${B.tier==='bad'&&!m.type?'angry':(B.tier==='good'&&!m.type?'happy':'')}">`+
+        `${String(m.text).replace(/\n/g,'<br>')}</div>`;
+      room.appendChild(wd);
+    });
+    bc.appendChild(room);
+    if(B.step===0){
+      const box=el('div','card sendbox');
+      box.appendChild(el('div','card-h','뭐라고 답할까'));
+      [['humble','더 열심히 하겠다고 한다','사기 +6 · 감독 호감 +8'],
+       ['fight','자신 있다고 받아친다','사기 +10 / 성적이 나쁘면 역효과'],
+       ['excuse','사정이 있었다고 한다','사기 -4 · 감독 호감 -6']].forEach(([k,n,d2])=>{
+        const b=el('button','sendopt bossopt');
+        b.innerHTML=`<b>${n}</b><span>${d2}</span>`;
+        b.onclick=()=>{
+          const me=ST.playerId||MYID;
+          B.log.push({who:me,text:n});
+          const rep2=pickOne(BOSS_REPLY[k][B.tier]);
+          B.log.push({who:B.boss,text:rep2});
+          let dm=0, db=0;
+          if(k==='humble'){dm=6;db=8;}
+          else if(k==='fight'){dm=B.tier==='bad'?-6:10;db=B.tier==='bad'?-4:6;}
+          else {dm=-4;db=-6;}
+          ST.morale[me]=Math.max(10,Math.min(100,(ST.morale[me]||70)+dm));
+          if(ST.bond)bondAdd(B.boss,db);
+          B.log.push({who:B.boss,type:'notice',
+            text:`내 사기 ${dm>=0?'+':''}${dm} · ${nameOf(B.boss)}와의 우정 ${db>=0?'+':''}${db}`});
+          B.step=1;
+          ST.bossTalkCount=(ST.bossTalkCount||0)+1;
+          ST.bossTalkAt=ST.schedule.filter(x=>x.played).length;
+          saveGame(true); go('home');
+        };
+        box.appendChild(b);
+      });
+      bc.appendChild(box);
+    } else {
+      const done=el('button','btn primary','대화 종료');
+      done.onclick=()=>{ST.bossTalk=null;saveGame(true);go('home');};
+      bc.appendChild(done);
+    }
+    c.appendChild(bc);
+  }
+
   /* ---- 시즌 초 장비 구매 안건 ---- 사자는 쪽과 아끼자는 쪽이 갈린다 */
   if(ST.round===0 && !ST.gearMeeting){
     ST.gearMeeting={done:false};
@@ -4768,7 +4956,8 @@ function renderHome(){
   const dateLbl=(ST.calendar&&ST.calendar.label)||'';
   const card=el('div','card');
   card.innerHTML=`<div class="card-h">${next.round}차전 · ${next.homeGame?'홈':'원정'}</div>
-    <div class="gdate">${dateLbl}${ST.calendar&&ST.calendar.holiday?` · ${ST.calendar.holiday}`:''} · ${wxN}</div>
+    <div class="gdate">${dateLbl}${ST.calendar&&ST.calendar.holiday?` · ${ST.calendar.holiday}`:''} · ${wxN}
+      <i class="gapx">${gapLabel(ST.round, ST.year||2026)}</i></div>
     <div class="opp-name">${opp.name}</div>
     <div class="opp-ops">팀 OPS ${opp.ops.toFixed(3)} · 타율 ${fmt3(opp.avg)}</div>
     <div class="park"><b>${park.name}</b><span>${park.desc}</span></div>
@@ -4997,14 +5186,16 @@ let squadSort='ca';
 function renderSquad(){
   const c=$('#view'); c.innerHTML='';
   const tabs=el('div','subtabs');
-  [['ca','능력'],['val','가치'],['cond','컨디션'],['morale','사기']].forEach(([k,n])=>{
+  [['ca','능력'],['val','가치'],['war','WAR'],['cond','컨디션'],['morale','사기']].forEach(([k,n])=>{
     const b=el('button','subtab'+(squadSort===k?' on':''),n);
     b.onclick=()=>{squadSort=k;renderSquad();}; tabs.appendChild(b);
   });
   c.appendChild(tabs);
 
   const us=TBYID['wwzw'];
+  const lgw=leagueWoba();
   const list=us.players.slice().sort((a,b)=>{
+    if(squadSort==='war')return warOf(b.id,ST.bat[b.id]||blankBat(),lgw)-warOf(a.id,ST.bat[a.id]||blankBat(),lgw);
     if(squadSort==='ca')return effCA(b.id)-effCA(a.id);
     if(squadSort==='val')return playerValue(b,META[b.id],ST.bat[b.id])-playerValue(a,META[a.id],ST.bat[a.id]);
     if(squadSort==='cond')return (ST.cond[b.id]||0)-(ST.cond[a.id]||0);
@@ -5027,7 +5218,7 @@ function renderSquad(){
           ${p.bats==='L'?'<span class="lh">좌</span>':''}
           ${injv?`<span class="tagx">${injv.name} ${injv.games}경기</span>`:''}
           ${abs&&!injv?`<span class="tagx">${abs}</span>`:''}</div>
-        <div class="pc-val">${wonStr(val)}</div>
+        <div class="pc-val">${wonStr(val)}${valDelta(p.id,val)}</div>
       </div>
       <div class="pc-stars"><span class="lbl">현재</span>${starHTML(ca)}<span class="lbl">잠재</span>${starHTML(pa,true)}</div>
       <div class="pc-traits">${m.traits.filter(t=>!['카풀','형제','좌투','금주'].includes(t)).map(t=>`<span class="trait">${t}</span>`).join('')}</div>
@@ -5037,6 +5228,7 @@ function renderSquad(){
       </div>
       <div class="pc-rate"><span>컨택 ${Math.round(p.con)}</span><span>파워 ${Math.round(p.pow)}</span><span>선구 ${Math.round(p.eye)}</span><span>주루 ${Math.round(p.spd)}</span><span>수비 ${Math.round(p.def)}</span><span>어깨 ${Math.round(p.arm)}</span></div>
       <div class="pc-stat">${b.pa?`${b.g}경기 ${fmt3(avg(b))} · OPS ${ops(b).toFixed(3)} · ${b.hr}홈런 ${b.rbi}타점 ${b.sb}도루`:'출전 기록 없음'}</div>
+      ${b.pa?`<div class="pc-adv">wRC+ <b>${wrcPlus(b,lgw)}</b> · WAR <b>${warOf(p.id,b,lgw).toFixed(2)}</b> · ISO ${fmt3(iso(b))} · BB/K ${bbk(b).toFixed(2)}</div>`:''}
       <div class="pc-att">출석 성향 ${Math.round((m.attend!=null?m.attend:0.85)*100)}%${(m.attend!=null&&m.attend<0.6)?' · 자주 빠진다':''}</div>
       <div class="pc-desc">${m.desc||''}</div>`;
     // 진행 중인 약속을 카드에 바로 보여준다
@@ -6212,6 +6404,12 @@ function commitGame(res,usSide,thSide,uSlots){
   ST.lastFreePass = gRot.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0)
     +usSide.sbAllowed+(res.wpCount||0);
   ST.lastLineup = uSlots.map(s=>({id:s.id,pos:s.pos}));
+  // 몸값 추이 — 지난 경기 대비 얼마나 올랐는지 보여주기 위해 스냅샷을 남긴다
+  if(!ST.valuePrev)ST.valuePrev={};
+  TBYID['wwzw'].players.forEach(p=>{
+    if(isMerc(p.id))return;
+    ST.valuePrev[p.id]=playerValue(p,META[p.id],ST.bat[p.id]);
+  });
   updateUnhappy(ST, uSlots);
   const starters = (ST.gameStarters&&ST.gameStarters.length)?ST.gameStarters:uSlots.map(s=>s.id);
   const promiseMsgs = checkPromises(ST, starters, uSlots.map(s=>s.id), absentIds);
@@ -6224,6 +6422,7 @@ function commitGame(res,usSide,thSide,uSlots){
   ST.sentPost=false;
   ST.partyDone = !won;
   ST.mystery = rollMysteryEvent(ST, uSlots);
+  rollBossTalk();                    // 내 성적을 보고 감독이 부를지 판정
   simOtherGames(sch.opp);
   applyTraining();
   const mn=releaseMercs(false);       // 용병은 그날로 끝이다
@@ -7006,6 +7205,71 @@ function leagueBase(){
   if(!pa||!ab) return {obp:0.35,slg:0.45};
   return {obp:(h+bb+hbp)/pa, slg:(h+d2+d3*2+hr*3)/ab};
 }
+/* =========================================================
+   wRC+ · WAR
+   ---------------------------------------------------------
+   리그 평균을 기준으로 환산한다. 사회인 4부라 표본이 작으니
+   실제 KBO 계수 대신 이 리그 실측(BABIP .451 · BB 15.6%)에 맞춘
+   단순 선형 가중치를 쓴다. 100이 평균, 0이 대체선수 수준이다.
+   ========================================================= */
+const WOBA_W = {bb:0.69, hbp:0.72, h1:0.89, d2:1.27, d3:1.62, hr:2.10};
+function woba(b){
+  if(!b||!b.pa) return 0;
+  const h1=b.h-b.d2-b.d3-b.hr;
+  return (WOBA_W.bb*b.bb + WOBA_W.hbp*b.hbp + WOBA_W.h1*h1
+        + WOBA_W.d2*b.d2 + WOBA_W.d3*b.d3 + WOBA_W.hr*b.hr) / b.pa;
+}
+/* 리그 전체 wOBA 와 타석당 득점 */
+function leagueWoba(){
+  let pa=0,ab=0,h=0,d2=0,d3=0,hr=0,bb=0,hbp=0;
+  Object.keys(ST.lgBat||{}).forEach(id=>{const b=ST.lgBat[id];
+    pa+=b.pa;ab+=b.ab;h+=b.h;d2+=b.d2;d3+=b.d3;hr+=b.hr;bb+=b.bb;hbp+=b.hbp;});
+  if(!pa) return {woba:0.42, rpa:0.17};
+  const agg={pa,ab,h,d2,d3,hr,bb,hbp};
+  return {woba:woba(agg), rpa:0.17};      // 이 리그는 타석당 약 0.17점
+}
+/* wRC+ : 100 = 리그 평균 */
+function wrcPlus(b, lg){
+  if(!b||!b.pa||!lg||!lg.woba) return 0;
+  const L=lg||leagueWoba();
+  return Math.round((woba(b)/L.woba)*100);
+}
+/* WAR (타자) — 아주 단순한 근사.
+   (선수 wOBA − 리그 wOBA) / wOBA스케일 × 타석 = 타격 득점
+   + 포지션·수비 보정, 10점 = 1승으로 환산한다.                        */
+const WOBA_SCALE = 1.15;
+function warOf(pid, b, lg){
+  if(!b||!b.pa) return 0;
+  const L=lg||leagueWoba();
+  if(!L.woba) return 0;
+  const batRuns=((woba(b)-L.woba)/WOBA_SCALE)*b.pa;
+  const p=TBYID['wwzw'].players.find(x=>x.id===pid);
+  const m=META[pid];
+  // 포지션 보정 (어려운 자리일수록 가산)
+  let posAdj=0;
+  if(m&&m.pos){
+    const best=Object.keys(m.pos).reduce((a,k)=>m.pos[k]>(m.pos[a]||0)?k:a,'RF');
+    posAdj = ({C:1.1,SS:0.7,'2B':0.3,'3B':0.2,CF:0.3,LF:-0.4,RF:-0.4,'1B':-0.8,DH:-1.2,P:0}[best]||0);
+  }
+  const defRuns = p ? ((p.def-46)*0.035*(b.g||0)) : 0;
+  const posRuns = posAdj*(b.g||0)*0.08;
+  const repl = 0.030*b.pa;                 // 대체선수 대비 가산
+  return (batRuns+defRuns+posRuns+repl)/10;
+}
+/* 투수 WAR — 리그 평균 자책 대비 */
+function warPit(s, lgEra){
+  if(!s||!s.outs) return 0;
+  const ip=s.outs/3;
+  const e=(s.er*7)/ip;                      // 이 리그 기준 7이닝 환산
+  const base=lgEra||8.5;
+  return ((base-e)*ip/7)/10 + ip*0.012;
+}
+function leagueEra(){
+  let er=0,outs=0;
+  Object.keys(ST.lgPit||{}).forEach(id=>{const s2=ST.lgPit[id];er+=s2.er;outs+=s2.outs;});
+  return outs? (er*7)/(outs/3) : 8.5;
+}
+
 /* OPS+ — 100이 리그 평균. 사회인야구라 표본이 작아 참고용이다. */
 function opsPlus(b, base){
   if(!b.pa||!b.ab) return 0;
@@ -7036,13 +7300,15 @@ function renderStats(){
   c.appendChild(tabs);
   const us=TBYID['wwzw'];
   const base=leagueBase();
+  const lgw=leagueWoba();
+  const lgEra=leagueEra();
 
   /* ── 우리 타격 ── */
   if(statTab==='team'){
     const card=el('div','card'); card.appendChild(el('div','card-h','타격 기록'));
     const t=el('table','box wide');
     t.innerHTML='<tr><th>선수</th><th>G</th><th>타수</th><th>안타</th><th>2B</th><th>HR</th><th>타점</th><th>도루</th>'+
-      '<th>타율</th><th>출루</th><th>장타</th><th>OPS</th><th>ISO</th><th>BB/K</th><th>OPS+</th></tr>';
+      '<th>타율</th><th>출루</th><th>장타</th><th>OPS</th><th>ISO</th><th>BB/K</th><th>OPS+</th><th>wRC+</th><th>WAR</th></tr>';
     us.players.slice().sort((x,y)=>ops(ST.bat[y.id]||blankBat())-ops(ST.bat[x.id]||blankBat())).forEach(p=>{
       const b=ST.bat[p.id]||blankBat();
       const tr=el('tr');
@@ -7050,7 +7316,8 @@ function renderStats(){
         `<td>${b.hr}</td><td>${b.rbi}</td><td>${b.sb}</td>`+
         `<td>${b.ab?fmt3(avg(b)):'—'}</td><td>${b.pa?fmt3(obp(b)):'—'}</td><td>${b.ab?fmt3(slg(b)):'—'}</td>`+
         `<td>${b.pa?ops(b).toFixed(3):'—'}</td><td>${b.ab?fmt3(iso(b)):'—'}</td>`+
-        `<td>${b.pa?bbk(b).toFixed(2):'—'}</td><td>${b.pa?opsPlus(b,base):'—'}</td>`;
+        `<td>${b.pa?bbk(b).toFixed(2):'—'}</td><td>${b.pa?opsPlus(b,base):'—'}</td>`+
+        `<td class="hl-hr">${b.pa?wrcPlus(b,lgw):'—'}</td><td>${b.pa?warOf(p.id,b,lgw).toFixed(2):'—'}</td>`;
       t.appendChild(tr);
     });
     card.appendChild(t); c.appendChild(card);
@@ -7062,14 +7329,15 @@ function renderStats(){
     const card=el('div','card'); card.appendChild(el('div','card-h','투수 기록'));
     const t=el('table','box wide');
     t.innerHTML='<tr><th>투수</th><th>G</th><th>승</th><th>패</th><th>이닝</th><th>피안타</th><th>자책</th>'+
-      '<th>볼넷</th><th>삼진</th><th>ERA</th><th>WHIP</th><th>K/9</th></tr>';
+      '<th>볼넷</th><th>삼진</th><th>ERA</th><th>WHIP</th><th>K/9</th><th>WAR</th></tr>';
     us.pitchers.forEach(p=>{
       const s2=ST.pit[p.id]||blankPit();
       const tr=el('tr');
       tr.innerHTML=`<td class="nm">${p.name}</td><td>${s2.g}</td><td>${s2.w}</td><td>${s2.l}</td><td>${ipStr(s2)}</td>`+
         `<td>${s2.h}</td><td>${s2.er}</td><td>${s2.bb}</td><td>${s2.k}</td>`+
         `<td>${s2.outs?era(s2).toFixed(2):'—'}</td><td>${s2.outs?whip(s2).toFixed(2):'—'}</td>`+
-        `<td>${s2.outs?k9(s2).toFixed(1):'—'}</td>`;
+        `<td>${s2.outs?k9(s2).toFixed(1):'—'}</td>`+
+        `<td class="hl-hr">${s2.outs?warPit(s2,lgEra).toFixed(2):'—'}</td>`;
       t.appendChild(tr);
     });
     card.appendChild(t); c.appendChild(card);
@@ -7087,7 +7355,7 @@ function renderStats(){
     const KEY={
       avg:r=>avg(r.b), ops:r=>ops(r.b), hr:r=>r.b.hr, rbi:r=>r.b.rbi, sb:r=>r.b.sb,
       obp:r=>obp(r.b), slg:r=>slg(r.b), iso:r=>iso(r.b), bbk:r=>bbk(r.b),
-      opsp:r=>opsPlus(r.b,base),
+      opsp:r=>opsPlus(r.b,base), wrc:r=>wrcPlus(r.b,lgw),
     };
     const f=KEY[lgBatSort]||KEY.avg;
     rows.sort((x,y)=>f(y)-f(x));
@@ -7099,7 +7367,7 @@ function renderStats(){
     t.appendChild(sortHead([
       ['#','#',false],['name','선수',false],['team','팀',false],
       ['avg','타율',true],['obp','출루',true],['slg','장타',true],['ops','OPS',true],
-      ['iso','ISO',true],['bbk','BB/K',true],['opsp','OPS+',true],
+      ['iso','ISO',true],['bbk','BB/K',true],['opsp','OPS+',true],['wrc','wRC+',true],
       ['hr','HR',true],['rbi','타점',true],['sb','도루',true],
     ], lgBatSort, k=>{lgBatSort=k;renderStats();}));
     rows.slice(0,60).forEach((r,i)=>{
@@ -7107,7 +7375,8 @@ function renderStats(){
       tr.innerHTML=`<td>${i+1}</td><td class="nm">${r.name}</td><td class="tm">${r.team}</td>`+
         `<td>${fmt3(avg(r.b))}</td><td>${fmt3(obp(r.b))}</td><td>${fmt3(slg(r.b))}</td>`+
         `<td>${ops(r.b).toFixed(3)}</td><td>${fmt3(iso(r.b))}</td><td>${bbk(r.b).toFixed(2)}</td>`+
-        `<td>${opsPlus(r.b,base)}</td><td>${r.b.hr}</td><td>${r.b.rbi}</td><td>${r.b.sb}</td>`;
+        `<td>${opsPlus(r.b,base)}</td><td class="hl-hr">${wrcPlus(r.b,lgw)}</td>`+
+        `<td>${r.b.hr}</td><td>${r.b.rbi}</td><td>${r.b.sb}</td>`;
       t.appendChild(tr);
     });
     card.appendChild(t); c.appendChild(card);
@@ -7511,6 +7780,11 @@ function normalizeState(){
     // 로스터에 없는 선수(이적·방출)의 약속은 정리한다
     if(ST.promise[pid]&&!us.players.some(p=>p.id===pid))delete ST.promise[pid];
   });
+  if(ST.bossTalk===undefined)ST.bossTalk=null;
+  if(ST.bossTalk&&!us.players.some(p=>p.id===ST.bossTalk.boss))ST.bossTalk=null;
+  if(ST.bossTalkCount==null)ST.bossTalkCount=0;
+  if(ST.bossTalkAt==null)ST.bossTalkAt=-99;
+  if(!ST.valuePrev)ST.valuePrev={};
   if(!ST.gear)ST.gear={};
   if(ST.duesCount==null)ST.duesCount=0;
   if(ST.gearMeeting===undefined)ST.gearMeeting=null;
