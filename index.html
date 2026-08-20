@@ -411,6 +411,8 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
   background:var(--panel2);color:var(--dim)}
 .achip.on{border-color:var(--gold);color:var(--gold);font-weight:700}
 .achip.inj{border-color:#4a2b28;color:#c98a80}
+/* 용병 섭외 시트 안내 */
+.sheet-note{font-size:11px;color:var(--dim);line-height:1.55;padding:4px 4px 10px}
 .dimx{color:var(--dim);font-size:10.5px}
 
 /* 라인업 추가 */
@@ -1231,6 +1233,34 @@ const META = {
     pos:PR({P:54,LF:42,RF:40,'1B':22,C:0,'2B':0,'3B':0,SS:0,CF:0}),
     desc:'팀 유일 좌완·좌타. 실전 이닝 0.'},
 };
+
+/* =========================================================
+   용병 — 9명이 안 될 때의 마지막 수단
+   ---------------------------------------------------------
+   실제로 인원이 모자랄 때 불렀던 사람들이다.
+   조창익은 1루만 서고, 박재민·최민서는 그냥 자리만 채운다.
+   능력치는 우리 팀 최하위(이민혁 con12/pow16)보다 아래로 잡았다.
+   ========================================================= */
+const MERCS = [
+  {id:'merc_cji', name:'조창익', fee:14,
+   bats:'R', throws:'R',
+   con:22, pow:30, eye:20, spd:26, def:34, arm:40,
+   pos:{C:0,'1B':40,'2B':0,'3B':0,SS:0,LF:0,CF:0,RF:0,DH:45,P:0},
+   desc:'1루만 선다. 다른 자리는 아예 못 간다.'},
+  {id:'merc_pjm', name:'박재민', fee:11,
+   bats:'R', throws:'R',
+   con:14, pow:13, eye:15, spd:34, def:26, arm:32,
+   pos:{C:25,'1B':26,'2B':25,'3B':25,SS:24,LF:26,CF:25,RF:26,DH:40,P:0},
+   desc:'어디든 서지만 어디서도 잘하지 못한다.'},
+  {id:'merc_cms', name:'최민서', fee:11,
+   bats:'L', throws:'R',
+   con:12, pow:11, eye:18, spd:30, def:25, arm:30,
+   pos:{C:24,'1B':25,'2B':26,'3B':24,SS:25,LF:25,CF:24,RF:25,DH:40,P:0},
+   desc:'자리만 채운다. 그래도 몰수패보다는 낫다.'},
+];
+const MERC_IDS = MERCS.map(m=>m.id);
+function isMerc(pid){ return MERC_IDS.indexOf(pid)>=0; }
+function mercDef(pid){ return MERCS.find(m=>m.id===pid)||null; }
 
 const TRAIT_INFO = {
   '리더':'팀 사기 하락을 완화하고 분위기를 수습한다',
@@ -3600,6 +3630,7 @@ function newSeason(){
     unhappy:{}, career:{}, teamCareer:null, milestones:[], firsts:{}, weather:'clear',
     promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
+    mercs:[],                                              // 이번 경기 용병
     lastLineup:null, oppEvent:null, mystery:null, canParty:false, teamBuff:null,
     kakaoPost:[], partyDone:false, lastFreePass:0, awards:null,
     caStart:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=calcCA(p));return o;})()};
@@ -4073,12 +4104,14 @@ function renderHome(){
   if(rain){
     card.appendChild(el('p','muted','우천 취소다. 다음 주로 넘긴다.'));
     const b=el('button','btn','다음 주로');
-    b.onclick=()=>{ST.weekDone=false;ST.events=[];saveGame(true);go('home');};
+    b.onclick=()=>{const r=releaseMercs(true);if(r)toast(`우천 취소 — 용병 ${r}명 비용 환불`);
+      ST.weekDone=false;ST.events=[];saveGame(true);go('home');};
     card.appendChild(b);
   } else {
     const avail=us.players.filter(p=>isAvailable(p.id)).length;
     if(avail<9){
-      card.appendChild(el('div','warn',`출전 가능 인원 ${avail}명. 9명이 안 되면 몰수패(0:7)다.`));
+      card.appendChild(el('div','warn',
+        `출전 가능 인원 ${avail}명. 9명이 안 되면 몰수패(0:7)다. 용병을 부르면 채울 수 있다.`));
       const b0=el('button','btn','단톡방에 사정해본다');
       b0.onclick=()=>{
         const cands=us.players.filter(p=>ST.absent&&ST.absent[p.id]);
@@ -4100,6 +4133,9 @@ function renderHome(){
         saveGame(true); go('home');
       };
       card.appendChild(b0);
+      const bm=el('button','btn','용병 부른다');
+      bm.onclick=()=>openMercSheet(()=>go('home'));
+      card.appendChild(bm);
       const b=el('button','btn danger','몰수패 처리'); b.onclick=forfeit;
       card.appendChild(b);
     } else {
@@ -4124,7 +4160,132 @@ function renderHome(){
   }
 }
 
+/* =========================================================
+   용병 운용
+   ---------------------------------------------------------
+   용병은 로스터에 상주하지 않는다. ST.mercs 에 담긴 동안만
+   TBYID['wwzw'].players 에 얹혀 있다가 경기가 끝나면 빠진다.
+   기록(ST.bat)도 같이 지워서 통산기록·시상식에 안 섞이게 한다.
+   ========================================================= */
+function ensureMercs(){
+  const us=TBYID['wwzw'];
+  if(!Array.isArray(ST.mercs))ST.mercs=[];
+  ST.mercs=ST.mercs.filter(id=>isMerc(id));
+  let changed=false;
+  ST.mercs.forEach(id=>{
+    if(us.players.some(p=>p.id===id))return;
+    const m=mercDef(id); if(!m)return;
+    us.players.push({id:m.id,name:m.name,bats:m.bats,
+      con:m.con,pow:m.pow,eye:m.eye,spd:m.spd,def:m.def,arm:m.arm,
+      pos:Object.keys(m.pos).filter(k=>m.pos[k]>0&&k!=='DH'),
+      pitch:null,real:null});
+    META[m.id]={born:2000,speech:'jon',throws:m.throws,car:false,school:'-',
+      drink:1,attend:1.0,loyal:0,pot:0,traits:['용병'],friends:[],rival:null,
+      coach:{},pos:{...m.pos},desc:m.desc};
+    ST.bat[m.id]=ST.bat[m.id]||blankBat();
+    if(ST.cond[m.id]==null)ST.cond[m.id]=70;
+    if(ST.morale[m.id]==null)ST.morale[m.id]=60;
+    if(ST.injury[m.id]===undefined)ST.injury[m.id]=null;
+    ST.ca[m.id]=calcCA(us.players[us.players.length-1]);
+    if(ST.caStart)ST.caStart[m.id]=ST.ca[m.id];
+    changed=true;
+  });
+  if(changed){ finalizeTeam(us); buildPitcherPool(); }
+  return changed;
+}
+
+/* 용병을 부른다. 운영비가 모자라면 못 부른다. */
+function hireMerc(id){
+  const m=mercDef(id);
+  if(!m) return {ok:false,msg:'그런 사람 없다'};
+  if(!Array.isArray(ST.mercs))ST.mercs=[];
+  if(ST.mercs.indexOf(id)>=0) return {ok:false,msg:`${m.name}은(는) 이미 불렀다`};
+  if(ST.budget < m.fee) return {ok:false,msg:`운영비가 부족하다 (${m.fee}만원 필요)`};
+  ST.budget-=m.fee;
+  ST.mercs.push(id);
+  ensureMercs();
+  // 용병을 쓰면 팀 분위기가 좋을 리 없다
+  TBYID['wwzw'].players.forEach(p=>{
+    if(isMerc(p.id))return;
+    ST.morale[p.id]=Math.max(10,(ST.morale[p.id]||70)-3);
+  });
+  ST.kakao=ST.kakao||[];
+  ST.kakao.push({who:'lg',type:'notice',
+    text:`용병 ${m.name} 섭외 — ${m.fee}만원 지출\n전원 사기 -3`});
+  ST.kakao.push({who:pickOne(['lg','swm','kig']),
+    text:pickOne(['또 용병이냐...','9명은 좀 채우자 진짜','내년엔 사람 좀 늘리자',
+                  '이러다 매주 용병 부르겠다']),mood:'sad'});
+  return {ok:true,msg:`${m.name} 합류 — ${m.fee}만원`};
+}
+
+/* 경기가 끝났거나 취소됐을 때 용병을 로스터에서 뺀다.
+   refund=true 면(우천 취소 등) 비용을 돌려준다.                       */
+function releaseMercs(refund){
+  if(!Array.isArray(ST.mercs)||!ST.mercs.length)return 0;
+  const us=TBYID['wwzw'];
+  let back=0;
+  ST.mercs.forEach(id=>{
+    const m=mercDef(id);
+    if(refund&&m)back+=m.fee;
+    const i=us.players.findIndex(p=>p.id===id);
+    if(i>=0)us.players.splice(i,1);
+    delete ST.bat[id]; delete ST.cond[id]; delete ST.morale[id];
+    delete ST.injury[id]; delete ST.ca[id];
+    // 리그 순위표·통산기록·시상식에 용병이 남으면 안 된다
+    if(ST.lgBat)delete ST.lgBat[id];
+    if(ST.career)delete ST.career[id];
+    if(ST.caStart)delete ST.caStart[id];
+    if(ST.unhappy)delete ST.unhappy[id];
+    if(ST.promise)delete ST.promise[id];
+    if(ST.meetRound)delete ST.meetRound[id];
+    if(ST.buff)delete ST.buff[id];
+    if(ST.pit)delete ST.pit[id];
+    if(ST.rest)delete ST.rest[id];
+    if(ST.meet&&ST.meet.pid===id)ST.meet=null;
+    if(ST.mystery&&ST.mystery.id===id)ST.mystery=null;
+    delete META[id];
+  });
+  const n=ST.mercs.length;
+  ST.mercs=[];
+  ST.budget+=back;
+  ST.lineup=(ST.lineup||[]).filter(sl=>!isMerc(sl.id));
+  if(ST.lineup.length<9)ST.lineup=recommendLineup();
+  ST.rotation=(ST.rotation||[]).filter(x=>!isMerc(x));
+  if(!ST.rotation.length)ST.rotation=recommendRotation();
+  if(ST.lastLineup)ST.lastLineup=ST.lastLineup.filter(x=>!isMerc(x.id));
+  if(ST.trainTarget&&isMerc(ST.trainTarget))ST.trainTarget=null;
+  finalizeTeam(us); buildPitcherPool(); applyDHRule();
+  return n;
+}
+
+/* 용병 섭외 시트 */
+function openMercSheet(after){
+  const body=$('#sheet-body'); body.innerHTML='';
+  const need=Math.max(0,9-TBYID['wwzw'].players.filter(p=>isAvailable(p.id)).length);
+  $('#sheet-title').textContent=`용병 섭외 · ${need}명 더 필요`;
+  const note=el('div','sheet-note',
+    `경기당 비용이 나가고 부를 때마다 전원 사기가 3씩 깎인다. 현재 운영비 ${ST.budget.toFixed(0)}만원.`);
+  body.appendChild(note);
+  MERCS.forEach(m=>{
+    const already=(ST.mercs||[]).indexOf(m.id)>=0;
+    const poor=ST.budget<m.fee;
+    const r=el('button','pick-row'+(already?' cur':'')+(poor&&!already?' bad':''));
+    const canPos=Object.keys(m.pos).filter(k=>k!=='DH'&&m.pos[k]>0);
+    r.innerHTML=`<div class="pk-l"><div class="pk-name">${m.name}${already?' · 합류함':''}</div>
+      <div class="pk-note">${m.desc}<br>가능 포지션 ${canPos.length?canPos.map(k=>POSNAMES[k]).join('·'):'없음'}</div></div>
+      <div class="pk-r"><div class="pk-stat">${m.fee}만원</div></div>`;
+    if(!already&&!poor)r.onclick=()=>{
+      const res=hireMerc(m.id);
+      toast(res.msg);
+      if(res.ok){ saveGame(true); closeSheet(); if(after)after(); }
+    };
+    body.appendChild(r);
+  });
+  $('#sheet').classList.add('open');
+}
+
 function forfeit(){
+  releaseMercs(true);                 // 경기를 안 했으니 용병 비용은 돌려받는다
   const sch=ST.schedule[ST.round];
   sch.played=true; sch.result={us:0,them:7};
   const u=ST.stand['wwzw'], t=ST.stand[sch.opp];
@@ -4208,14 +4369,19 @@ function renderSquad(){
     // 진행 중인 약속을 카드에 바로 보여준다
     const pr=ST.promise&&ST.promise[p.id];
     if(pr) card.appendChild(el('div','pc-prom','약속: '+promiseLabel(pr)));
-    // 면담 버튼 — 불만 2단계 이상이면 빨갛게 표시해서 눈에 띄게 한다
-    const act=el('div','pc-act');
-    const un=(ST.unhappy&&ST.unhappy[p.id])?ST.unhappy[p.id].level:0;
-    const mb=el('button','mbtn'+(un>=2?' hot':''),
-      un>=2?`면담 · ${unhappyLabel(un)}`:'면담');
-    mb.onclick=()=>openMeet(p.id);
-    act.appendChild(mb);
-    card.appendChild(act);
+    if(isMerc(p.id)){
+      // 용병은 오늘 하루짜리다. 면담도 훈련도 없다.
+      card.appendChild(el('div','pc-prom',`오늘 경기 한정 용병 · ${mercDef(p.id).fee}만원`));
+    } else {
+      // 면담 버튼 — 불만 2단계 이상이면 빨갛게 표시해서 눈에 띄게 한다
+      const act=el('div','pc-act');
+      const un=(ST.unhappy&&ST.unhappy[p.id])?ST.unhappy[p.id].level:0;
+      const mb=el('button','mbtn'+(un>=2?' hot':''),
+        un>=2?`면담 · ${unhappyLabel(un)}`:'면담');
+      mb.onclick=()=>openMeet(p.id);
+      act.appendChild(mb);
+      card.appendChild(act);
+    }
     c.appendChild(card);
   });
 
@@ -4713,7 +4879,7 @@ function renderGame(){
         bad.map(x=>nameOf(x.id)).join(', ')+'이(가) 빠져서 라인업을 자동으로 채웠다.'));
     } else {
       c.appendChild(el('div','warn',
-        `출전 가능 인원이 ${avail}명뿐이다. 9명을 못 채우면 몰수패(0:7)다.`));
+        `출전 가능 인원이 ${avail}명뿐이다. 9명을 못 채우면 몰수패(0:7)다. 용병을 부르면 채울 수 있다.`));
       const b0=el('button','btn','단톡방에 사정해본다');
       b0.onclick=()=>{
         const cands=TBYID['wwzw'].players.filter(p=>ST.absent&&ST.absent[p.id]);
@@ -4733,6 +4899,9 @@ function renderGame(){
         }
         saveGame(true); go('game');
       };
+      const bm2=el('button','btn','용병 부른다');
+      bm2.onclick=()=>openMercSheet(()=>go('game'));
+      c.appendChild(bm2);
       const b1=el('button','btn danger','몰수패 처리'); b1.onclick=forfeit;
       c.appendChild(b0); c.appendChild(b1);
       return;
@@ -5200,6 +5369,8 @@ function commitGame(res,usSide,thSide,uSlots){
   ST.mystery = rollMysteryEvent(ST, uSlots);
   simOtherGames(sch.opp);
   applyTraining();
+  const mn=releaseMercs(false);       // 용병은 그날로 끝이다
+  if(mn)ST.kakaoPost.push({who:'lg',type:'notice',text:`용병 ${mn}명 오늘까지. 다음 주엔 사람 좀 채우자`});
   ST.round++; ST.weekDone=false; ST.events=[];
   if(ST.round>=ST.schedule.length)ST.seasonOver=true;
   saveGame(true); LIVE=null;
@@ -5251,6 +5422,7 @@ function trainAttendList(){
   const rng=makeRng((ST.seed+(ST.round||0)*6551+(ST.weekSeq||0)*7717+991)>>>0);
   const list=[];
   TBYID['wwzw'].players.forEach(p=>{
+    if(isMerc(p.id))return;                               // 용병은 그날 하루만 온다
     if(ST.injury&&ST.injury[p.id])return;                 // 부상자는 훈련에 못 나온다
     let prob;
     if(TRAIN_REGULARS.indexOf(p.id)>=0) prob=1;
@@ -5972,6 +6144,8 @@ function normalizeState(){
     // 로스터에 없는 선수(이적·방출)의 약속은 정리한다
     if(ST.promise[pid]&&!us.players.some(p=>p.id===pid))delete ST.promise[pid];
   });
+  if(!Array.isArray(ST.mercs))ST.mercs=[];
+  ensureMercs();                      // 세이브에 용병이 남아 있으면 다시 얹어준다
   if(!ST.meetRound)ST.meetRound={};
   if(ST.meet===undefined)ST.meet=null;
   if(ST.meet&&!us.players.some(p=>p.id===ST.meet.pid))ST.meet=null;
