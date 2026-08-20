@@ -416,6 +416,9 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .achip.inj{border-color:#4a2b28;color:#c98a80}
 /* 용병 섭외 시트 안내 */
 .sheet-note{font-size:11px;color:var(--dim);line-height:1.55;padding:4px 4px 10px}
+.savestat{font-size:11px;color:var(--blue);background:var(--panel2);border:1px solid var(--line);
+  border-radius:9px;padding:8px 10px;margin:8px 0}
+.savestat.bad{color:#ffb4a8;border-color:#7a3b34}
 .dimx{color:var(--dim);font-size:10.5px}
 
 /* 라인업 추가 */
@@ -1823,6 +1826,56 @@ function rollWeekEvents(ST, rng){
     }
   }
 
+  /* 친구의 술 약속 — 플레이어에게 직접 오는 연락이다.
+     수락하면 우정과 사기가 오르지만 다음 경기 컨디션이 깎인다.       */
+  const meId=ST.playerId||'ksh';
+  const meM=META[meId];
+  if(meM && rng()<0.09){
+    const pals=(meM.friends||[]).filter(f=>{
+      const fm=META[f];
+      return fm && !fm.traits.includes('금주') && us.players.some(p=>p.id===f)
+        && !ST.injury[f] && !evts.some(e=>e.type==='absent'&&e.pid===f);
+    });
+    if(pals.length){
+      const f=pickOne(pals,rng);
+      evts.push({type:'drinkinvite',pid:f,title:`${nameOf(f)}에게서 연락`,
+        body:sayTo(f,meId,...pickOne(DRINK_INVITE,rng)),
+        effect:'수락 · 거절을 골라야 한다'});
+    }
+  }
+
+  /* 축구 언해피 — 형제(김인규·김한규)가 야구보다 축구에 마음이 가 있다 */
+  ['kig','khg'].forEach(pid=>{
+    if(!us.players.some(p=>p.id===pid))return;
+    if(ST.injury[pid])return;
+    if(evts.some(e=>e.type==='soccer'))return;
+    if(rng()<0.032){
+      evts.push({type:'soccer',pid,title:`${nameOf(pid)} 축구`,
+        body:sayTo(pid,ST.playerId||'ksh',...pickOne(SOCCER_LINES,rng)),
+        effect:'사기 하락 · 불만 1단계 상승'});
+    }
+  });
+
+  /* 타팀 영입 제안 — 잘하는데 대우를 못 받는 선수에게 온다 */
+  if(rng()<0.06){
+    const cands=us.players.filter(p=>{
+      if(!us.players.some(q=>q.id===p.id))return false;
+      if(ST.injury[p.id])return false;
+      if(ST.promise&&ST.promise[p.id])return false;        // 이미 약속한 선수는 빼준다
+      const un=(ST.unhappy&&ST.unhappy[p.id])?ST.unhappy[p.id].level:0;
+      const bond=(ST.bond&&ST.bond[p.id]!=null)?ST.bond[p.id]:50;
+      return effCA(p.id)>=34 && (un>=1 || bond<45);
+    });
+    if(cands.length){
+      const v=pickOne(cands,rng);
+      const orderMax=3+((rng()*3)|0);                       // 1~5번 중 보장 요구
+      evts.push({type:'poach',pid:v.id,orderMax:Math.min(5,orderMax),
+        title:`${v.name} 타팀 영입 제안`,
+        body:sayTo(v.id,ST.playerId||'ksh',...pickOne(POACH_LINES,rng)),
+        effect:`${Math.min(5,orderMax)}번 타순 이상 보장을 요구한다`});
+    }
+  }
+
   /* 김준희 농구 */
   if(isAvailable('kjh')&&rng()<0.18){
     evts.push({type:'basket',pid:'kjh',title:'김준희 농구하고 옴',
@@ -1908,7 +1961,7 @@ function rollWeekEvents(ST, rng){
 function applyWeekEvents(ST,evts){
   const us=TBYID['wwzw'];
   ST.absent={}; ST.fieldMod={err:1,cond:0}; ST.gearLevel=0; ST.mittMissing=false;
-  ST.buff={}; ST.transferReq=null;
+  ST.buff={}; ST.transferReq=null; ST.drinkInvite=null; ST.poach=null;
   let rained=false;
   const wx=WEATHERS.find(w=>w.id===ST.weather)||WEATHERS[0];
   ST.fieldMod.err*=wx.err;
@@ -1956,6 +2009,14 @@ function applyWeekEvents(ST,evts){
         (e.ids||[]).forEach(id=>ST.cond[id]=Math.max(22,ST.cond[id]-11));
         break;
       case 'transfer': ST.transferReq=e.pid; break;
+      case 'drinkinvite': ST.drinkInvite={pid:e.pid,line:e.body}; break;
+      case 'poach': ST.poach={pid:e.pid,orderMax:e.orderMax,line:e.body}; break;
+      case 'soccer':
+        // 축구가 더 재밌다는 소리는 야구 의욕이 떨어졌다는 뜻이다
+        ST.morale[e.pid]=Math.max(10,(ST.morale[e.pid]||70)-8);
+        if(!ST.unhappy[e.pid])ST.unhappy[e.pid]={level:0,streak:0};
+        ST.unhappy[e.pid].level=Math.min(4,ST.unhappy[e.pid].level+1);
+        break;
     }
   });
   return rained;
@@ -2472,8 +2533,24 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
 
   (milestones||[]).slice(0,4).forEach(m=>{
     msgs.push({who:'lg',type:'record',text:`📋 ${m.text}`});
+    /* 50호·100호는 따로 크게 다룬다 */
+    if(m.pid&&(m.mark===50||m.mark===100||m.mark===150||m.mark===200)){
+      msgs.push({who:'lg',type:'record',
+        text:`🎉 ${nameOf(m.pid)} ${m.mark}${m.label==='삼진'?'번째 삼진':`호 ${m.label}`} 달성`});
+      const crowd=us.players.filter(p=>p.id!==m.pid&&isAvailable(p.id));
+      if(crowd.length){
+        const a=pickOne(crowd,rng);
+        uniqPush(msgs,{who:a.id,text:sayTo(a.id,m.pid,...pickOne(MILE_BIG_CHEER,rng)),mood:'happy'});
+        const rest=crowd.filter(p=>p.id!==a.id);
+        if(rest.length){
+          const b2=pickOne(rest,rng);
+          uniqPush(msgs,{who:b2.id,text:sayTo(b2.id,m.pid,...pickOne(MILE_BIG_TEASE,rng)),mood:'happy'});
+        }
+        uniqPush(msgs,{who:m.pid,text:say(m.pid,...pickOne(MILE_BIG_REPLY,rng)),mood:'happy'});
+      }
+    }
     /* 큰 기록이면 축하 + 놀리기 */
-    if(m.mark>=25&&m.pid){
+    else if(m.mark>=25&&m.pid){
       const others=us.players.filter(p=>p.id!==m.pid&&isAvailable(p.id));
       if(others.length){
         const a=pickOne(others,rng);
@@ -2943,6 +3020,83 @@ function applyGojin(ST, gj){
     }
   });
   return msgs;
+}
+
+/* =========================================================
+   친구·영입 제안·축구 — 가벼운 이벤트 대사 풀
+   ---------------------------------------------------------
+   전부 [반말, 존댓말] 쌍이다. sayTo(선수, 감독) 로 뽑는다.
+   ========================================================= */
+const DRINK_INVITE=[
+  ['야 술이나 먹자','형 술이나 한잔 하시죠'],
+  ['오늘 시간 되냐? 한잔 하자','오늘 시간 되세요? 한잔 하시죠'],
+  ['갑자기 소주 땡기는데 나올래','갑자기 소주 땡기는데 나오실래요'],
+  ['안주 내가 산다 나와라','안주는 제가 삽니다 나오세요'],
+  ['요새 얼굴 못 봤다 한잔 하자','요새 얼굴을 못 뵀네요 한잔 하시죠'],
+];
+const DRINK_YES=[
+  ['역시 너다 ㅋㅋ','역시 형이십니다 ㅋㅋ'],
+  ['바로 나온다 그럴 줄 알았다','바로 나오시는군요 ㅎㅎ'],
+  ['좋다 이따 보자','좋습니다 이따 뵙겠습니다'],
+];
+const DRINK_NO=[
+  ['에이 뭐냐 재미없게','에이 뭐예요 재미없게'],
+  ['알겠다 다음에 보자','알겠습니다 다음에 뵙죠'],
+  ['그래 뭐 바쁘면 어쩔 수 없지','그래요 뭐 바쁘시면 어쩔 수 없죠'],
+];
+const SOCCER_LINES=[
+  ['요새 축구가 더 재밌더라','요새 축구가 더 재밌네요'],
+  ['주말에 풋살 나가는 게 더 낫나 싶다','주말에 풋살 나가는 게 더 낫나 싶습니다'],
+  ['야구는 앉아 있는 시간이 너무 길다','야구는 앉아 있는 시간이 너무 길어요'],
+  ['축구는 뛰기라도 하지','축구는 뛰기라도 하죠'],
+];
+const POACH_LINES=[
+  ['다른 팀에서 연락 왔다. 거긴 상위타순 준다더라','다른 팀에서 연락 왔습니다. 거긴 상위타순 준다는데요'],
+  ['솔직히 말한다. 타순 보장 안 해주면 옮길 생각이다','솔직히 말씀드립니다. 타순 보장 안 해주시면 옮길 생각입니다'],
+  ['거기서는 나를 4번으로 쓴다고 한다','거기서는 저를 4번으로 쓴다고 합니다'],
+  ['여기 남고 싶은데 조건이 있어야 남지','여기 남고 싶은데 조건이 있어야 남죠'],
+];
+const POACH_STAY=[
+  ['알겠다. 그럼 남는다','알겠습니다. 그럼 남겠습니다'],
+  ['그 말 믿고 간다','그 말씀 믿고 가겠습니다'],
+  ['잘 부탁한다','잘 부탁드립니다'],
+];
+/* 50호·100호 같은 큰 마일스톤 전용 반응 */
+const MILE_BIG_CHEER=[
+  ['이건 진짜 축하해야지 ㅋㅋ','이건 진짜 축하드려야죠 ㅋㅋ'],
+  ['우와 그걸 채웠네','우와 그걸 채우셨네요'],
+  ['오늘 회식이다','오늘 회식이죠 이건'],
+  ['우리 팀에 이런 기록이 나오네','우리 팀에 이런 기록이 나오네요'],
+];
+const MILE_BIG_TEASE=[
+  ['근데 몇 경기 나갔는지도 같이 올려라','근데 몇 경기 나가셨는지도 같이 올리시죠'],
+  ['내야안타 빼면 몇 개냐','내야안타 빼면 몇 개예요'],
+  ['이 정도면 한 잔이 아니라 한 판이다','이 정도면 한 잔이 아니라 한 판 사셔야죠'],
+  ['축하는 하는데 다음 경기가 더 중요하다','축하는 드리는데 다음 경기가 더 중요합니다'],
+];
+const MILE_BIG_REPLY=[
+  ['기록은 기록이다 ㅋㅋ','기록은 기록이죠 ㅋㅋ'],
+  ['그래 산다 사','네 삽니다 사요'],
+  ['다음 기록도 금방 간다','다음 기록도 금방 갑니다'],
+  ['너희 덕분이다','다 덕분입니다'],
+];
+
+const POACH_LEAVE=[
+  ['알겠다. 생각 좀 해보겠다','알겠습니다. 생각 좀 해보겠습니다'],
+  ['뭐 그럴 줄 알았다','뭐 그럴 줄 알았습니다'],
+  ['됐다. 더 말 안 한다','됐습니다. 더 말 안 하겠습니다'],
+];
+
+/* 플레이어와의 우정. 술 약속·면담이 여기에 쌓이고
+   영입 제안이 오는 조건과 달래기 성공률에 쓰인다.                     */
+function bondOf(pid){ return (ST.bond&&ST.bond[pid]!=null)?ST.bond[pid]:50; }
+function bondAdd(pid, d){
+  if(!ST.bond)ST.bond={};
+  ST.bond[pid]=Math.max(0,Math.min(100,bondOf(pid)+d));
+  return ST.bond[pid];
+}
+function bondLabel(v){
+  return v>=80?'매우 친함':v>=62?'친함':v>=42?'보통':v>=25?'서먹함':'거의 안 봄';
 }
 
 /* 약속 요약 문구 (홈 화면·면담 화면 공용) */
@@ -3635,6 +3789,8 @@ function newSeason(){
     promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
     mercs:[],                                              // 이번 경기 용병
+    bond:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=50);return o;})(),
+    drinkInvite:null, poach:null,                          // 우정·술약속·영입제안
     lastLineup:null, oppEvent:null, mystery:null, canParty:false, teamBuff:null,
     kakaoPost:[], partyDone:false, lastFreePass:0, awards:null,
     caStart:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=calcCA(p));return o;})()};
@@ -3776,19 +3932,50 @@ const STORE = (typeof window.storage!=='undefined') ? window.storage : {
   set:(k,v)=>{ localStorage.setItem(k,v); return Promise.resolve(); },
   get:(k)=>Promise.resolve({value:localStorage.getItem(k)})
 };
+/* 자동 저장 + 백업 한 벌.
+   저장이 깨졌을 때를 대비해 '직전 세이브'를 따로 남긴다.
+   저장 전 현재 값을 백업으로 밀어 넣는 방식이라 항상 한 세대 전이 남는다. */
+let lastSaveAt=null, lastSaveOk=true;
 async function saveGame(silent){
   try{
+    // 직전에 저장돼 있던 내용을 백업 슬롯으로 옮긴다
+    try{
+      const prev=await STORE.get('wwzw_v5',false);
+      if(prev&&prev.value) await STORE.set('wwzw_v5_bak',prev.value,false);
+    }catch(e){/* 백업 실패는 본 저장을 막지 않는다 */}
     await STORE.set('wwzw_v5',JSON.stringify(ST),false);
+    lastSaveAt=Date.now(); lastSaveOk=true;
     if(!silent)toast('저장 완료');
-  }catch(e){if(!silent)toast('저장 실패 — 내보내기를 써라');}
+  }catch(e){
+    lastSaveOk=false;
+    toast('저장 실패 — 더보기에서 파일로 저장해라');
+  }
 }
 async function loadGame(){
   try{
     const r=await STORE.get('wwzw_v5',false);
+    if(r&&r.value){
+      const d=JSON.parse(r.value);
+      if(d&&d.v===5) return d;
+    }
+  }catch(e){}
+  return null;
+}
+/* 본 세이브가 깨졌을 때 쓰는 백업 슬롯 */
+async function loadBackup(){
+  try{
+    const r=await STORE.get('wwzw_v5_bak',false);
     if(!r||!r.value)return null;
     const d=JSON.parse(r.value);
     return (d&&d.v===5)?d:null;
   }catch(e){return null;}
+}
+async function restoreBackup(){
+  const d=await loadBackup();
+  if(!d){ toast('백업이 없다'); return false; }
+  ST=d; normalizeState(); await saveGame(true); go('home');
+  toast(`백업 복구 완료 — ${d.round}차전 시점`);
+  return true;
 }
 /* ---------- 내보내기 / 불러오기 ---------- */
 function exportSave(){
@@ -3993,6 +4180,79 @@ function renderHome(){
     ST.mysteryResult=null;
   }
 
+
+  // 친구의 술 약속
+  if(ST.drinkInvite && TBYID['wwzw'].players.some(p=>p.id===ST.drinkInvite.pid)){
+    const pid=ST.drinkInvite.pid;
+    const me=ST.playerId||MYID;
+    const dc=el('div','card');
+    dc.innerHTML=`<div class="card-h">${nameOf(pid)}에게서 연락</div>
+      <p class="muted">${ST.drinkInvite.line||sayTo(pid,me,...pickOne(DRINK_INVITE))}</p>
+      <div class="pc-prom">지금 우정 ${bondLabel(bondOf(pid))} (${bondOf(pid)})</div>`;
+    const g=el('div','tac-grid');
+    [['yes','나간다','우정 +12 · 둘 다 사기 +10 / 다음 경기 컨디션 -18'],
+     ['no','안 나간다','우정 -10 · 컨디션은 지킨다']].forEach(([k,n,d2])=>{
+      const b=el('button','tac'); b.innerHTML=`<b>${n}</b><span>${d2}</span>`;
+      b.onclick=()=>{
+        ST.kakao=ST.kakao||[];
+        if(k==='yes'){
+          bondAdd(pid,12);
+          [pid,me].forEach(id=>{
+            if(!TBYID['wwzw'].players.some(p=>p.id===id))return;
+            ST.morale[id]=Math.min(100,(ST.morale[id]||70)+10);
+            ST.cond[id]=Math.max(20,(ST.cond[id]||70)-18);
+          });
+          if(ST.unhappy[pid])ST.unhappy[pid].level=Math.max(0,ST.unhappy[pid].level-1);
+          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickOne(DRINK_YES)),mood:'happy'});
+          toast(`${nameOf(pid)}과(와) 한잔했다 — 사기↑ 컨디션↓`);
+        } else {
+          bondAdd(pid,-10);
+          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickOne(DRINK_NO)),mood:'sad'});
+          toast(`${nameOf(pid)} 약속 거절 — 우정 하락`);
+        }
+        ST.drinkInvite=null; saveGame(true); go('home');
+      };
+      g.appendChild(b);
+    });
+    dc.appendChild(g); c.appendChild(dc);
+  }
+
+  // 타팀 영입 제안 — 타순 보장을 요구한다
+  if(ST.poach && TBYID['wwzw'].players.some(p=>p.id===ST.poach.pid)){
+    const pid=ST.poach.pid, om=ST.poach.orderMax||3;
+    const me=ST.playerId||MYID;
+    const pc2=el('div','card');
+    pc2.innerHTML=`<div class="card-h">타팀 영입 제안 · ${nameOf(pid)}</div>
+      <p class="muted">${ST.poach.line||sayTo(pid,me,...pickOne(POACH_LINES))}</p>
+      <div class="pc-prom">${om}번 타순 이상 · 5경기 보장을 요구한다</div>`;
+    const g=el('div','tac-grid');
+    [['keep',`${om}번 타순 이상 약속`,'5경기 보장. 어기면 사기 -20 · 불만 +2'],
+     ['no','약속 안 한다','불만 2단계 상승 · 이적 요구로 번질 수 있다']].forEach(([k,n,d2])=>{
+      const b=el('button','tac'); b.innerHTML=`<b>${n}</b><span>${d2}</span>`;
+      b.onclick=()=>{
+        ST.kakao=ST.kakao||[];
+        if(k==='keep'){
+          ST.promise=ST.promise||{};
+          ST.promise[pid]={type:'order',games:5,orderMax:om};
+          ST.morale[pid]=Math.min(100,(ST.morale[pid]||70)+12);
+          if(ST.unhappy[pid])ST.unhappy[pid]={level:0,streak:0};
+          bondAdd(pid,6);
+          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickOne(POACH_STAY)),mood:'happy'});
+          toast(`${nameOf(pid)} 잔류 — ${om}번 타순 이상 5경기`);
+        } else {
+          if(!ST.unhappy[pid])ST.unhappy[pid]={level:0,streak:0};
+          ST.unhappy[pid].level=Math.min(4,ST.unhappy[pid].level+2);
+          ST.morale[pid]=Math.max(10,(ST.morale[pid]||70)-12);
+          bondAdd(pid,-12);
+          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickOne(POACH_LEAVE)),mood:'angry'});
+          toast(`${nameOf(pid)} 불만 상승`);
+        }
+        ST.poach=null; saveGame(true); go('home');
+      };
+      g.appendChild(b);
+    });
+    pc2.appendChild(g); c.appendChild(pc2);
+  }
 
   // 이적 요구 면담
   if(ST.transferReq){
@@ -4382,7 +4642,7 @@ function renderSquad(){
       const act=el('div','pc-act');
       const un=(ST.unhappy&&ST.unhappy[p.id])?ST.unhappy[p.id].level:0;
       const mb=el('button','mbtn'+(un>=2?' hot':''),
-        un>=2?`면담 · ${unhappyLabel(un)}`:'면담');
+        un>=2?`면담 · ${unhappyLabel(un)}`:`면담 · ${bondLabel(bondOf(p.id))}`);
       mb.onclick=()=>openMeet(p.id);
       act.appendChild(mb);
       card.appendChild(act);
@@ -4679,7 +4939,7 @@ function renderMeet(){
   const head=el('div','card');
   head.innerHTML=`<div class="card-h meet-head"><span>면담 · ${p.name}</span>
       <span class="meet-lv">${unhappyLabel(un)}</span></div>
-    <p class="muted">사기 ${moraleLabel(ST.morale[pid]||70)} · 컨디션 ${condLabel(ST.cond[pid]||70)}
+    <p class="muted">사기 ${moraleLabel(ST.morale[pid]||70)} · 우정 ${bondLabel(bondOf(pid))} · 컨디션 ${condLabel(ST.cond[pid]||70)}
       · 출석 성향 ${Math.round(((META[pid]&&META[pid].attend)!=null?META[pid].attend:0.85)*100)}%</p>`;
   const pr0=ST.promise&&ST.promise[pid];
   if(pr0) head.appendChild(el('div','pc-prom','진행 중인 약속: '+promiseLabel(pr0)));
@@ -4745,10 +5005,11 @@ function doMeet(kind){
   else if(kind==='calm'){
     log.push({who:ST.playerId,text:'조금만 더 기다려봐라. 기회는 온다',mood:'ok'});
     // 불만이 클수록 달래기가 잘 안 먹힌다 (기본 60% · 3단계 이상이면 40%)
-    const rate = u.level>=3?0.40:0.60;
+    // 술 약속 등으로 쌓인 우정이 있으면 말이 먹힌다 (±15%p)
+    const rate = (u.level>=3?0.40:0.60) + (bondOf(pid)-50)*0.003;
     if(Math.random()<rate){
       ST.morale[pid]=Math.min(100,(ST.morale[pid]||70)+8);
-      u.level=Math.max(0,u.level-1); u.streak=0;
+      u.level=Math.max(0,u.level-1); u.streak=0; bondAdd(pid,3);
       log.push({who:pid,text:meetReplyLine(ST,pid,'soothe_ok'),mood:'happy'});
       log.push({who:pid,type:'notice',text:`달래기 성공 — 사기 +8 · 불만 ${unhappyLabel(u.level)}`});
       tip='잘 달랬다';
@@ -4763,6 +5024,7 @@ function doMeet(kind){
     ST.morale[pid]=Math.max(10,(ST.morale[pid]||70)-10);
     u.level=Math.min(4,u.level+1); u.streak=0;
     log.push({who:pid,text:meetReplyLine(ST,pid,'ignore'),mood:'angry'});
+    bondAdd(pid,-8);
     // 기강 효과 — 나머지 선수는 "감독이 단호하다"고 받아들인다.
     // 별도 스탯을 만들면 엔진까지 건드려야 해서 사기 소폭 상승 + 불만 누적 리셋으로 처리한다.
     let n=0;
@@ -6136,7 +6398,24 @@ function renderMore(){
   // 세이브/로드
   const sv=el('div','card');
   sv.appendChild(el('div','card-h','세이브 · 로드'));
-  sv.appendChild(el('p','muted','브라우저를 바꾸거나 폰을 바꿔도 기록을 옮길 수 있다. 파일로 저장하는 쪽이 확실하다.'));
+  const guide=el('p','muted');
+  guide.innerHTML=
+    '<b>저장은 자동이다.</b> 경기가 끝날 때마다 이 브라우저에 알아서 저장된다. 아무것도 안 눌러도 된다.<br><br>'+
+    '<b>폰을 바꾸거나 다른 브라우저에서 이어 하려면</b><br>'+
+    '&nbsp;&nbsp;1. 여기서 <b>파일로 저장</b>을 누른다 (다운로드 폴더에 들어간다)<br>'+
+    '&nbsp;&nbsp;2. 새 기기에서 이 게임을 연다<br>'+
+    '&nbsp;&nbsp;3. 아래 <b>세이브 파일 불러오기</b>로 그 파일을 고른다<br><br>'+
+    '파일을 옮기기 번거로우면 <b>코드 복사</b>를 눌러 카톡으로 자신에게 보내고, '+
+    '새 기기에서 붙여넣어도 된다.<br><br>'+
+    '<b>기록이 사라진 것 같으면</b> 아래 <b>직전 저장으로 되돌리기</b>를 먼저 눌러봐라. '+
+    '자동 백업이 한 세대 남아 있다.';
+  sv.appendChild(guide);
+  const stat=el('div','savestat');
+  stat.textContent = lastSaveAt
+    ? `마지막 자동 저장: ${new Date(lastSaveAt).toLocaleTimeString('ko-KR')} · ${ST.round}차전`
+    : '아직 이번 접속에서 자동 저장이 일어나지 않았다';
+  if(!lastSaveOk){ stat.classList.add('bad'); stat.textContent='자동 저장이 실패했다. 파일로 저장해 두는 게 안전하다.'; }
+  sv.appendChild(stat);
   const r1=el('div','btn-row');
   const e1=el('button','btn','파일로 저장'); e1.onclick=exportSave;
   const e2=el('button','btn','코드 복사'); e2.onclick=copySave;
@@ -6156,6 +6435,14 @@ function renderMore(){
   const e3=el('button','btn','코드로 불러오기');
   e3.onclick=()=>{ if(!ta.value.trim()){toast('코드를 붙여넣어라');return;} importFromText(ta.value.trim()); };
   sv.appendChild(e3);
+  const e4=el('button','btn','직전 저장으로 되돌리기');
+  e4.onclick=async()=>{
+    const d=await loadBackup();
+    if(!d){ toast('백업이 없다'); return; }
+    if(!confirm(`${d.round}차전 시점으로 되돌린다. 지금 진행 상황은 사라진다. 계속할까?`))return;
+    restoreBackup();
+  };
+  sv.appendChild(e4);
   c.appendChild(sv);
 
   const pcard=el('div','card');
@@ -6278,6 +6565,13 @@ function normalizeState(){
     // 로스터에 없는 선수(이적·방출)의 약속은 정리한다
     if(ST.promise[pid]&&!us.players.some(p=>p.id===pid))delete ST.promise[pid];
   });
+  if(!ST.bond)ST.bond={};
+  us.players.forEach(p=>{ if(ST.bond[p.id]==null)ST.bond[p.id]=50; });
+  if(ST.drinkInvite===undefined)ST.drinkInvite=null;
+  if(typeof ST.drinkInvite==='string')ST.drinkInvite={pid:ST.drinkInvite,line:''};
+  if(ST.drinkInvite&&!us.players.some(p=>p.id===ST.drinkInvite.pid))ST.drinkInvite=null;
+  if(ST.poach===undefined)ST.poach=null;
+  if(ST.poach&&!us.players.some(p=>p.id===ST.poach.pid))ST.poach=null;
   if(!Array.isArray(ST.mercs))ST.mercs=[];
   ensureMercs();                      // 세이브에 용병이 남아 있으면 다시 얹어준다
   if(!ST.meetRound)ST.meetRound={};
@@ -6324,6 +6618,11 @@ async function boot(){
   $('#sheet-bg').onclick=closeSheet;
   $('#loading').style.display='none';
   go(saved?'home':'pick');
+  // 재접속 안내 — 저장이 살아 있다는 걸 눈으로 확인시켜 준다
+  if(saved){
+    const st0=ST.stand['wwzw']||{w:0,l:0};
+    setTimeout(()=>toast(`이어서 진행한다 — ${ST.round}차전 · ${st0.w}승 ${st0.l}패`),300);
+  }
 }
 document.addEventListener('DOMContentLoaded',boot);
 
