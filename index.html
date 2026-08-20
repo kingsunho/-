@@ -183,6 +183,9 @@ table.box td.nm i{font-style:normal;color:var(--dim);font-size:9.5px;margin-left
 table.box td.tm{color:var(--dim);font-size:10.5px}
 .card table.wide{display:block;overflow-x:auto;white-space:nowrap}
 tr.me td{background:rgba(201,162,39,.10)}
+table.box th.sortable{cursor:pointer;-webkit-tap-highlight-color:transparent}
+table.box th.sortable:active{color:var(--ink)}
+table.box th.sortable.on{color:var(--gold);font-weight:800}
 
 .fpcard{text-align:center}
 .fp-num{font-size:44px;font-weight:900;line-height:1;margin:4px 0}
@@ -3612,13 +3615,14 @@ function newSeason(){
   for(let i=opps.length-1;i>0;i--){const j=(rng()*(i+1))|0;[opps[i],opps[j]]=[opps[j],opps[i]];}
   const schedule=opps.map((o,i)=>({round:i+1,opp:o,homeGame:i%2===0,played:false,result:null,park:PARKS[(i*7+3)%PARKS.length].id}));
   const stand={}; TEAMS.forEach(t=>stand[t.id]={w:0,l:0,t:0,rf:0,ra:0,g:0});
-  const bat={},pit={},lgBat={},rest={};
+  const bat={},pit={},lgBat={},lgPit={},rest={};
   const us=TBYID['wwzw'];
   us.players.forEach(p=>bat[p.id]=blankBat());
   us.pitchers.forEach(p=>{pit[p.id]=blankPit();rest[p.id]=3;});
-  TEAMS.forEach(t=>t.players.forEach(p=>lgBat[p.id]=blankBat()));
+  TEAMS.forEach(t=>{t.players.forEach(p=>lgBat[p.id]=blankBat());
+    (t.pitchers||[]).forEach(p=>lgPit[p.id]=blankPit());});
   const ps=initPlayerState();
-  return {v:5,seed,round:0,schedule,stand,bat,pit,lgBat,rest,
+  return {v:5,seed,round:0,schedule,stand,bat,pit,lgBat,lgPit,rest,
     cond:ps.cond,morale:ps.morale,injury:ps.injury,ca:ps.ca,growth:ps.growth,
     lineup:null,rotation:null,
     tactics:{bat:'normal',run:'normal',hook:'normal'},
@@ -4233,6 +4237,7 @@ function releaseMercs(refund){
     delete ST.injury[id]; delete ST.ca[id];
     // 리그 순위표·통산기록·시상식에 용병이 남으면 안 된다
     if(ST.lgBat)delete ST.lgBat[id];
+    if(ST.lgPit)delete ST.lgPit[id];
     if(ST.career)delete ST.career[id];
     if(ST.caStart)delete ST.caStart[id];
     if(ST.unhappy)delete ST.unhappy[id];
@@ -5326,6 +5331,8 @@ function commitGame(res,usSide,thSide,uSlots){
     if(res.wp===pid)acc.w++; if(res.lp===pid)acc.l++;
   });
 
+  accrueLgPit(res);                  // 상대 투수 기록도 리그 순위에 들어간다
+
   const won=usSide.runs>thSide.runs, tie=usSide.runs===thSide.runs;
   TBYID['wwzw'].players.forEach(p=>{
     const played=uSlots.some(s=>s.id===p.id);
@@ -5390,6 +5397,22 @@ function simOtherGames(exclude){
     if(r.tie){sa.t++;sh.t++;}else if(r.away.runs>r.home.runs){sa.w++;sh.l++;}else{sh.w++;sa.l++;}
     for(const pid in r.box){const lg=ST.lgBat[pid];if(!lg)continue;const b=r.box[pid];
       if(b.pa>0)lg.g++;['pa','ab','h','d2','d3','hr','bb','hbp','k','rbi','r','sb','cs'].forEach(k=>lg[k]+=b[k]||0);}
+    accrueLgPit(r);
+  }
+}
+
+/* 리그 투수 기록 누적 — 우리 경기·타팀 경기 양쪽에서 부른다.
+   ST.pit 은 우리 투수만 담기 때문에 리그 순위를 내려면 따로 모아야 한다. */
+function accrueLgPit(r){
+  if(!ST.lgPit)ST.lgPit={};
+  const tie=!!r.tie;
+  for(const pid in r.pbox){
+    const l=r.pbox[pid];
+    if(!l||!l.bf)continue;
+    const a=ST.lgPit[pid]||(ST.lgPit[pid]=blankPit());
+    a.g++;
+    ['outs','h','r','er','bb','k','hbp','sbA'].forEach(k=>a[k]+=l[k]||0);
+    if(!tie){ if(r.wp===pid)a.w++; if(r.lp===pid)a.l++; }
   }
 }
 
@@ -5764,57 +5787,165 @@ function renderStand(){
 }
 
 let statTab='team';
+let lgBatSort='avg';     // 리그 타자 순위 정렬 키
+let lgPitSort='era';     // 리그 투수 순위 정렬 키
+
+/* ---------- 세부 지표 ---------- */
+function iso(b){ return slg(b)-avg(b); }                      // 순수 장타력
+function bbk(b){ return b.k? b.bb/b.k : (b.bb?b.bb:0); }      // 볼넷/삼진
+function whip(s){ return s.outs? (s.h+s.bb)/(s.outs/3) : 0; }
+function k9(s){ return s.outs? s.k*9/(s.outs/3) : 0; }
+/* 리그 평균 OBP·SLG. OPS+ 기준선으로 쓴다. */
+function leagueBase(){
+  let pa=0,ab=0,h=0,d2=0,d3=0,hr=0,bb=0,hbp=0;
+  Object.keys(ST.lgBat||{}).forEach(id=>{const b=ST.lgBat[id];
+    pa+=b.pa;ab+=b.ab;h+=b.h;d2+=b.d2;d3+=b.d3;hr+=b.hr;bb+=b.bb;hbp+=b.hbp;});
+  if(!pa||!ab) return {obp:0.35,slg:0.45};
+  return {obp:(h+bb+hbp)/pa, slg:(h+d2+d3*2+hr*3)/ab};
+}
+/* OPS+ — 100이 리그 평균. 사회인야구라 표본이 작아 참고용이다. */
+function opsPlus(b, base){
+  if(!b.pa||!b.ab) return 0;
+  const o=base.obp>0?obp(b)/base.obp:1, s2=base.slg>0?slg(b)/base.slg:1;
+  return Math.round((o+s2-1)*100);
+}
+
+/* 정렬 가능한 헤더 한 줄을 만든다.
+   cols: [[key, 라벨, 정렬가능?], ...]  cur: 현재 정렬 키                */
+function sortHead(cols, cur, onPick){
+  const tr=el('tr');
+  cols.forEach(([k,label,sortable])=>{
+    const th=el('th', sortable?'sortable'+(cur===k?' on':''):'');
+    th.textContent = label + (sortable&&cur===k?' ▾':'');
+    if(sortable) th.onclick=()=>onPick(k);
+    tr.appendChild(th);
+  });
+  return tr;
+}
+
 function renderStats(){
   const c=$('#view'); c.innerHTML='';
   const tabs=el('div','subtabs');
-  [['team','타격'],['pitch','투수'],['league','리그 순위']].forEach(([k,n])=>{
+  [['team','우리 타격'],['pitch','우리 투수'],['league','리그 타자'],['lgpit','리그 투수']].forEach(([k,n])=>{
     const b=el('button','subtab'+(statTab===k?' on':''),n);
     b.onclick=()=>{statTab=k;renderStats();}; tabs.appendChild(b);
   });
   c.appendChild(tabs);
   const us=TBYID['wwzw'];
+  const base=leagueBase();
 
+  /* ── 우리 타격 ── */
   if(statTab==='team'){
     const card=el('div','card'); card.appendChild(el('div','card-h','타격 기록'));
     const t=el('table','box wide');
-    t.innerHTML='<tr><th>선수</th><th>G</th><th>타수</th><th>안타</th><th>2B</th><th>HR</th><th>타점</th><th>도루</th><th>볼넷</th><th>삼진</th><th>타율</th><th>OPS</th></tr>';
-    us.players.slice().sort((a,b)=>ops(ST.bat[b.id]||blankBat())-ops(ST.bat[a.id]||blankBat())).forEach(p=>{
+    t.innerHTML='<tr><th>선수</th><th>G</th><th>타수</th><th>안타</th><th>2B</th><th>HR</th><th>타점</th><th>도루</th>'+
+      '<th>타율</th><th>출루</th><th>장타</th><th>OPS</th><th>ISO</th><th>BB/K</th><th>OPS+</th></tr>';
+    us.players.slice().sort((x,y)=>ops(ST.bat[y.id]||blankBat())-ops(ST.bat[x.id]||blankBat())).forEach(p=>{
       const b=ST.bat[p.id]||blankBat();
       const tr=el('tr');
-      tr.innerHTML=`<td class="nm">${p.name}</td><td>${b.g}</td><td>${b.ab}</td><td>${b.h}</td><td>${b.d2}</td><td>${b.hr}</td><td>${b.rbi}</td><td>${b.sb}</td><td>${b.bb}</td><td>${b.k}</td><td>${b.ab?fmt3(avg(b)):'—'}</td><td>${b.pa?ops(b).toFixed(3):'—'}</td>`;
+      tr.innerHTML=`<td class="nm">${p.name}</td><td>${b.g}</td><td>${b.ab}</td><td>${b.h}</td><td>${b.d2}</td>`+
+        `<td>${b.hr}</td><td>${b.rbi}</td><td>${b.sb}</td>`+
+        `<td>${b.ab?fmt3(avg(b)):'—'}</td><td>${b.pa?fmt3(obp(b)):'—'}</td><td>${b.ab?fmt3(slg(b)):'—'}</td>`+
+        `<td>${b.pa?ops(b).toFixed(3):'—'}</td><td>${b.ab?fmt3(iso(b)):'—'}</td>`+
+        `<td>${b.pa?bbk(b).toFixed(2):'—'}</td><td>${b.pa?opsPlus(b,base):'—'}</td>`;
       t.appendChild(tr);
     });
     card.appendChild(t); c.appendChild(card);
-  } else if(statTab==='pitch'){
+    c.appendChild(el('p','muted','ISO = 장타율 − 타율(순수 장타력) · OPS+는 100이 리그 평균이다.'));
+  }
+
+  /* ── 우리 투수 ── */
+  else if(statTab==='pitch'){
     const card=el('div','card'); card.appendChild(el('div','card-h','투수 기록'));
     const t=el('table','box wide');
-    t.innerHTML='<tr><th>투수</th><th>G</th><th>승</th><th>패</th><th>이닝</th><th>피안타</th><th>자책</th><th>볼넷</th><th>삼진</th><th>ERA</th></tr>';
+    t.innerHTML='<tr><th>투수</th><th>G</th><th>승</th><th>패</th><th>이닝</th><th>피안타</th><th>자책</th>'+
+      '<th>볼넷</th><th>삼진</th><th>ERA</th><th>WHIP</th><th>K/9</th></tr>';
     us.pitchers.forEach(p=>{
-      const s=ST.pit[p.id]||blankPit();
+      const s2=ST.pit[p.id]||blankPit();
       const tr=el('tr');
-      tr.innerHTML=`<td class="nm">${p.name}</td><td>${s.g}</td><td>${s.w}</td><td>${s.l}</td><td>${ipStr(s)}</td><td>${s.h}</td><td>${s.er}</td><td>${s.bb}</td><td>${s.k}</td><td>${s.outs?era(s).toFixed(2):'—'}</td>`;
+      tr.innerHTML=`<td class="nm">${p.name}</td><td>${s2.g}</td><td>${s2.w}</td><td>${s2.l}</td><td>${ipStr(s2)}</td>`+
+        `<td>${s2.h}</td><td>${s2.er}</td><td>${s2.bb}</td><td>${s2.k}</td>`+
+        `<td>${s2.outs?era(s2).toFixed(2):'—'}</td><td>${s2.outs?whip(s2).toFixed(2):'—'}</td>`+
+        `<td>${s2.outs?k9(s2).toFixed(1):'—'}</td>`;
       t.appendChild(tr);
     });
     card.appendChild(t); c.appendChild(card);
-    c.appendChild(el('p','muted','ERA는 이 리그 기준 7이닝 환산이다.'));
-  } else {
-    const card=el('div','card'); card.appendChild(el('div','card-h','리그 타율 순위'));
+    c.appendChild(el('p','muted','ERA는 이 리그 기준 7이닝 환산이다. K/9는 통상대로 9이닝 기준이다.'));
+  }
+
+  /* ── 리그 타자 순위 ── */
+  else if(statTab==='league'){
     const minPA=Math.max(6,ST.stand['wwzw'].g*2);
     const rows=[];
     TEAMS.forEach(tm=>tm.players.forEach(p=>{
       const b=ST.lgBat[p.id];
       if(b&&b.pa>=minPA)rows.push({name:p.name,team:tm.name,b,me:tm.id==='wwzw'});
     }));
-    rows.sort((x,y)=>avg(y.b)-avg(x.b));
+    const KEY={
+      avg:r=>avg(r.b), ops:r=>ops(r.b), hr:r=>r.b.hr, rbi:r=>r.b.rbi, sb:r=>r.b.sb,
+      obp:r=>obp(r.b), slg:r=>slg(r.b), iso:r=>iso(r.b), bbk:r=>bbk(r.b),
+      opsp:r=>opsPlus(r.b,base),
+    };
+    const f=KEY[lgBatSort]||KEY.avg;
+    rows.sort((x,y)=>f(y)-f(x));
+
+    const card=el('div','card');
+    card.appendChild(el('div','card-h','리그 타자 순위'));
+    card.appendChild(el('p','muted',`규정타석 ${minPA}타석 이상 · ${rows.length}명 · 헤더를 누르면 정렬이 바뀐다`));
     const t=el('table','box wide');
-    t.innerHTML='<tr><th>#</th><th>선수</th><th>팀</th><th>타수</th><th>안타</th><th>타율</th><th>OPS</th></tr>';
+    t.appendChild(sortHead([
+      ['#','#',false],['name','선수',false],['team','팀',false],
+      ['avg','타율',true],['obp','출루',true],['slg','장타',true],['ops','OPS',true],
+      ['iso','ISO',true],['bbk','BB/K',true],['opsp','OPS+',true],
+      ['hr','HR',true],['rbi','타점',true],['sb','도루',true],
+    ], lgBatSort, k=>{lgBatSort=k;renderStats();}));
     rows.slice(0,60).forEach((r,i)=>{
       const tr=el('tr',r.me?'me':'');
-      tr.innerHTML=`<td>${i+1}</td><td class="nm">${r.name}</td><td class="tm">${r.team}</td><td>${r.b.ab}</td><td>${r.b.h}</td><td>${fmt3(avg(r.b))}</td><td>${ops(r.b).toFixed(3)}</td>`;
+      tr.innerHTML=`<td>${i+1}</td><td class="nm">${r.name}</td><td class="tm">${r.team}</td>`+
+        `<td>${fmt3(avg(r.b))}</td><td>${fmt3(obp(r.b))}</td><td>${fmt3(slg(r.b))}</td>`+
+        `<td>${ops(r.b).toFixed(3)}</td><td>${fmt3(iso(r.b))}</td><td>${bbk(r.b).toFixed(2)}</td>`+
+        `<td>${opsPlus(r.b,base)}</td><td>${r.b.hr}</td><td>${r.b.rbi}</td><td>${r.b.sb}</td>`;
       t.appendChild(tr);
     });
     card.appendChild(t); c.appendChild(card);
     if(!rows.length)c.appendChild(el('p','muted','경기를 더 치러야 순위가 나온다.'));
+  }
+
+  /* ── 리그 투수 순위 ── */
+  else {
+    const minOuts=Math.max(9,ST.stand['wwzw'].g*3);   // 대략 경기당 1이닝
+    const rows=[];
+    TEAMS.forEach(tm=>(tm.pitchers||[]).forEach(p=>{
+      const s2=(ST.lgPit||{})[p.id];
+      if(s2&&s2.outs>=minOuts)rows.push({name:p.name,team:tm.name,s:s2,me:tm.id==='wwzw'});
+    }));
+    const KEY={
+      era:r=>-era(r.s), ip:r=>r.s.outs, k:r=>r.s.k, whip:r=>-whip(r.s), k9:r=>k9(r.s),
+      w:r=>r.s.w, bb:r=>-r.s.bb,
+    };
+    const f=KEY[lgPitSort]||KEY.era;
+    rows.sort((x,y)=>f(y)-f(x));
+
+    const card=el('div','card');
+    card.appendChild(el('div','card-h','리그 투수 순위'));
+    card.appendChild(el('p','muted',
+      `규정이닝 ${(minOuts/3).toFixed(0)}이닝 이상 · ${rows.length}명 · 헤더를 누르면 정렬이 바뀐다`));
+    const t=el('table','box wide');
+    t.appendChild(sortHead([
+      ['#','#',false],['name','투수',false],['team','팀',false],
+      ['era','ERA',true],['ip','이닝',true],['w','승',true],
+      ['k','삼진',true],['k9','K/9',true],['whip','WHIP',true],['bb','볼넷',true],
+    ], lgPitSort, k=>{lgPitSort=k;renderStats();}));
+    rows.slice(0,60).forEach((r,i)=>{
+      const tr=el('tr',r.me?'me':'');
+      tr.innerHTML=`<td>${i+1}</td><td class="nm">${r.name}</td><td class="tm">${r.team}</td>`+
+        `<td>${era(r.s).toFixed(2)}</td><td>${ipStr(r.s)}</td><td>${r.s.w}</td>`+
+        `<td>${r.s.k}</td><td>${k9(r.s).toFixed(1)}</td><td>${whip(r.s).toFixed(2)}</td><td>${r.s.bb}</td>`;
+      t.appendChild(tr);
+    });
+    card.appendChild(t); c.appendChild(card);
+    if(!rows.length)c.appendChild(el('p','muted','경기를 더 치러야 순위가 나온다.'));
+    else c.appendChild(el('p','muted','ERA는 7이닝 환산 · WHIP은 (피안타+볼넷)÷이닝 · K/9는 9이닝 기준이다.'));
   }
 }
 
@@ -6105,8 +6236,11 @@ function normalizeState(){
   });
   finalizeTeam(us);
   buildPitcherPool();
+  if(!ST.lgPit)ST.lgPit={};
   TEAMS.forEach(t=>{ if(!ST.stand[t.id])ST.stand[t.id]={w:0,l:0,t:0,rf:0,ra:0,g:0};
-    t.players.forEach(p=>{if(!ST.lgBat[p.id])ST.lgBat[p.id]=blankBat();}); });
+    t.players.forEach(p=>{if(!ST.lgBat[p.id])ST.lgBat[p.id]=blankBat();});
+    (t.pitchers||[]).forEach(p=>{if(!ST.lgPit[p.id])ST.lgPit[p.id]=blankPit();}); });
+  Object.keys(ST.lgPit).forEach(id=>{ if(isMerc(id))delete ST.lgPit[id]; });
   ['cond','morale','injury','ca','growth','rest','absent','pendingAbsent'].forEach(k=>{if(!ST[k])ST[k]={};});
   ['events','kakao','kakaoPost','signed','notices'].forEach(k=>{if(!ST[k])ST[k]=[];});
   us.players.forEach(p=>{
