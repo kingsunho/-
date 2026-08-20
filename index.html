@@ -427,6 +427,10 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .starter-row span{font-size:11px;color:var(--dim)}
 .starter-row b{font-size:14px;font-weight:800;color:var(--gold)}
 .starter-row i{font-style:normal;font-size:10px;color:var(--dim);flex-basis:100%}
+.sendopt.bought{opacity:.55;border-color:var(--gold)}
+.sendopt i.gfor{font-style:normal;color:#7fd6a5}
+.sendopt i.gag{font-style:normal;color:#e0a08f}
+.warnx{color:#ffb4a8;font-weight:700}
 /* 경기 하이라이트 */
 .hl-dec{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:center;
   background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:9px}
@@ -2712,7 +2716,8 @@ function kakaoOptions(ST, phase){
   ];
   if(ST.canParty&&!ST.partyDone){
     opts.unshift({id:'party',label:T('오늘 회식 가시죠','오늘 회식 가자'),
-      desc:'사기 크게 상승 · 컨디션 하락 · 갈등 해소 가능',run:null,action:'party'});
+      desc:`운영비 ${PARTY_COST}만원 · 사기 크게 상승 · 컨디션 하락 · 갈등 해소 가능`,
+      run:null,action:'party'});
   }
   return opts;
 }
@@ -2900,14 +2905,120 @@ function applyMystery(ST,my){
 }
 
 /* ================= 개인 레슨 ================= */
+const LESSON_COST = 60;      // 사설 레슨은 원래 비싸다. 회당 6만원 × 10회권 수준
 function doLesson(ST, pid){
-  const cost=25;
-  if(ST.budget<cost) return {ok:false,msg:'운영비가 부족하다 (25만원 필요)'};
+  const cost=LESSON_COST;
+  if(ST.budget<cost) return {ok:false,msg:`운영비가 부족하다 (${cost}만원 필요)`};
   ST.budget-=cost;
   ST.lessonBoost=true;
   ST.lessonTarget=pid;
   ST.morale[pid]=Math.min(100,ST.morale[pid]+6);
   return {ok:true,msg:`${nameOf(pid)} 레슨 등록 — 다음 경기 후 결과가 나온다`};
+}
+
+/* =========================================================
+   팀 재정 — 장비 · 리그 가입비 · 회비
+   ---------------------------------------------------------
+   운영비로 장비를 사고, 시즌이 끝나면 다음 시즌 리그 가입비(350만원)를
+   내야 한다. 모자라면 회비를 걷어야 하고 그러면 단톡방이 뒤집어진다.
+   다들 내긴 낸다. 사회인야구가 원래 그렇다.
+   ========================================================= */
+const LEAGUE_FEE = 350;      // 다음 시즌 리그 가입비 (팀당)
+const PARTY_COST = 45;       // 회식 한 번 값 (14명 기준)
+
+/* 시즌 초 장비 구매 안건. 사면 좋지만 돈이 없다. */
+const GEAR_ITEMS = [
+  {id:'catcher', name:'포수 장비 새로 맞추기', cost:95,
+   desc:'레그가드·프로텍터·마스크 한 세트. 지금 건 유지효가 두고 오는 그거다.',
+   effect:'포수 수비 안정 · 장비 누락 사고 감소', eff:{gear:1}},
+  {id:'balls', name:'연습구 두 박스', cost:38,
+   desc:'훈련 때마다 공이 모자라서 세 개로 돌린다.',
+   effect:'훈련 효율 +12%', eff:{train:1.12}},
+  {id:'helmet', name:'헬멧·배트 보강', cost:52,
+   desc:'금 간 헬멧으로 타석에 들어가는 건 좀 그렇다.',
+   effect:'팀 사기 +5 · 부상 위험 소폭 감소', eff:{inj:0.88}},
+  {id:'net', name:'이동식 배팅 네트', cost:74,
+   desc:'경기장 옆에서 스윙을 돌릴 수 있다.',
+   effect:'타격 훈련 효율 +18%', eff:{bat:1.18}},
+];
+
+/* 장비 안건에 대한 팀원 반응 — 사는 쪽 / 반대 쪽 */
+const GEAR_FOR=[
+  ['그건 진짜 사야 된다','그건 진짜 사야 됩니다'],
+  ['없어서 매번 불편했다','없어서 매번 불편했습니다'],
+  ['이건 투자다','이건 투자죠'],
+  ['살 거면 지금 사자','살 거면 지금 사시죠'],
+];
+const GEAR_AGAINST=[
+  ['그 돈이면 회식을 두 번 한다','그 돈이면 회식을 두 번 합니다'],
+  ['가입비부터 남겨놔야 하는 거 아니냐','가입비부터 남겨놔야 하는 거 아닌가요'],
+  ['작년에도 사놓고 안 썼다','작년에도 사놓고 안 썼잖아요'],
+  ['굳이 지금이어야 하냐','굳이 지금이어야 하나요'],
+];
+/* 회비를 걷을 때의 반응 — 다들 내긴 낸다 */
+const DUES_ANGRY=[
+  ['또 걷냐 진짜','또 걷나요 진짜'],
+  ['이번 달에만 두 번째다','이번 달에만 두 번째입니다'],
+  ['얼마씩인데','얼마씩인가요'],
+  ['내긴 내는데 좀 그렇다','내긴 내는데 좀 그렇네요'],
+  ['운영비 어디다 쓴 거냐','운영비 어디다 쓰신 건가요'],
+  ['영수증 좀 올려줘라','영수증 좀 올려주세요'],
+];
+const DUES_OK=[
+  ['보냈다','보냈습니다'],
+  ['방금 이체했다','방금 이체했습니다'],
+  ['야구 하려면 내야지','야구 하려면 내야죠'],
+  ['이번 주 안에 넣을게','이번 주 안에 넣겠습니다'],
+  ['계좌 다시 알려줘','계좌 다시 알려주세요'],
+];
+const DUES_LEAD=[
+  '리그 가입비 낼 돈이 모자란다. 인당 걷자',
+  '운영비가 바닥이다. 회비 걷어야 한다',
+  '가입비 기한이 다음 주다. 부족한 만큼만 걷자',
+];
+
+function gearOwned(id){ return !!(ST.gear&&ST.gear[id]); }
+/* 장비로 얻는 훈련 배수 */
+function gearTrainMul(kind){
+  let m=1;
+  GEAR_ITEMS.forEach(g=>{
+    if(!gearOwned(g.id))return;
+    if(g.eff.train)m*=g.eff.train;
+    if(g.eff.bat&&kind==='bat')m*=g.eff.bat;
+  });
+  return m;
+}
+function gearInjMul(){
+  let m=1;
+  GEAR_ITEMS.forEach(g=>{ if(gearOwned(g.id)&&g.eff.inj)m*=g.eff.inj; });
+  return m;
+}
+
+/* 회비 걷기 — 부족한 금액을 인원수로 나눠 걷는다 */
+function collectDues(need){
+  const us=TBYID['wwzw'];
+  const n=us.players.filter(p=>!isMerc(p.id)).length||1;
+  const per=Math.ceil(need/n);
+  const total=per*n;
+  ST.budget+=total;
+  ST.duesCount=(ST.duesCount||0)+1;
+  const msgs=[{who:'lg',type:'notice',
+    text:`회비 ${per}만원씩 걷습니다 (${n}명 · ${total}만원)\n${pickOne(DUES_LEAD)}`}];
+  // 다들 투덜대지만 결국 낸다. 사기는 조금씩 깎인다.
+  const drop = 3 + Math.min(6, (ST.duesCount||1)-1)*2;
+  const spk=speakers(ST, null, 3+((Math.random()*2)|0), Math.random);
+  spk.forEach((p,i)=>{
+    const pool = i===0?DUES_ANGRY:(Math.random()<0.5?DUES_ANGRY:DUES_OK);
+    msgs.push({who:p.id, text:line(p.id, ST.playerId, pool.map(x=>x[0]), pool.map(x=>x[1]), Math.random),
+      mood: pool===DUES_ANGRY?'angry':'ok'});
+  });
+  us.players.forEach(p=>{
+    if(isMerc(p.id))return;
+    ST.morale[p.id]=Math.max(10,(ST.morale[p.id]||70)-drop);
+    if(ST.bond)ST.bond[p.id]=Math.max(0,(ST.bond[p.id]!=null?ST.bond[p.id]:50)-2);
+  });
+  msgs.push({who:'lg',type:'notice',text:`전원 사기 -${drop} · 걷은 돈 ${total}만원`});
+  return {per,n,total,drop,msgs};
 }
 
 /* ================= 시상식 ================= */
@@ -4010,6 +4121,7 @@ function newSeason(){
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
     mercs:[],                                              // 이번 경기 용병
     recruit:null,                                          // 영입 접촉 진행 상태
+    gear:{}, duesCount:0, gearMeeting:null, feeDue:false,  // 장비·회비
     posTrain:{}, trainPos:null, trainStreak:0,             // 포지션 적응 훈련
     trainRain:false, trainPush:false,
     bond:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=50);return o;})(),
@@ -4350,7 +4462,7 @@ function renderHome(){
     <div><b>${st.t}</b><span>무</span></div><div class="rsep"></div>
     <div><b>${st.rf}</b><span>득점</span></div><div><b>${st.ra}</b><span>실점</span></div></div>
     <div class="progress"><div class="bar" style="width:${played/22*100}%"></div></div>
-    <div class="hero-foot">${played} / 22 경기 · 리그 ${leagueRank('wwzw')}위 · 운영비 ${ST.budget.toFixed(0)}만원<br>${holidayFor(ST.round,ST.year||2026).label} 예정</div>
+    <div class="hero-foot">${played} / 22 경기 · 리그 ${leagueRank('wwzw')}위 · 운영비 ${ST.budget.toFixed(0)}만원<br>${holidayFor(ST.round,ST.year||2026).label} 예정 · 다음 시즌 가입비 ${LEAGUE_FEE}만원</div>
     <div class="hero-me">플레이 중: <b>${nameOf(ST.playerId||MYID)}</b></div>`;
   c.appendChild(hero);
 
@@ -4406,6 +4518,76 @@ function renderHome(){
     ST.mysteryResult=null;
   }
 
+
+  /* ---- 시즌 초 장비 구매 안건 ---- 사자는 쪽과 아끼자는 쪽이 갈린다 */
+  if(ST.round===0 && !ST.gearMeeting){
+    ST.gearMeeting={done:false};
+  }
+  if(ST.gearMeeting && !ST.gearMeeting.done){
+    const gc=el('div','card');
+    gc.innerHTML=`<div class="card-h">시즌 준비 · 장비 안건</div>
+      <p class="muted">단톡방에서 뭘 살지로 말이 오간다. 운영비 <b>${ST.budget.toFixed(0)}만원</b>.
+      시즌이 끝나면 다음 시즌 리그 가입비 <b>${LEAGUE_FEE}만원</b>을 내야 한다. 다 쓰면 회비를 걷어야 한다.</p>`;
+    GEAR_ITEMS.forEach(g=>{
+      const own=gearOwned(g.id), poor=ST.budget<g.cost;
+      const b=el('button','sendopt'+(own?' bought':''));
+      const forL=pickOne(GEAR_FOR), agL=pickOne(GEAR_AGAINST);
+      const a=speakers(ST,null,2,Math.random);
+      b.innerHTML=`<b>${g.name} · ${g.cost}만원${own?' (구매함)':''}</b>`+
+        `<span>${g.desc}<br>${g.effect}`+
+        (own?'':`<br><i class="gfor">${a[0]?nameOf(a[0].id)+': ':''}${a[0]?sayTo(a[0].id,ST.playerId,forL[0],forL[1]):''}</i>`+
+             `<br><i class="gag">${a[1]?nameOf(a[1].id)+': ':''}${a[1]?sayTo(a[1].id,ST.playerId,agL[0],agL[1]):''}</i>`)+
+        `</span>`;
+      if(!own&&!poor)b.onclick=()=>{
+        ST.budget-=g.cost;
+        ST.gear=ST.gear||{}; ST.gear[g.id]=true;
+        if(g.eff.gear)ST.gearLevel=0;
+        TBYID['wwzw'].players.forEach(p=>ST.morale[p.id]=Math.min(100,(ST.morale[p.id]||70)+5));
+        ST.kakao=ST.kakao||[];
+        ST.kakao.push({who:'lg',type:'notice',text:`${g.name} 구매 — ${g.cost}만원\n전원 사기 +5`});
+        saveGame(true); go('home'); toast(`${g.name} 구매`);
+      };
+      else if(poor&&!own) b.onclick=()=>toast(`운영비가 부족하다 (${g.cost}만원 필요)`);
+      gc.appendChild(b);
+    });
+    const done=el('button','btn','장비 얘기 마무리');
+    done.onclick=()=>{ST.gearMeeting.done=true;saveGame(true);go('home');toast('시즌 준비 완료');};
+    gc.appendChild(done);
+    c.appendChild(gc);
+  }
+
+  /* ---- 시즌 말 리그 가입비 ---- 모자라면 회비를 걷어야 한다 */
+  if(ST.feeDue){
+    const need=Math.max(0, LEAGUE_FEE-ST.budget);
+    const fc=el('div','card');
+    fc.innerHTML=`<div class="card-h">다음 시즌 리그 가입비</div>
+      <p class="muted">협회에 <b>${LEAGUE_FEE}만원</b>을 내야 다음 시즌을 뛴다.
+      현재 운영비 <b>${ST.budget.toFixed(0)}만원</b>.
+      ${need>0?`<span class="warnx">${need}만원이 모자란다.</span>`:'낼 수 있다.'}</p>`;
+    if(need>0){
+      const n=TBYID['wwzw'].players.filter(p=>!isMerc(p.id)).length||1;
+      const b=el('button','btn danger',`회비 걷는다 (인당 ${Math.ceil(need/n)}만원)`);
+      b.onclick=()=>{
+        const r=collectDues(need);
+        ST.kakao=ST.kakao||[];
+        r.msgs.forEach(m=>ST.kakao.push(m));
+        saveGame(true); go('kakao');
+        toast(`회비 ${r.per}만원씩 ${r.n}명 — ${r.total}만원`);
+      };
+      fc.appendChild(b);
+    } else {
+      const b=el('button','btn primary',`가입비 ${LEAGUE_FEE}만원 납부`);
+      b.onclick=()=>{
+        ST.budget-=LEAGUE_FEE; ST.feeDue=false;
+        ST.kakao=ST.kakao||[];
+        ST.kakao.push({who:'lg',type:'notice',
+          text:`다음 시즌 리그 가입비 ${LEAGUE_FEE}만원 납부 완료\n남은 운영비 ${ST.budget.toFixed(0)}만원`});
+        saveGame(true); go('home'); toast('가입비 납부 완료');
+      };
+      fc.appendChild(b);
+    }
+    c.appendChild(fc);
+  }
 
   // 친구의 술 약속
   if(ST.drinkInvite && TBYID['wwzw'].players.some(p=>p.id===ST.drinkInvite.pid)){
@@ -5416,8 +5598,11 @@ function renderKakao(){
       b.onclick=()=>{
         const mine={who:ST.playerId,text:o.label,mood:'ok'};
         if(o.action==='party'){
+          if(ST.budget<PARTY_COST){toast(`회식비가 부족하다 (${PARTY_COST}만원 필요)`);return;}
+          ST.budget-=PARTY_COST;
           (phase==='pre'?ST.kakao:ST.kakaoPost).push(mine);
           const r=doAfterParty(ST);
+          ST.kakaoPost.push({who:'lg',type:'notice',text:`회식비 ${PARTY_COST}만원 지출 · 남은 운영비 ${ST.budget.toFixed(0)}만원`});
           ST.kakaoPost.push({who:'lg',text:`${r.joined.length}명 모였다. 오늘 잘했다`,mood:'happy'});
           (r.msgs||[]).forEach(m=>ST.kakaoPost.push(m));
           ST.sentPost=true;
@@ -6044,7 +6229,7 @@ function commitGame(res,usSide,thSide,uSlots){
   const mn=releaseMercs(false);       // 용병은 그날로 끝이다
   if(mn)ST.kakaoPost.push({who:'lg',type:'notice',text:`용병 ${mn}명 오늘까지. 다음 주엔 사람 좀 채우자`});
   ST.round++; ST.weekDone=false; ST.events=[];
-  if(ST.round>=ST.schedule.length)ST.seasonOver=true;
+  if(ST.round>=ST.schedule.length){ ST.seasonOver=true; ST.feeDue=true; }
   saveGame(true); LIVE=null;
   go('kakao'); toast(tie?'무승부':(won?'승리':'패배'));
 }
@@ -6245,6 +6430,7 @@ function applyTraining(){
     if(m&&m.traits.includes('노력파'))rate*=1.25;
     if(m&&m.traits.includes('미완성'))rate*=1.30;
     if(f==='hard')rate*=1.9;
+    rate*=gearTrainMul(f);                  // 산 장비만큼 훈련이 잘 된다
     // 1명 집중 훈련 — 지정한 선수만 제대로 크고 나머지는 곁다리로 조금 큰다.
     // 집중 대상은 한 시즌(22경기) 몰아주면 CA +4~5, 즉 잠재 여지의 1/4~1/3이 찬다.
     // 팀 전체 성장 총량은 예전(전원 균등)보다 낮다 — 고르는 게 이 시스템의 핵심이라 의도한 것이다.
@@ -6268,7 +6454,7 @@ function applyTraining(){
   if(f==='hard'){
     att.forEach(pid=>{
       ST.cond[pid]=Math.max(20,(ST.cond[pid]||70)-9);
-      if(!ST.injury[pid]&&Math.random()<0.045){
+      if(!ST.injury[pid]&&Math.random()<0.045*gearInjMul()){
         const inj=rollInjury(pid,Math.random());
         ST.injury[pid]=inj;
         gains.push(`${nameOf(pid)} 훈련 중 ${inj.name} (${inj.games}경기)`);
@@ -6429,8 +6615,9 @@ function renderTrain(){
   // 개인 레슨
   const ls=el('div','card');
   ls.appendChild(el('div','card-h','개인 레슨'));
-  ls.appendChild(el('p','muted',`운영비 25만원. 다음 경기 후 그 선수에게 변화가 생길 확률이 크게 오른다.<br>현재 운영비 ${ST.budget.toFixed(0)}만원`));
-  ls.lastChild.innerHTML=`운영비 25만원. 다음 경기 후 그 선수에게 변화가 생길 확률이 크게 오른다.<br>현재 운영비 <b>${ST.budget.toFixed(0)}만원</b>`;
+  ls.appendChild(el('p','muted',''));
+  ls.lastChild.innerHTML=`레슨비 <b>${LESSON_COST}만원</b>. 사설 아카데미는 원래 비싸다.<br>`+
+    `다음 경기 후 그 선수에게 변화가 생길 확률이 크게 오른다.<br>현재 운영비 <b>${ST.budget.toFixed(0)}만원</b>`;
   if(ST.lessonBoost){
     ls.appendChild(el('div','warn',`${nameOf(ST.lessonTarget||'')} 레슨 진행 중 — 다음 경기 후 결과가 나온다`));
   } else {
@@ -7324,6 +7511,10 @@ function normalizeState(){
     // 로스터에 없는 선수(이적·방출)의 약속은 정리한다
     if(ST.promise[pid]&&!us.players.some(p=>p.id===pid))delete ST.promise[pid];
   });
+  if(!ST.gear)ST.gear={};
+  if(ST.duesCount==null)ST.duesCount=0;
+  if(ST.gearMeeting===undefined)ST.gearMeeting=null;
+  if(ST.feeDue==null)ST.feeDue=false;
   if(ST.recruit===undefined)ST.recruit=null;
   if(ST.recruit&&!TBYID[ST.recruit.team])ST.recruit=null;
   if(!ST.bond)ST.bond={};
