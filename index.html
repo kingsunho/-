@@ -598,7 +598,6 @@ table.hl-tbl td.hl-o{color:#c98a80}
 .pk-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
 .pk-nm{font-size:16px;font-weight:800}
 .pk-age{font-size:10.5px;color:var(--dim)}
-.pk-nick{font-size:10.5px;font-weight:700;color:var(--gold);border:1px solid rgba(201,162,39,.45);border-radius:4px;padding:1px 5px;margin:0 auto 0 6px}
 .pk-tr{font-size:10.5px;color:#a9b4c2;margin-top:7px}
 .pk-ds{font-size:11px;color:var(--dim);margin-top:4px;line-height:1.5}
 .sendbox{border-color:#4a4223}
@@ -1255,8 +1254,8 @@ const META = {
     pos:PR({'2B':56,C:0,'1B':0,'3B':0,SS:0,LF:0,CF:0,RF:0,P:0}),
     desc:'2루수. 팀 최다 안타·타점·득점. 차를 몰고 다닌다.'},
 
-  kig:{nick:'안방마님',born:2000,speech:'ban',throws:'R',car:false,school:'군포고',drink:3,attend:0.92,loyal:70,pot:5,
-    traits:['포수','강견','형제'],friends:['yjh','ksn'],rival:'khg',coach:{},
+  kig:{born:2000,speech:'ban',throws:'R',car:false,school:'군포고',drink:3,attend:0.92,loyal:70,pot:5,
+    traits:['안방마님','포수','강견','형제'],friends:['yjh','ksn'],rival:'khg',coach:{},
     pos:PR({C:60,'3B':50,'1B':50,'2B':0,SS:0,LF:0,CF:0,RF:0,P:44}),
     desc:'주전 포수. 어깨가 좋아 급하면 마운드도 오른다. 김한규와 형제.'},
 
@@ -1325,6 +1324,7 @@ const TRAIT_INFO = {
   '주루형':'도루 성공률이 높다',
   '카풀':'차가 있어 다른 선수를 태우고 온다',
   '금주':'회식에 영향받지 않는다',
+  '안방마님':'궂은일을 도맡는다. 몸이 튼튼해 컨디션 회복이 빠르고 부상이 가볍다',
   '포수':'포수 수비 특화',
   '강견':'어깨가 강해 급하면 마운드도 오른다',
   '불만러':'하위 타순·벤치 배치에 크게 반발한다',
@@ -1774,6 +1774,7 @@ function rollInjury(pid,roll){
   const m=META[pid];
   let idx=(roll*INJURIES.length)|0;
   if(m&&m.traits.includes('철강'))idx=Math.min(idx,1);
+  if(m&&m.traits.includes('안방마님'))idx=Math.min(idx,2);
   if(m&&m.traits.includes('유리몸'))idx=Math.min(INJURIES.length-1,idx+2);
   const t=INJURIES[Math.max(0,Math.min(INJURIES.length-1,idx))];
   const games=t.min+(((roll*97)%(t.max-t.min+1))|0);
@@ -4751,7 +4752,8 @@ function runWeek(){
   });
   TBYID['wwzw'].players.forEach(p=>{
     const m=META[p.id];
-    const rec=(m&&m.traits.includes('성실'))?11:7;
+    let rec=(m&&m.traits.includes('성실'))?11:7;
+    if(m&&m.traits.includes('안방마님'))rec+=3;   // 궂은일을 해도 몸이 버틴다
     ST.cond[p.id]=Math.min(100,ST.cond[p.id]+rec+((rng()*7)|0)-3);
     ST.morale[p.id]=Math.max(10,Math.min(100,ST.morale[p.id]+(ST.morale[p.id]<70?2:-1)));
   });
@@ -4802,13 +4804,12 @@ function renderPick(){
   };
   const roleLabel=p=>{
     const m=META[p.id]; if(!m)return '';
-    const show=(m.traits||[]).filter(t=>['리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형'].includes(t));
+    const show=(m.traits||[]).filter(t=>['안방마님','리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형'].includes(t));
     return show.slice(0,2).join(' · ');
   };
   us.players.forEach(p=>{
     const b=el('button','pickcard'+(MYID===p.id?' on':''));
-    const nick=(META[p.id]||{}).nick;
-    b.innerHTML=`<div class="pk-top"><span class="pk-nm">${p.name}</span>${nick?`<span class="pk-nick">${nick}</span>`:''}
+    b.innerHTML=`<div class="pk-top"><span class="pk-nm">${p.name}</span>
       <span class="pk-age">${posLabel(p)}</span></div>
       <div class="pk-star">${starHTML(effCA(p.id))}<span class="pk-pot">잠재 ${starHTML(effPA(p.id),true)}</span></div>
       ${roleLabel(p)?`<div class="pk-role">${roleLabel(p)}</div>`:''}`;
