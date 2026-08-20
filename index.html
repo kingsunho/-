@@ -422,6 +422,15 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .pt-role{font-size:10px;color:var(--blue);margin-top:2px}
 .pt-row.bad .pt-role{color:#c98a80}
 .pt-ctl .rm{color:#c98a80}
+/* 경기 하이라이트 */
+.hl-dec{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:center;
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:9px}
+.hl-lbl{font-size:10.5px;color:var(--dim);white-space:nowrap}
+.hl-val{font-size:13px;font-weight:800}
+table.hl-tbl td i{display:block;font-style:normal;font-size:9.5px;color:var(--dim)}
+table.hl-tbl td.hl-hr{color:var(--gold);font-weight:800}
+table.hl-tbl td.hl-x{color:#7fd6a5;font-weight:700}
+table.hl-tbl td.hl-o{color:#c98a80}
 .dimx{color:var(--dim);font-size:10.5px}
 
 /* 라인업 추가 */
@@ -1565,6 +1574,74 @@ function callName(from, to){
   return nm;
 }
 
+/* =========================================================
+   대사 다양성 엔진
+   ---------------------------------------------------------
+   게임 안에 LLM 을 넣을 수는 없다(단일 HTML · 오프라인).
+   대신 조합으로 가짓수를 늘린다.
+     본문 N개 × 앞머리 M개 × 꼬리 K개 = N×M×K 가지
+   여기에 성격(과묵·불만러·코치·리더)별 꼬리를 따로 붙여서
+   같은 상황이라도 사람마다 다르게 말하게 만든다.
+   ========================================================= */
+
+/* 균등 셔플. sort(()=>Math.random()-0.5) 는 균등하지 않아서
+   앞쪽 원소가 계속 뽑힌다 — "매번 같은 사람만 대답한다"의 원인이었다. */
+function shuffled_(arr, rng){
+  const r=rng||Math.random, a=arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=(r()*(i+1))|0; const t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+
+/* 앞머리 / 꼬리 조각 */
+const LEAD_BAN = ['','','','ㅋㅋ ','아 ','음 ','그래 ','야 ','오 '];
+const LEAD_JON = ['','','','ㅋㅋ ','아 ','음... ','네 ','오 '];
+const TAIL_BAN = ['','','','',' ㅋㅋ',' ㅎㅎ','...',' 진짜',' ㅇㅇ'];
+const TAIL_JON = ['','','','',' ㅋㅋ',' ㅎㅎ','...',' 진짜요'];
+/* 성격별 전용 꼬리 — 사람마다 말버릇이 다르게 보이도록 */
+const TAIL_TRAIT = {
+  '불만러': ['',' 아닌가',' 데이터상으로는',' 뭐 그렇다고'],
+  '과묵':   ['','','','...'],
+  '코치':   ['',' 기본이 중요하다',' 연습하면 된다'],
+  '리더':   ['',' 가자',' 하자고'],
+  '분석가': ['',' 숫자로 보면 그렇다'],
+  '노력파': ['',' 더 하겠다',' 연습할게'],
+  '성실':   ['',' 나는 나온다'],
+};
+
+/* 한 줄을 조합해서 만든다.
+   pid=화자, to=청자(말투 판정), pool=[반말배열, 존댓말배열]            */
+function line(pid, to, banPool, jonPool, rng){
+  const r=rng||Math.random;
+  const jon = to ? (speechTo(pid,to)==='jon') : (speechOf(pid)!=='ban');
+  const body = pickOne(jon?jonPool:banPool, r);
+  if(!body) return '';
+  // 이미 꾸며진 문장(괄호 지문 등)은 그대로 둔다
+  if(body.charAt(0)==='(') return body;
+  const m=META[pid];
+  let tailPool = jon?TAIL_JON:TAIL_BAN;
+  if(m&&m.traits){
+    const t=m.traits.find(x=>TAIL_TRAIT[x]);
+    if(t && r()<0.45) tailPool = TAIL_TRAIT[t];
+  }
+  const lead = r()<0.55 ? pickOne(jon?LEAD_JON:LEAD_BAN, r) : '';
+  const tail = r()<0.55 ? pickOne(tailPool, r) : '';
+  return (lead+body+tail).trim();
+}
+
+/* 여러 명이 반응할 때 쓸 화자 목록.
+   최근에 말한 사람은 뒤로 밀어서 같은 사람이 연속으로 나오지 않게 한다. */
+function speakers(ST, exclude, n, rng){
+  const us=TBYID['wwzw'];
+  const recent=ST._recentSpeakers||[];
+  let cands=us.players.filter(p=>p.id!==exclude&&isAvailable(p.id)&&!isMerc(p.id));
+  if(!cands.length)return [];
+  const fresh=shuffled_(cands.filter(p=>recent.indexOf(p.id)<0), rng);
+  const used =shuffled_(cands.filter(p=>recent.indexOf(p.id)>=0), rng);
+  const out=fresh.concat(used).slice(0,n);
+  ST._recentSpeakers=out.map(p=>p.id).concat(recent).slice(0,6);
+  return out;
+}
+
 /* 단톡방 기본 말투 (불특정 다수 대상) */
 function say(pid, ban, jon){ return speechOf(pid)==='ban'?ban:jon; }
 
@@ -2354,7 +2431,7 @@ function buildKakaoPre(ST){
 
     /* 중재 — 매번 다른 사람이 다른 말로 */
     const mediators=us.players.filter(p=>p.id!=='kig'&&p.id!=='khg'&&isAvailable(p.id));
-    const shuffled=mediators.slice().sort(()=>rng()-0.5);
+    const shuffled=shuffled_(mediators,rng);
     const nMed=1+((rng()*2)|0);                       // 1~2명만 반응
     const MED_BAN=['또 시작이네 ㅋㅋ','둘이 나가서 하고 와라','밥이나 먹고 하자',
       '단톡 알림 좀 꺼야겠다','형제끼리 왜 그러냐','조용히 좀 해라 진짜',
@@ -2458,44 +2535,104 @@ function kakaoOptions(ST, phase){
   const T=(jon,banT)=>ban?banT:jon;
   const rng=Math.random;
 
-  /* 반응 생성: 사기·컨디션·성격에 따라 여러 갈래 */
+  /* 반응 생성 — 사기·컨디션·성격에 따라 갈래가 나뉘고,
+     같은 갈래 안에서도 조합으로 문장이 매번 달라진다.
+     화자는 speakers() 가 최근 발언자를 피해서 뽑는다.               */
   const react=(mood)=>{
     const out=[];
-    const cands=us.players.filter(p=>p.id!==me&&isAvailable(p.id));
-    if(!cands.length)return out;
-    const shuffled=cands.slice().sort(()=>rng()-0.5);
-    const n=1+((rng()*2)|0);
-    shuffled.slice(0,n).forEach(p=>{
+    const n=2+((rng()*3)|0);            // 2~4명이 반응한다
+    speakers(ST, me, n, rng).forEach(p=>{
       const m=META[p.id]; if(!m)return;
-      const jon=speechTo(p.id,me)==='jon';
-      let pool;
+      const tr=m.traits||[];
+      const hi=(ST.morale[p.id]||70)>=65;
+      let ban, jon, mo='ok';
+
       if(mood==='fire'){
-        pool = ST.morale[p.id]>=65
-          ? (jon?['넵 오늘 잡죠','좋습니다 가시죠','오늘은 다르게 해보겠습니다']:['그래 오늘 잡자','ㅇㅋ 가보자','오늘은 다르다'])
-          : (jon?['...넵','노력해보겠습니다','부담되네요']:['말은 쉽지','알겠다','부담스럽네']);
-      } else if(mood==='calm'){
-        pool = m.traits.includes('불만러')
-          ? (jon?['그러다 또 지는 거 아닌가요','편하게만 하면 늘 이렇죠']:['그러다 또 지는 거 아니냐','편하게만 하니까 이렇지'])
-          : (jon?['ㅋㅋ 좋습니다','이게 맞죠','부담 없이 하겠습니다']:['ㅇㅇ 이게 맞지','좋다','부담 없이 하자']);
-      } else if(mood==='defense'){
-        pool = p.def<45
-          ? (jon?['...제 얘기죠','죄송합니다 신경쓰겠습니다','연습 더 하겠습니다']:['내 얘기냐','알겠다 신경쓸게'])
-          : (jon?['넵 집중하겠습니다','일찍 나가서 펑고 치죠','좋습니다']:['ㅇㅋ 집중하자','일찍 나가서 펑고 치자']);
-      } else if(mood==='praise'){
-        pool = jon?['갑자기 왜 그러세요 ㅋㅋ','감사합니다','기분 좋네요']:['갑자기 왜 그래 ㅋㅋ','고맙다','기분 좋네'];
-      } else if(mood==='thanks'){
-        pool = jon?['고생하셨습니다','수고하셨습니다','다음에 또 하죠']:['고생했다','수고했다','다음에 또 하자'];
-      } else if(mood==='scold'){
-        pool = m.traits.includes('불만러')
-          ? (jon?['저만 못한 것도 아닌데요','...']:['나만 못한 것도 아닌데','...'])
-          : (jon?['죄송합니다','다음엔 잘하겠습니다','맞는 말씀입니다']:['미안하다','다음엔 잘할게','맞는 말이다']);
-      } else if(mood==='review'){
-        pool = m.traits.includes('코치')
-          ? (jon?['좋습니다 제가 준비하겠습니다']:['좋다 내가 준비할게'])
-          : (jon?['넵','또 훈련인가요 ㅋㅋ','알겠습니다']:['ㅇㅋ','또 훈련이냐 ㅋㅋ']);
-      } else return;
-      out.push({who:p.id,text:pickOne(pool,rng),
-        mood: mood==='scold'||mood==='fire'&&ST.morale[p.id]<65 ? 'flat' : 'ok'});
+        if(tr.includes('과묵')){ ban=['...알겠다','ㅇㅇ','해보지 뭐','(고개를 끄덕인다)'];
+          jon=['...알겠습니다','네','해보겠습니다','(고개를 끄덕인다)']; }
+        else if(hi){
+          ban=['오늘 잡자','ㅇㅋ 가보자','오늘은 다르다','나 오늘 컨디션 좋다','한 번 해보자',
+               '오늘 무조건이다','타순 어디든 상관없다','몸 풀고 있을게','일찍 갈게','각 나왔다'];
+          jon=['오늘 잡죠','좋습니다 가시죠','오늘은 다르게 해보겠습니다','컨디션 좋습니다','한 번 해보겠습니다',
+               '오늘 무조건입니다','타순 어디든 상관없습니다','몸 풀고 있겠습니다','일찍 가겠습니다','각 나왔습니다'];
+        } else {
+          mo='flat';
+          ban=['말은 쉽지','알겠다','부담스럽네','최선은 다해볼게','져도 뭐라 하지 마라',
+               '요새 잘 안 맞는데','컨디션이 별로다','일단 나가볼게'];
+          jon=['...넵','노력해보겠습니다','부담되네요','최선은 다해보겠습니다','져도 뭐라 하지 마세요',
+               '요새 잘 안 맞습니다','컨디션이 별로입니다','일단 나가보겠습니다'];
+        }
+      }
+      else if(mood==='calm'){
+        if(tr.includes('불만러')){
+          ban=['그러다 또 지는 거 아니냐','편하게만 하니까 이렇지','재밌게 하는 것도 이겨야 재밌지',
+               '이런 마인드가 문제다','뭐 좋다 그럼'];
+          jon=['그러다 또 지는 거 아닌가요','편하게만 하면 늘 이렇죠','재밌게 하는 것도 이겨야 재밌죠',
+               '이런 마인드가 문제입니다','뭐 좋습니다 그럼'];
+        } else {
+          ban=['ㅇㅇ 이게 맞지','좋다','부담 없이 하자','다치는 게 제일 무섭다','내일 출근해야 된다',
+               '몸 사리면서 하자','즐기러 나가는 거지','이 말이 제일 좋다','슬라이딩은 안 한다'];
+          jon=['이게 맞죠','좋습니다','부담 없이 하겠습니다','다치는 게 제일 무섭죠','내일 출근해야 됩니다',
+               '몸 사리면서 하겠습니다','즐기러 나가는 거죠','이 말이 제일 좋습니다','슬라이딩은 안 하겠습니다'];
+        }
+      }
+      else if(mood==='defense'){
+        if(p.def<45){ mo='flat';
+          ban=['내 얘기냐','알겠다 신경쓸게','펑고 좀 받아야겠다','글러브 새로 살까','실책 안 하려고 노력은 한다',
+               '자꾸 나한테만 오더라','오늘은 안 흘린다'];
+          jon=['...제 얘기죠','죄송합니다 신경쓰겠습니다','펑고 좀 받아야겠습니다','글러브 새로 살까요',
+               '실책 안 하려고 노력은 합니다','자꾸 저한테만 오더라고요','오늘은 안 흘리겠습니다'];
+        } else if(tr.includes('코치')){
+          ban=['내가 미리 나가서 펑고 칠게','기본기부터 다시 보자','포구 자세만 잡아도 반은 준다'];
+          jon=['제가 미리 나가서 펑고 치겠습니다','기본기부터 다시 보시죠','포구 자세만 잡아도 반은 됩니다'];
+        } else {
+          ban=['ㅇㅋ 집중하자','일찍 나가서 펑고 치자','수비가 반이다','송구만 조심하면 된다',
+               '내야 사인 다시 맞추자','오늘 실책 0 가자'];
+          jon=['집중하겠습니다','일찍 나가서 펑고 치죠','수비가 반이죠','송구만 조심하면 됩니다',
+               '내야 사인 다시 맞추시죠','오늘 실책 0 가시죠'];
+        }
+      }
+      else if(mood==='praise'){
+        ban=['갑자기 왜 그래','고맙다','기분 좋네','이런 말 처음 듣는다','오늘 뭐 잘못 먹었냐',
+             '칭찬은 언제나 환영이다','나도 그렇게 생각한다','회식으로 보여줘라'];
+        jon=['갑자기 왜 그러세요','감사합니다','기분 좋네요','이런 말 처음 듣습니다','오늘 뭐 잘못 드셨어요',
+             '칭찬은 언제나 환영입니다','저도 그렇게 생각합니다','회식으로 보여주세요'];
+      }
+      else if(mood==='thanks'){
+        ban=['고생했다','수고했다','다음에 또 하자','오늘 재밌었다','집에 잘 들어가라',
+             '어깨가 나갔다','다들 조심히 가라','오늘 잘 싸웠다','샤워하고 싶다','다음 주에 보자',
+             '차 태워줘서 고맙다','장비 정리는 내가 할게'];
+        jon=['고생하셨습니다','수고하셨습니다','다음에 또 하죠','오늘 재밌었습니다','들어가서 쉬세요',
+             '어깨가 나갔습니다','다들 조심히 가세요','오늘 잘 싸웠습니다','샤워하고 싶습니다','다음 주에 뵙겠습니다',
+             '차 태워주셔서 감사합니다','장비 정리는 제가 하겠습니다'];
+      }
+      else if(mood==='scold'){
+        if(tr.includes('불만러')){
+          ban=['나만 못한 것도 아닌데','...','그럼 사람을 좀 제대로 쓰든가','수비가 무너진 게 내 탓이냐'];
+          jon=['저만 못한 것도 아닌데요','...','그럼 사람을 좀 제대로 쓰시든가요','수비가 무너진 게 제 탓인가요'];
+        } else if(tr.includes('과묵')){ ban=['...','ㅇㅇ','(읽음)']; jon=['...','네','(읽음)']; }
+        else {
+          ban=['미안하다','다음엔 잘할게','맞는 말이다','오늘은 내가 못했다','더 집중할게',
+               '변명 안 하겠다','한 주 더 준비해서 오겠다'];
+          jon=['죄송합니다','다음엔 잘하겠습니다','맞는 말씀입니다','오늘은 제가 못했습니다','더 집중하겠습니다',
+               '변명 안 하겠습니다','한 주 더 준비해서 오겠습니다'];
+        }
+        mo='flat';
+      }
+      else if(mood==='review'){
+        if(tr.includes('코치')){ ban=['좋다 내가 준비할게','펑고 배트 챙겨간다','메뉴 짜놓겠다'];
+          jon=['좋습니다 제가 준비하겠습니다','펑고 배트 챙겨가겠습니다','메뉴 짜놓겠습니다']; }
+        else {
+          ban=['ㅇㅋ','또 훈련이냐','알겠다','몇 시냐','나갈 수 있으면 나갈게','장비는 누가 챙기냐',
+               '비 오면 안 하는 거지'];
+          jon=['넵','또 훈련인가요','알겠습니다','몇 시인가요','나갈 수 있으면 나가겠습니다',
+               '장비는 누가 챙기나요','비 오면 안 하는 거죠'];
+        }
+      }
+      else return;
+
+      out.push({who:p.id, text:line(p.id, me, ban, jon, rng),
+        mood: mo});
     });
     return out;
   };
@@ -3194,10 +3331,19 @@ function LiveGame(cfg){
   this.gojinUs = 1;      // 우리 팀 BABIP 배수 (패대기·벤치클리어링 여파)
   this.gojinOpp = 1;     // 안산 BABIP 배수
   this.gojinWake = {};   // 각성 예약 {pid:true} — 두 명이 동시에 예약될 수 있다
+  this.highlights = [];  // 이닝별 주요 장면 (2루타·3루타·홈런·도루자·병살타)
   this.log.push({t:'inning', inning:1, half:0, text:`1회 초 · ${this.away.team.name} 공격`});
   this.startedInning = true;
   this.checkPitcherChange(this.home);
 }
+
+/* 주요 장면 기록. 경기 후 하이라이트 표에 그대로 쓴다. */
+LiveGame.prototype.hl = function(kind, side, name, detail){
+  this.highlights.push({
+    inning:this.inning, half:this.half, kind,
+    team:side.team.name, us:!!side.isUser, name, detail:detail||''
+  });
+};
 
 LiveGame.prototype.off = function(){ return this.sides[this.half]; };
 LiveGame.prototype.def = function(){ return this.sides[1-this.half]; };
@@ -3365,6 +3511,7 @@ LiveGame.prototype.stepPA = function(){
         }else{
           this.bases[0]=null;this.outs++;this.box[rn.id].cs++;
           events.push({text:`${rn.name} 도루 실패`,cls:'out'});
+          this.hl('cs',off,rn.name,'2루 도루 실패');
           if(this.outs>=3){ this.endHalf(); return {events, half:true}; }
         }
       }
@@ -3484,7 +3631,8 @@ LiveGame.prototype.stepPA = function(){
     const dpRisk = 0.030 + dpB + ((off.isUser&&this._buntRun)?0.050:0);
     if(res.gb&&this.bases[0]&&this.outs<3&&rng()<dpRisk){this.bases[0]=null;pl.outs++;this.outs++;
       this.dpCount=(this.dpCount||0)+1;
-      events.push({text:`${bat.name} 병살타`,cls:'out'});}
+      events.push({text:`${bat.name} 병살타`,cls:'out'});
+      this.hl('dp',off,bat.name,'');}
     else if(this.bases[2]&&this.outs<3&&!res.gb&&rng()<0.30){
       // 홈보살 특성 보유 외야수가 있으면 잡아낸다
       const of=def.slots.filter(x=>['LF','CF','RF'].includes(x.pos))
@@ -3522,12 +3670,15 @@ LiveGame.prototype.stepPA = function(){
       }
     }
     else if(res.type==='2B'){bl.d2++;adv(2,true);this.bases[1]=bat.id;
-      events.push({text:`${bat.name} 2루타`,cls:'hit'});}
+      events.push({text:`${bat.name} 2루타`,cls:'hit'});
+      this.hl('d2',off,bat.name,'');}
     else if(res.type==='3B'){bl.d3++;adv(3,true);this.bases[2]=bat.id;
-      events.push({text:`${bat.name} 3루타`,cls:'hit'});}
+      events.push({text:`${bat.name} 3루타`,cls:'hit'});
+      this.hl('d3',off,bat.name,'');}
     else{bl.hr++;let c=1;for(let b=0;b<3;b++)if(this.bases[b]){score(this.bases[b],true);c++;this.bases[b]=null;}
       score(bat.id,true);bl.rbi+=c;
-      events.push({text:`${bat.name} 홈런! ${c}점`,cls:'hr'});}
+      events.push({text:`${bat.name} 홈런! ${c}점`,cls:'hr'});
+      this.hl('hr',off,bat.name,c>1?`${c}점 홈런`:'솔로 홈런');}
   }
 
   off.order++;
@@ -3596,8 +3747,10 @@ LiveGame.prototype.finish = function(){
     wp:tie?null:win.rot[0],
     lp:tie?null:lose.rot[Math.min(lose.pIdx,lose.rot.length-1)],
     innings:this.inning, mercy:this.mercy, injuries:this.injuries,
-    dpCount:this.dpCount||0, assists:this.assists||0, assistBy:this.assistBy||null, wp:this.wp||0,
+    dpCount:this.dpCount||0, assists:this.assists||0, assistBy:this.assistBy||null,
+    wpCount:this.wp||0,          // 폭투 수. wp(승리투수 id)와 키가 겹치면 안 된다
     gojin:this.gojin,
+    highlights:this.highlights,
   };
 };
 
@@ -3788,6 +3941,14 @@ function isAvailable(pid){
   return true;
 }
 function nameOf(pid){const p=TBYID['wwzw'].players.find(x=>x.id===pid);return p?p.name:pid;}
+/* 우리 팀·상대 팀 가리지 않고 투수 이름을 찾는다 (승패투수 표시용) */
+function pitcherName(pid){
+  for(const t of TEAMS){
+    const p=(t.pitchers||[]).find(x=>x.id===pid)||(t.players||[]).find(x=>x.id===pid);
+    if(p)return p.name;
+  }
+  return pid;
+}
 function isMe(pid){ return pid===(ST?ST.playerId:MYID); }
 
 /* ---------- 시즌 ---------- */
@@ -5615,6 +5776,45 @@ function showResult(){
   ls.innerHTML=`<table>${h}${row(res.away)}${row(res.home)}</table>`;
   stage.appendChild(ls);
 
+  /* ---- 경기 하이라이트 ---- 몇 회에 누가 뭘 했는지 */
+  const HLN={hr:'홈런',d3:'3루타',d2:'2루타',dp:'병살타',cs:'도루자'};
+  const HLC={hr:'hl-hr',d3:'hl-x',d2:'hl-x',dp:'hl-o',cs:'hl-o'};
+  const hls=res.highlights||[];
+  const hc=el('div','card');
+  hc.appendChild(el('div','card-h','경기 하이라이트'));
+
+  // 승리 · 패배투수
+  const decRow=el('div','hl-dec');
+  const wpn=res.wp?pitcherName(res.wp):null, lpn=res.lp?pitcherName(res.lp):null;
+  decRow.innerHTML = res.tie
+    ? '<span class="hl-lbl">무승부</span><span class="hl-val">승패 없음</span>'
+    : `<span class="hl-lbl">승리투수</span><span class="hl-val">${wpn||'—'}</span>`+
+      `<span class="hl-lbl">패전투수</span><span class="hl-val">${lpn||'—'}</span>`;
+  hc.appendChild(decRow);
+
+  if(hls.length){
+    const tb=el('table','box hl-tbl');
+    tb.innerHTML='<tr><th>이닝</th><th>기록</th><th>선수</th><th>팀</th></tr>';
+    hls.forEach(x=>{
+      const tr=el('tr',x.us?'me':'');
+      tr.innerHTML=`<td>${x.inning}회 ${x.half===0?'초':'말'}</td>`+
+        `<td class="${HLC[x.kind]||''}">${HLN[x.kind]||x.kind}${x.detail?`<i>${x.detail}</i>`:''}</td>`+
+        `<td class="nm">${x.name}</td><td class="tm">${x.team}</td>`;
+      tb.appendChild(tr);
+    });
+    hc.appendChild(tb);
+  } else {
+    hc.appendChild(el('p','muted','장타·병살·도루자 없이 끝났다.'));
+  }
+  // 우리 팀 요약 한 줄
+  const mine=hls.filter(x=>x.us);
+  if(mine.length){
+    const cnt=k=>mine.filter(x=>x.kind===k).length;
+    hc.appendChild(el('p','muted',
+      `우완좌완 — 2루타 ${cnt('d2')} · 3루타 ${cnt('d3')} · 홈런 ${cnt('hr')} · 병살타 ${cnt('dp')} · 도루자 ${cnt('cs')}`));
+  }
+  stage.appendChild(hc);
+
   const uSlots=(next.homeGame?LIVE.home:LIVE.away).slots;
   const bx=el('div','card'); bx.appendChild(el('div','card-h','우완좌완 타격'));
   const tb=el('table','box');
@@ -5652,8 +5852,9 @@ function showResult(){
     }
     stage.appendChild(ex);
   }
-  const wA=ST.rotation.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0);
-  const wpN=res.wp||0;
+  const wA=(ST.gameRotation&&ST.gameRotation.length?ST.gameRotation:ST.rotation)
+    .reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0);
+  const wpN=res.wpCount||0;
   const idx=wA+usSide.sbAllowed+wpN;
   const fp=el('div','card fpcard');
   fp.innerHTML=`<div class="card-h">공짜진루 지수</div><div class="fp-num ${idx<=14?'good':'bad'}">${idx}</div>
@@ -5719,7 +5920,8 @@ function commitGame(res,usSide,thSide,uSlots){
   if(tie){u.t++;t.t++;}else if(won){u.w++;t.l++;}else{u.l++;t.w++;}
   ST.budget+=won?9:(tie?6:4);
 
-  ST.lastFreePass = ST.rotation.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0)+usSide.sbAllowed+(res.wp||0);
+  ST.lastFreePass = gRot.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0)
+    +usSide.sbAllowed+(res.wpCount||0);
   ST.lastLineup = uSlots.map(s=>({id:s.id,pos:s.pos}));
   updateUnhappy(ST, uSlots);
   const starters = (ST.gameStarters&&ST.gameStarters.length)?ST.gameStarters:uSlots.map(s=>s.id);
