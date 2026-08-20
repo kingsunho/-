@@ -7458,10 +7458,19 @@ function renderKakao(){
 
   const head=el('div','card');
   head.innerHTML='<div class="card-h">우완좌완 에이스방</div>';
-  if(phase==='pre'){
+  /* 발표는 그 주에 딱 한 번이다.
+     [버그 이력] 예전에는 phase 만 보고 버튼을 다시 띄웠다. 그래서 발표를 계속
+     다시 눌러 반응이 마음에 들 때까지 굴릴 수 있었다. 발표된 뒤에는 안 띄운다. */
+  const announced = !!(ST.kakao && ST.kakao.length);
+  if(phase==='pre' && !announced && !played){
     const b=el('button','btn','라인업 발표');
-    b.onclick=()=>{ST.kakao=buildKakaoPre(ST);ST.sentPre=false;saveGame(true);renderKakao();};
+    b.onclick=()=>{
+      if(ST.kakao&&ST.kakao.length)return;              // 두 번 눌러도 한 번만
+      ST.kakao=buildKakaoPre(ST); ST.sentPre=false; saveGame(true); renderKakao();
+    };
     head.appendChild(b);
+  } else if(phase==='pre' && announced){
+    head.appendChild(el('p','muted','이번 주 라인업은 이미 발표했다. 다시 짜려면 라인업 화면에서 고쳐라.'));
   }
   c.appendChild(head);
 
@@ -7597,12 +7606,26 @@ function renderGame(){
   const rr=ST.rest?ST.rest[sp.id]:3;
   if(rr<2)c.appendChild(el('div','warn',`선발 ${sp.name}이(가) ${rr===0?'과부하 상태다':'피로하다'}. 구위·제구가 떨어진다.`));
 
+  /* [버그 이력] 경기가 끝나고 결과를 확정하기 전에 이 버튼을 또 누르면
+     경기가 통째로 다시 돌아갔다. 마음에 드는 결과가 나올 때까지 굴릴 수 있었다.
+     이제 한 번 시작하면 버튼이 사라지고, 끝난 경기는 결과 화면만 다시 연다.   */
+  const st=el('div','stage'); st.id='stage';
+  if(LIVE && LIVE.over){
+    // 결과를 아직 확정하지 않은 경기가 있다 — 다시 시작이 아니라 결과로 보낸다
+    c.appendChild(el('div','warn','치른 경기의 결과를 아직 확정하지 않았다.'));
+    const rb=el('button','btn primary','결과 보기');
+    rb.onclick=()=>{ c.appendChild(st); showResult(); };
+    c.appendChild(rb); c.appendChild(st);
+    return;
+  }
+  LIVE=null;                                  // 중간에 나갔던 경기는 버린다
   const ctrl=el('div','btn-row');
   const b1=el('button','btn primary','직접 지휘');
   const b2=el('button','btn','자동 진행');
-  b1.onclick=()=>startLive(true); b2.onclick=()=>startLive(false);
+  const lock=fn=>()=>{ if(!ctrl.parentNode)return; ctrl.remove(); fn(); };
+  b1.onclick=lock(()=>startLive(true)); b2.onclick=lock(()=>startLive(false));
   ctrl.appendChild(b1);ctrl.appendChild(b2); c.appendChild(ctrl);
-  const st=el('div','stage'); st.id='stage'; c.appendChild(st);
+  c.appendChild(st);
 }
 
 /* ST.rotation 자체의 유효성만 정리한다.
@@ -7731,6 +7754,9 @@ function makeLive(){
 }
 
 function startLive(manual){
+  const sch0=ST.schedule[ST.round];
+  if(!sch0 || sch0.played){ toast('이미 끝난 경기다'); return; }
+  if(LIVE && LIVE.over){ toast('결과를 먼저 확정해라'); return; }
   LIVE=makeLive(); LIVE.manual=manual;
   const stage=$('#stage'); stage.innerHTML='';
   const sb=el('div','scoreboard');
@@ -8095,6 +8121,8 @@ function showResult(){
 }
 
 function commitGame(res,usSide,thSide,uSlots){
+  const sch0=ST.schedule[ST.round];
+  if(!sch0 || sch0.played){ toast('이미 확정된 경기다'); go('kakao'); return; }
   const sch=ST.schedule[ST.round];
   if(sch.played){go('home');return;}
   // 이번 경기 결장자(부상·개인사정)를 경기 중 부상이 반영되기 전에 미리 잡아둔다.
