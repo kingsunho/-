@@ -380,6 +380,19 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .pc-rate{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:9px;font-size:10.5px;color:#7f8a96}
 .pc-stat{font-size:11.5px;color:#a9b4c2;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
 .pc-desc{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.55}
+/* 면담 */
+.pc-act{display:flex;gap:6px;margin-top:9px}
+.pc-act .mbtn{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+  border-radius:9px;padding:8px 6px;font-size:12px;font-weight:700}
+.pc-act .mbtn:active{border-color:var(--gold)}
+.pc-act .mbtn.hot{border-color:#7a3b34;color:#ffb4a8}
+.pc-prom{font-size:11px;color:var(--gold);margin-top:6px;font-weight:700}
+.meet-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.meet-lv{font-size:11px;color:var(--dim)}
+.prom-row{display:flex;justify-content:space-between;gap:8px;font-size:12px;
+  padding:7px 0;border-bottom:1px solid var(--line)}
+.prom-row:last-child{border-bottom:0}
+.prom-row b{color:var(--gold);white-space:nowrap}
 
 /* 라인업 추가 */
 .lp-row.bad{opacity:.5;border-color:#4a2b28}
@@ -2594,6 +2607,189 @@ function buildAwards(ST){
   return A;
 }
 
+
+/* =========================================================
+   면담 시스템
+   ---------------------------------------------------------
+   기존에는 이적 요구가 떴을 때만 3택이 나왔다.
+   이걸 상시 기능으로 뺐다. 선수단 화면에서 아무나 불러서
+   1:1 로 이야기할 수 있다.
+   말투는 전부 sayTo(선수, 감독) 로 결정한다 —
+   플레이어가 누구냐에 따라 같은 선수가 반말도 하고 존대도 한다.
+   ========================================================= */
+
+/* 오프닝 대사 풀. [반말, 존댓말] 쌍으로 넣는다.
+   반복되면 재미가 죽으니 단계별로 4종 이상씩 둔다.          */
+const MEET_OPEN = {
+  ok:[
+    ['왜 불렀어? 나 요즘 괜찮은데','왜 부르셨어요? 저 요즘 괜찮은데요'],
+    ['몸은 좋다. 나가라면 나간다','몸은 좋습니다. 나가라고 하시면 나갑니다'],
+    ['별일 없다. 이번 주도 나갈게','별일 없습니다. 이번 주도 나가겠습니다'],
+    ['요새 배팅 감 좀 올라왔다. 한번 써봐라','요새 배팅 감 좀 올라왔습니다. 한번 써주세요'],
+    ['커피 사주는 거 아니면 빨리 말해라','커피 사주시는 거 아니면 빨리 말씀하세요'],
+  ],
+  mid:[
+    ['저 왜 안 써주냐','저 왜 안 써주십니까'],
+    ['요즘 벤치만 앉네','요즘 벤치만 앉아 있습니다'],
+    ['솔직히 나보다 못 치는 애도 나가던데','솔직히 저보다 못 치는 애도 나가던데요'],
+    ['일요일마다 나와서 앉아만 있으면 좀 그렇잖아','일요일마다 나와서 앉아만 있으면 좀 그렇잖아요'],
+    ['한 타석이라도 들어가고 싶다','한 타석이라도 들어가고 싶습니다'],
+  ],
+  high:[
+    ['이럴 거면 왜 나오라고 하냐','이럴 거면 왜 나오라고 하십니까'],
+    ['다음 주부터 안 나올 생각도 했다','다음 주부터 안 나올 생각도 했습니다'],
+    ['나 여기서 뭐 하는 사람이냐','저 여기서 뭐 하는 사람입니까'],
+    ['다른 팀에서 연락 왔다. 솔직히 말한다','다른 팀에서 연락 왔습니다. 솔직히 말씀드립니다'],
+    ['참을 만큼 참았다','참을 만큼 참았습니다'],
+  ],
+};
+
+/* 특성별 전용 오프닝 — 캐릭터가 살아야 면담이 재밌다 */
+const MEET_TRAIT_OPEN = {
+  '과묵':[
+    ['......','......'],
+    ['......뭐','......무슨 일이십니까'],
+    ['(고개만 끄덕인다)','(고개만 끄덕인다)'],
+  ],
+  '불만러':[
+    ['이건 좀 아니지 않냐. 내 타순 데이터 봤어?','이건 좀 아니지 않습니까. 제 타순 데이터 보셨어요?'],
+    ['출루율만 놓고 보면 내가 위인데','출루율만 놓고 보면 제가 위인데요'],
+    ['나 요새 축구가 더 재밌더라 진짜로','저 요새 축구가 더 재밌더라고요 진짜로'],
+  ],
+  '성실':[
+    ['빠진 적 없는데 기회는 안 오네','빠진 적 없는데 기회는 안 오네요'],
+    ['나 그냥 열심히 할게. 근데 좀 서운하긴 하다','저 그냥 열심히 하겠습니다. 근데 좀 서운하긴 합니다'],
+    ['시키는 대로 한다. 다만 한 번만 믿어봐라','시키는 대로 하겠습니다. 다만 한 번만 믿어주세요'],
+  ],
+};
+
+/* 응답 대사 풀 */
+const MEET_REPLY = {
+  start:[
+    ['진짜지? 믿는다','진짜죠? 믿겠습니다'],
+    ['알겠다. 그럼 다음 주에 보자','알겠습니다. 그럼 다음 주에 뵙겠습니다'],
+    ['좋다. 잘해볼게','좋습니다. 잘해보겠습니다'],
+    ['말 나온 김에 장비 미리 챙겨둔다','말 나온 김에 장비 미리 챙겨두겠습니다'],
+  ],
+  order:[
+    ['상위타순이면 나야 좋지','상위타순이면 저야 좋죠'],
+    ['클린업이면 책임지고 친다','클린업이면 책임지고 치겠습니다'],
+    ['알겠다. 타점 뽑아올게','알겠습니다. 타점 뽑아오겠습니다'],
+    ['3번이면 초구부터 노린다','3번이면 초구부터 노리겠습니다'],
+  ],
+  soothe_ok:[
+    ['뭐 알겠다. 좀만 더 기다려본다','뭐 알겠습니다. 좀만 더 기다려보겠습니다'],
+    ['말이라도 그렇게 해주니 낫네','말이라도 그렇게 해주시니 낫네요'],
+    ['오늘 술 한잔 사면 다 풀린다','오늘 술 한잔 사주시면 다 풀립니다'],
+    ['알겠다. 내가 더 해볼게','알겠습니다. 제가 더 해보겠습니다'],
+  ],
+  soothe_no:[
+    ['말은 항상 그렇게 하잖아','말씀은 항상 그렇게 하시잖아요'],
+    ['됐다. 그냥 나 신경 쓰지 마라','됐습니다. 그냥 저 신경 쓰지 마세요'],
+    ['그 얘기 저번에도 들었다','그 얘기 저번에도 들었습니다'],
+    ['알겠다고 해야 하는 거 아는데 잘 안 되네','알겠다고 해야 하는 거 아는데 잘 안 되네요'],
+  ],
+  ignore:[
+    ['...알겠다','...알겠습니다'],
+    ['그래 뭐 알아서 해라','네 뭐 알아서 하십시오'],
+    ['됐다 됐어','됐습니다 됐어요'],
+    ['(자리에서 그냥 일어난다)','(자리에서 그냥 일어난다)'],
+  ],
+};
+
+/* 약속 이행/위반/완수 시 단톡 반응 */
+const MEET_PROMISE_MSG = {
+  done:[
+    ['약속 지켜줘서 고맙다','약속 지켜주셔서 감사합니다'],
+    ['믿고 따라간다','믿고 따라가겠습니다'],
+    ['이제 결과로 보여줄게','이제 결과로 보여드리겠습니다'],
+  ],
+  break_start:[
+    ['선발 보장한다며','선발 보장한다고 하셨잖아요'],
+    ['약속은 약속 아니냐','약속은 약속 아닙니까'],
+    ['됐다 기대한 내가 바보지','됐습니다 기대한 제가 바보죠'],
+  ],
+  break_order:[
+    ['상위타순 얘기는 뭐였냐','상위타순 얘기는 뭐였습니까'],
+    ['9번 치라고 부른 거였나','9번 치라고 부르신 거였습니까'],
+    ['타순 보고 그냥 웃었다','타순 보고 그냥 웃었습니다'],
+  ],
+};
+
+/* 불만 단계 → 대사 풀 키 */
+function meetTier(lv){ return lv>=3?'high':(lv>=2?'mid':'ok'); }
+
+/* 오프닝 한 줄 생성. 특성 전용 대사가 있으면 40% 확률로 그걸 쓴다 */
+function meetOpenLine(ST, pid){
+  const m=META[pid]||{traits:[]};
+  const lv=(ST.unhappy&&ST.unhappy[pid])?ST.unhappy[pid].level:0;
+  let pool=null;
+  const tr=(m.traits||[]).find(t=>MEET_TRAIT_OPEN[t]);
+  if(tr && Math.random()<0.4) pool=MEET_TRAIT_OPEN[tr];
+  if(!pool) pool=MEET_OPEN[meetTier(lv)];
+  const pair=pickOne(pool);
+  return sayTo(pid, ST.playerId, pair[0], pair[1]);
+}
+function meetReplyLine(ST, pid, key){
+  const pair=pickOne(MEET_REPLY[key]);
+  return sayTo(pid, ST.playerId, pair[0], pair[1]);
+}
+
+/* ---------------------------------------------------------
+   약속 검사 — commitGame 에서 매 경기 호출한다.
+   starters : 이번 경기 선발 출전 명단(id 배열, 타순 순서)
+   played   : 실제로 경기에 나온 id 집합
+   absent   : 결장자 판정용 (부상/불참). 결장은 위반으로 치지 않는다.
+   반환값은 단톡방에 붙일 메시지 배열.
+   --------------------------------------------------------- */
+function checkPromises(ST, starters, playedIds, absentIds){
+  const msgs=[];
+  if(!ST.promise) return msgs;
+  Object.keys(ST.promise).forEach(pid=>{
+    const pr=ST.promise[pid];
+    if(!pr) { delete ST.promise[pid]; return; }
+    // 이적·방출로 로스터에서 빠진 선수의 약속은 그냥 없앤다
+    if(!TBYID['wwzw'].players.some(q=>q.id===pid)) { delete ST.promise[pid]; return; }
+    // 결장(부상·개인사정)한 경기는 약속 계산에서 통째로 빼준다
+    if(absentIds.indexOf(pid)>=0) return;
+
+    const idx=starters.indexOf(pid);
+    let kept;
+    if(pr.type==='order') kept = idx>=0 && (idx+1)<=(pr.orderMax||3);
+    else kept = idx>=0 || playedIds.indexOf(pid)>=0;
+
+    if(kept){
+      pr.games--;
+      if(pr.games<=0){
+        ST.morale[pid]=Math.min(100,(ST.morale[pid]||70)+15);
+        ST.unhappy[pid]={level:0,streak:0};
+        const pair=pickOne(MEET_PROMISE_MSG.done);
+        msgs.push({who:pid,text:sayTo(pid,ST.playerId,pair[0],pair[1]),mood:'happy'});
+        delete ST.promise[pid];
+      }
+    } else {
+      // 위반 — 사기 대폭 하락 + 언해피 즉시 2단계
+      ST.morale[pid]=Math.max(10,(ST.morale[pid]||70)-20);
+      const u=ST.unhappy[pid]||{level:0,streak:0};
+      u.level=Math.min(4,u.level+2); u.streak=0;
+      ST.unhappy[pid]=u;
+      const pair=pickOne(pr.type==='order'?MEET_PROMISE_MSG.break_order:MEET_PROMISE_MSG.break_start);
+      msgs.push({who:pid,text:sayTo(pid,ST.playerId,pair[0],pair[1]),mood:'angry'});
+      msgs.push({who:pid,type:'notice',text:`약속 파기 — ${nameOf(pid)} 사기 -20 · 불만 2단계 상승`});
+      delete ST.promise[pid];
+    }
+  });
+  return msgs;
+}
+
+/* 약속 요약 문구 (홈 화면·면담 화면 공용) */
+function promiseLabel(pr){
+  if(!pr) return '';
+  return pr.type==='order'
+    ? `${pr.orderMax}번 타순 이상 · ${pr.games}경기 남음`
+    : `선발 출전 · ${pr.games}경기 남음`;
+}
+
 </script>
 <script>
 /* =========================================================
@@ -3073,6 +3269,7 @@ function newSeason(){
     playerId:MYID, year:2026, seasonNo:1, discharged:false, justDischarged:false,
     useDH:true, park:'benamul', gearLevel:0, feud:null, pendingAbsent:{},
     unhappy:{}, career:{}, teamCareer:null, milestones:[], firsts:{}, weather:'clear',
+    promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     lastLineup:null, oppEvent:null, mystery:null, canParty:false, teamBuff:null,
     kakaoPost:[], partyDone:false, lastFreePass:0, awards:null,
     caStart:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=calcCA(p));return o;})()};
@@ -3207,17 +3404,22 @@ function aiLineup(team){
 function aiRotation(t){return t.pitchers.slice().sort((a,b)=>(b.stf+b.ctl+b.sta)-(a.stf+a.ctl+a.sta)).map(p=>p.id);}
 
 /* ---------- 저장 ---------- */
+/* 아티팩트 밖(브라우저)에서는 localStorage 로 떨어진다.
+   file:// 로 직접 열면 오리진이 opaque 라 여기서 예외가 난다 — 그때는 저장이 안 되고
+   내보내기로 옮겨야 한다. */
+const STORE = (typeof window.storage!=='undefined') ? window.storage : {
+  set:(k,v)=>{ localStorage.setItem(k,v); return Promise.resolve(); },
+  get:(k)=>Promise.resolve({value:localStorage.getItem(k)})
+};
 async function saveGame(silent){
   try{
-    if(typeof window.storage==='undefined'){if(!silent)toast('이 환경에서는 저장이 안 된다');return;}
-    await window.storage.set('wwzw_v5',JSON.stringify(ST),false);
+    await STORE.set('wwzw_v5',JSON.stringify(ST),false);
     if(!silent)toast('저장 완료');
-  }catch(e){if(!silent)toast('저장 실패');}
+  }catch(e){if(!silent)toast('저장 실패 — 내보내기를 써라');}
 }
 async function loadGame(){
   try{
-    if(typeof window.storage==='undefined')return null;
-    const r=await window.storage.get('wwzw_v5',false);
+    const r=await STORE.get('wwzw_v5',false);
     if(!r||!r.value)return null;
     const d=JSON.parse(r.value);
     return (d&&d.v===5)?d:null;
@@ -3386,6 +3588,20 @@ function renderHome(){
   if(unh.length)mood.appendChild(el('div','warn','불만: '+unh.map(p=>`${p.name}(${unhappyLabel(ST.unhappy[p.id].level)})`).join(', ')));
   c.appendChild(mood);
 
+  // 면담에서 한 약속 — 라인업 짜기 전에 보이게 홈에 띄운다
+  const proms=Object.keys(ST.promise||{}).filter(pid=>us.players.some(p=>p.id===pid));
+  if(proms.length){
+    const pc=el('div','card');
+    pc.appendChild(el('div','card-h','약속한 것'));
+    proms.forEach(pid=>{
+      const r=el('div','prom-row');
+      r.innerHTML=`<span>${nameOf(pid)}</span><b>${promiseLabel(ST.promise[pid])}</b>`;
+      pc.appendChild(r);
+    });
+    pc.appendChild(el('p','muted','약속을 어기면 사기 -20에 불만이 2단계 오른다. 결장한 경기는 세지 않는다.'));
+    c.appendChild(pc);
+  }
+
   // ??? 이벤트
   if(ST.mystery){
     const my=ST.mystery;
@@ -3426,7 +3642,8 @@ function renderHome(){
       const b=el('button','tac'); b.innerHTML=`<b>${n}</b><span>${d}</span>`;
       b.onclick=()=>{
         if(k==='keep'){ ST.unhappy[pid]={level:0,streak:0};
-          ST.morale[pid]=Math.min(100,ST.morale[pid]+22); ST.promise=ST.promise||{}; ST.promise[pid]=3;
+          ST.morale[pid]=Math.min(100,ST.morale[pid]+22); ST.promise=ST.promise||{};
+          ST.promise[pid]={type:'start',games:3,orderMax:3};
           toast(`${nameOf(pid)} 잔류 — 3경기 선발 약속`); }
         else if(k==='money'){
           if(ST.budget<20){toast('운영비가 부족하다');return;}
@@ -3658,6 +3875,17 @@ function renderSquad(){
       <div class="pc-stat">${b.pa?`${b.g}경기 ${fmt3(avg(b))} · OPS ${ops(b).toFixed(3)} · ${b.hr}홈런 ${b.rbi}타점 ${b.sb}도루`:'출전 기록 없음'}</div>
       <div class="pc-att">출석 성향 ${Math.round((m.attend!=null?m.attend:0.85)*100)}%${(m.attend!=null&&m.attend<0.6)?' · 자주 빠진다':''}</div>
       <div class="pc-desc">${m.desc||''}</div>`;
+    // 진행 중인 약속을 카드에 바로 보여준다
+    const pr=ST.promise&&ST.promise[p.id];
+    if(pr) card.appendChild(el('div','pc-prom','약속: '+promiseLabel(pr)));
+    // 면담 버튼 — 불만 2단계 이상이면 빨갛게 표시해서 눈에 띄게 한다
+    const act=el('div','pc-act');
+    const un=(ST.unhappy&&ST.unhappy[p.id])?ST.unhappy[p.id].level:0;
+    const mb=el('button','mbtn'+(un>=2?' hot':''),
+      un>=2?`면담 · ${unhappyLabel(un)}`:'면담');
+    mb.onclick=()=>openMeet(p.id);
+    act.appendChild(mb);
+    card.appendChild(act);
     c.appendChild(card);
   });
 
@@ -3924,6 +4152,136 @@ function openPosPicker(idx){
 }
 function closeSheet(){$('#sheet').classList.remove('open');}
 
+/* ---------- 면담 ---------- */
+/* 면담은 선수당 주 1회. 라운드가 넘어가면 다시 부를 수 있다. */
+function openMeet(pid){
+  if(!ST.meetRound)ST.meetRound={};
+  const resuming = ST.meet && ST.meet.pid===pid && !ST.meet.done;
+  if(!resuming && ST.meetRound[pid]===ST.round){
+    toast(`${nameOf(pid)}과(와)는 이번 주에 이미 면담했다`); return;
+  }
+  if(!resuming){
+    ST.meet={pid,done:false,log:[{who:pid,text:meetOpenLine(ST,pid),
+      mood:((ST.unhappy&&ST.unhappy[pid])?ST.unhappy[pid].level:0)>=2?'angry':'flat'}]};
+  }
+  go('meet');
+}
+
+function renderMeet(){
+  const c=$('#view'); c.innerHTML='';
+  if(!ST.meet){ go('squad'); return; }
+  const pid=ST.meet.pid;
+  const p=TBYID['wwzw'].players.find(x=>x.id===pid);
+  if(!p){ ST.meet=null; go('squad'); return; }
+  const un=(ST.unhappy&&ST.unhappy[pid])?ST.unhappy[pid].level:0;
+
+  const head=el('div','card');
+  head.innerHTML=`<div class="card-h meet-head"><span>면담 · ${p.name}</span>
+      <span class="meet-lv">${unhappyLabel(un)}</span></div>
+    <p class="muted">사기 ${moraleLabel(ST.morale[pid]||70)} · 컨디션 ${condLabel(ST.cond[pid]||70)}
+      · 출석 성향 ${Math.round(((META[pid]&&META[pid].attend)!=null?META[pid].attend:0.85)*100)}%</p>`;
+  const pr0=ST.promise&&ST.promise[pid];
+  if(pr0) head.appendChild(el('div','pc-prom','진행 중인 약속: '+promiseLabel(pr0)));
+  c.appendChild(head);
+
+  const room=el('div','kakao');
+  ST.meet.log.forEach(m=>{
+    const mine=isMe(m.who)||m.who===ST.playerId;
+    const w=el('div','kmsg'+(mine?' mine':'')+(m.type==='notice'?' notice':''));
+    w.innerHTML=`${(mine||m.type==='notice')?'':`<div class="kname">${p.name}</div>`}`+
+      `<div class="kbub ${m.mood||''}">${String(m.text).replace(/\n/g,'<br>')}</div>`;
+    room.appendChild(w);
+  });
+  c.appendChild(room);
+
+  if(!ST.meet.done){
+    const box=el('div','card sendbox');
+    box.appendChild(el('div','card-h','뭐라고 할까'));
+    const opts=[
+      {k:'start', label:'약속한다 — 다음 5경기 선발 보장',
+       desc:'지키면 사기 +15 · 불만 초기화. 어기면 사기 -20 · 불만 +2'},
+      {k:'order', label:'약속한다 — 다음 5경기 3번 타순 이상',
+       desc:'상위타순 보장. 어기면 더 크게 삐진다'},
+      {k:'calm',  label:'달랜다',
+       desc:'60% 확률로 사기 +8 · 불만 1단계 감소. 실패하면 아무 변화 없음'},
+      {k:'ignore',label:'무시한다',
+       desc:'본인 사기 -10 · 불만 1단계 상승. 대신 팀 기강이 잡힌다'},
+    ];
+    opts.forEach(o=>{
+      const b=el('button','sendopt');
+      b.innerHTML=`<b>${o.label}</b><span>${o.desc}</span>`;
+      b.onclick=()=>doMeet(o.k);
+      box.appendChild(b);
+    });
+    c.appendChild(box);
+    const back=el('button','btn','그냥 나간다');
+    back.onclick=()=>{ ST.meet=null; go('squad'); };
+    c.appendChild(back);
+  } else {
+    const back=el('button','btn primary','선수단으로');
+    back.onclick=()=>{ ST.meet=null; go('squad'); };
+    c.appendChild(back);
+  }
+}
+
+function doMeet(kind){
+  const pid=ST.meet.pid, log=ST.meet.log;
+  if(!ST.unhappy[pid])ST.unhappy[pid]={level:0,streak:0};
+  const u=ST.unhappy[pid];
+  let tip='';
+
+  if(kind==='start'||kind==='order'){
+    log.push({who:ST.playerId,
+      text:kind==='order'?'다음 5경기 3번 타순 이상으로 쓴다':'다음 5경기 선발로 쓴다',mood:'ok'});
+    ST.promise=ST.promise||{};
+    ST.promise[pid]={type:kind,games:5,orderMax:3};
+    ST.morale[pid]=Math.min(100,(ST.morale[pid]||70)+10);
+    u.level=Math.max(0,u.level-1); u.streak=0;
+    log.push({who:pid,text:meetReplyLine(ST,pid,kind),mood:'happy'});
+    log.push({who:pid,type:'notice',text:`약속 성립 — ${promiseLabel(ST.promise[pid])}`});
+    tip='약속했다. 라인업 짤 때 잊지 마라';
+  }
+  else if(kind==='calm'){
+    log.push({who:ST.playerId,text:'조금만 더 기다려봐라. 기회는 온다',mood:'ok'});
+    // 불만이 클수록 달래기가 잘 안 먹힌다 (기본 60% · 3단계 이상이면 40%)
+    const rate = u.level>=3?0.40:0.60;
+    if(Math.random()<rate){
+      ST.morale[pid]=Math.min(100,(ST.morale[pid]||70)+8);
+      u.level=Math.max(0,u.level-1); u.streak=0;
+      log.push({who:pid,text:meetReplyLine(ST,pid,'soothe_ok'),mood:'happy'});
+      log.push({who:pid,type:'notice',text:`달래기 성공 — 사기 +8 · 불만 ${unhappyLabel(u.level)}`});
+      tip='잘 달랬다';
+    } else {
+      log.push({who:pid,text:meetReplyLine(ST,pid,'soothe_no'),mood:'sad'});
+      log.push({who:pid,type:'notice',text:'달래기 실패 — 변화 없음'});
+      tip='안 먹혔다';
+    }
+  }
+  else {
+    log.push({who:ST.playerId,text:'그런 얘기 들을 시간 없다. 실력으로 보여라',mood:'angry'});
+    ST.morale[pid]=Math.max(10,(ST.morale[pid]||70)-10);
+    u.level=Math.min(4,u.level+1); u.streak=0;
+    log.push({who:pid,text:meetReplyLine(ST,pid,'ignore'),mood:'angry'});
+    // 기강 효과 — 나머지 선수는 "감독이 단호하다"고 받아들인다.
+    // 별도 스탯을 만들면 엔진까지 건드려야 해서 사기 소폭 상승 + 불만 누적 리셋으로 처리한다.
+    let n=0;
+    TBYID['wwzw'].players.forEach(q=>{
+      if(q.id===pid)return;
+      ST.morale[q.id]=Math.min(100,(ST.morale[q.id]||70)+2);
+      if(ST.unhappy[q.id])ST.unhappy[q.id].streak=0;
+      n++;
+    });
+    log.push({who:pid,type:'notice',
+      text:`${nameOf(pid)} 사기 -10 · 불만 ${unhappyLabel(u.level)}\n나머지 ${n}명 사기 +2 (팀 기강)`});
+    tip='단호하게 잘랐다';
+  }
+
+  ST.meet.done=true;
+  if(!ST.meetRound)ST.meetRound={};
+  ST.meetRound[pid]=ST.round;
+  saveGame(true); renderMeet(); toast(tip);
+}
+
 /* ---------- 카톡 ---------- */
 function renderKakao(){
   const c=$('#view'); c.innerHTML='';
@@ -4110,6 +4468,8 @@ function makeLive(){
   })};
   const rng=makeRng((ST.seed+ST.round*7919+(Date.now()%100000))>>>0);
   const uLine=ST.lineup.map(s=>({id:s.id,pos:s.pos}));
+  // 약속(면담) 검사에 쓸 선발 라인업 스냅샷. 대타로 교체돼도 선발은 선발이다.
+  ST.gameStarters = uLine.map(x=>x.id);
   const cond={};
   raw.players.forEach(p=>{
     let cv=(ST.cond[p.id]||70)+((ST.morale[p.id]||70)-70)*0.18;
@@ -4384,6 +4744,9 @@ function showResult(){
 function commitGame(res,usSide,thSide,uSlots){
   const sch=ST.schedule[ST.round];
   if(sch.played){go('home');return;}
+  // 이번 경기 결장자(부상·개인사정)를 경기 중 부상이 반영되기 전에 미리 잡아둔다.
+  // 결장한 경기는 약속 위반으로 치지 않기 때문이다.
+  const absentIds=TBYID['wwzw'].players.filter(p=>!isAvailable(p.id)).map(p=>p.id);
   sch.played=true; sch.result={us:usSide.runs,them:thSide.runs};
 
   uSlots.forEach(s=>{
@@ -4432,12 +4795,13 @@ function commitGame(res,usSide,thSide,uSlots){
   ST.lastFreePass = ST.rotation.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0)+usSide.sbAllowed+(res.wp||0);
   ST.lastLineup = uSlots.map(s=>({id:s.id,pos:s.pos}));
   updateUnhappy(ST, uSlots);
-  if(ST.promise){ Object.keys(ST.promise).forEach(pid=>{ ST.promise[pid]--;
-    if(ST.promise[pid]<=0)delete ST.promise[pid]; }); }
+  const starters = (ST.gameStarters&&ST.gameStarters.length)?ST.gameStarters:uSlots.map(s=>s.id);
+  const promiseMsgs = checkPromises(ST, starters, uSlots.map(s=>s.id), absentIds);
   const dpCount = res.dpCount||0;
   const miles = accrueCareer(ST,res,uSlots,won,tie,dpCount);
   ST.canParty = won;
   ST.kakaoPost = buildKakaoPost(ST,res,usSide,thSide,uSlots,miles);
+  promiseMsgs.forEach(m=>ST.kakaoPost.push(m));
   ST.sentPost=false;
   ST.partyDone = !won;
   ST.mystery = rollMysteryEvent(ST, uSlots);
@@ -5033,7 +5397,7 @@ function renderMore(){
 /* ---------- 네비 ---------- */
 const VIEWS={home:renderHome,squad:renderSquad,lineup:renderLineup,kakao:renderKakao,
   game:renderGame,train:renderTrain,scout:renderScout,stand:renderStand,stats:renderStats,
-  records:renderRecords,pick:renderPick,more:renderMore};
+  records:renderRecords,pick:renderPick,more:renderMore,meet:renderMeet};
 function go(v){
   clearInterval(playTimer);
   curView=v;
@@ -5082,6 +5446,20 @@ function normalizeState(){
   if(!ST.caStart){ST.caStart={};us.players.forEach(p=>ST.caStart[p.id]=ST.ca[p.id]);}
   if(!ST.playerId)ST.playerId='ksh';
   if(!ST.unhappy)ST.unhappy={};
+  // 면담 시스템 상태. 예전 세이브의 ST.promise 는 숫자였으므로 객체로 옮겨준다.
+  if(!ST.promise)ST.promise={};
+  Object.keys(ST.promise).forEach(pid=>{
+    const v=ST.promise[pid];
+    if(typeof v==='number') ST.promise[pid]={type:'start',games:v,orderMax:3};
+    else if(!v||typeof v!=='object') delete ST.promise[pid];
+    else { if(!v.type)v.type='start'; if(v.games==null)v.games=5; if(v.orderMax==null)v.orderMax=3; }
+    // 로스터에 없는 선수(이적·방출)의 약속은 정리한다
+    if(ST.promise[pid]&&!us.players.some(p=>p.id===pid))delete ST.promise[pid];
+  });
+  if(!ST.meetRound)ST.meetRound={};
+  if(ST.meet===undefined)ST.meet=null;
+  if(ST.meet&&!us.players.some(p=>p.id===ST.meet.pid))ST.meet=null;
+  if(!ST.gameStarters)ST.gameStarters=[];
   if(!ST.career)ST.career={};
   if(!ST.teamCareer)ST.teamCareer=blankTeamCareer();
   if(!ST.milestones)ST.milestones=[];
