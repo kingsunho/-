@@ -163,6 +163,9 @@ button{font-family:inherit;cursor:pointer}
 /* 내가 고른 선수 관련 플레이 강조 */
 .fl.me{border-left:2px solid var(--gold);padding-left:7px;background:rgba(201,162,39,.07)}
 .fl.meline{color:var(--gold);font-weight:800;font-size:12px;letter-spacing:-.2px}
+/* 고진선 특수 이벤트 */
+.fl.gojin{color:#ffb4a8;font-weight:700;border-left:2px solid #7a3b34;padding-left:7px;
+  background:rgba(122,59,52,.12)}
 
 .linescore{margin-top:11px;background:var(--panel);border:1px solid var(--line);
   border-radius:13px;padding:11px;overflow-x:auto}
@@ -2196,6 +2199,10 @@ function buildKakaoPre(ST){
           `${park.note}. 참고해라`],rng),mood:'ok'});
       }
       if(ST.oppEvent&&rng()<0.75)uniqPush(msgs,{who:an.id,text:ST.oppEvent.body,mood:'ok'});
+      // 안산유나이티드전이면 고진선을 미리 경고한다.
+      // 김한규가 언해피 3단계 이상이면 분석 자체를 안 하므로 이 정보도 못 본다.
+      if(opp.id==='ansanutd')
+        uniqPush(msgs,{who:an.id,text:pickOne(GOJIN_SCOUT,rng),mood:'ok'});
       if(rng()<0.18){
         uniqPush(msgs,{who:an.id,text:pickOne([
           '상대 선발 볼넷 많다. 좀 봐도 된다',
@@ -2803,6 +2810,108 @@ function checkPromises(ST, starters, playedIds, absentIds){
   return msgs;
 }
 
+/* =========================================================
+   고진선 특수 이벤트 (안산유나이티드전 한정)
+   ---------------------------------------------------------
+   실제 2026-08-09 안산유나이티드전(10:3 승)에서 있었던 일 기반이다.
+   상대 에이스 고진선(ERA 7.99, 좌완 100~110)은 자기 팀 실책에
+   대놓고 화를 내고, 지고 있으면 상대 벤치에 시비를 걸었다.
+   경기 중 발동은 LiveGame 이 하고, 사기·컨디션·단톡 뒷수습은
+   applyGojin 이 commitGame 에서 처리한다.
+   ========================================================= */
+const GOJIN_THROW=[      // 자기 팀 실책에 공 패대기
+  '고진선이 공을 그라운드에 패대기쳤다',
+  '고진선이 글러브를 집어던지고 하늘을 봤다',
+  '고진선이 마운드에서 뭐라고 소리쳤다. 자기 팀 야수한테다',
+];
+const GOJIN_THROW_AFTER=[
+  '안산 벤치가 조용해졌다',
+  '실책한 야수가 고개를 못 든다',
+  '안산 더그아웃 분위기가 가라앉았다',
+];
+const GOJIN_CLEAR=[      // 벤치클리어링
+  '고진선이 우리 벤치 쪽을 보고 뭐라고 했다',
+  '고진선이 마운드에서 우리 더그아웃을 손가락질했다',
+  '고진선이 삼진 잡고 우리 벤치 쪽으로 포효했다',
+];
+const GOJIN_MOCK=[       // 무안타 타자 놀리기
+  ['고진선이 ${n} 보고 "오늘 하나도 못 쳤죠?" 한다','mock'],
+  ['고진선이 ${n}한테 배트 좀 바꾸라고 한다','mock'],
+  ['고진선이 ${n} 타석 들어오자 대놓고 웃었다','mock'],
+  ['고진선이 ${n}더러 "그 스윙으로 되겠냐"고 한다','mock'],
+];
+/* 놀림 받은 선수가 단톡방에서 대는 핑계 */
+const GOJIN_EXCUSE=[
+  ['배트가 안 맞아서 그렇다','배트가 안 맞아서 그렇습니다'],
+  ['몸이 좀 안 좋았다','몸이 좀 안 좋았습니다'],
+  ['오늘 심판 존이 이상했다','오늘 심판 존이 이상했습니다'],
+  ['그날따라 공이 안 보이더라','그날따라 공이 안 보이더라고요'],
+  ['배팅장을 좀 다녀와야겠다','배팅장을 좀 다녀와야겠습니다'],
+];
+/* 각성한 선수의 한마디 */
+const GOJIN_WAKE_MSG=[
+  ['다음엔 담장 넘긴다','다음엔 담장 넘기겠습니다'],
+  ['그 말 들으니까 오히려 잘 보이더라','그 말 들으니까 오히려 잘 보이더라고요'],
+  ['고맙다고 해야 하나','고맙다고 해야 하나요'],
+];
+/* 벤치클리어링 뒤 우리 쪽 반응 */
+const GOJIN_CLEAR_MSG=[
+  ['lg','다들 진정해라. 야구로 갚자'],
+  ['swm','오늘 무조건 이긴다'],
+  ['kig','저런 건 처음 본다 진짜'],
+  ['khg','저 사람 ERA 7.99인데 왜 저러지'],
+];
+/* 사전 경고 (분석가가 미리 알려준다) */
+const GOJIN_SCOUT=[
+  '안산 고진선 조심해라. 좌완인데 퀵모션 빠르다. 그리고 성격이 좀 있다',
+  '고진선 ERA는 7.99인데 삼진은 34개다. 맞으면 크게 맞고 안 맞으면 아예 안 맞는다',
+  '오늘 고진선 나온다. 자기 팀 실책 나오면 대놓고 화내는 스타일이니 신경 쓰지 마라',
+  '고진선은 지고 있으면 시비 건다. 말려들지 마라',
+];
+
+/* 경기 결과에 실린 고진선 이벤트를 사기·컨디션·단톡에 반영한다.
+   반환값은 단톡방(경기 후)에 붙일 메시지 배열.                      */
+function applyGojin(ST, gj){
+  const msgs=[];
+  if(!gj||!gj.log||!gj.log.length) return msgs;
+  const us=TBYID['wwzw'];
+
+  if(gj.threw){
+    msgs.push({who:'khg',type:'notice',
+      text:'고진선이 자기 팀 실책에 공을 패대기쳤다\n안산 사기 하락 · 우리 타격 소폭 상승'});
+  }
+  if(gj.cleared){
+    // 양 팀 컨디션이 깎이지만 우리 사기는 오히려 오른다
+    us.players.forEach(p=>{
+      ST.cond[p.id]=Math.max(20,(ST.cond[p.id]||70)-6);
+      ST.morale[p.id]=Math.min(100,(ST.morale[p.id]||70)+8);
+    });
+    msgs.push({who:'lg',type:'notice',
+      text:'벤치클리어링\n양 팀 컨디션 -6 · 우리 팀 사기 +8'});
+    const line=pickOne(GOJIN_CLEAR_MSG);
+    if(us.players.some(p=>p.id===line[0]))
+      msgs.push({who:line[0],text:line[1],mood:'angry'});
+  }
+  // 두 명이 같은 핑계를 대면 김이 새니 중복 없이 뽑는다
+  const exPool=GOJIN_EXCUSE.slice();
+  (gj.mocked||[]).forEach(m=>{
+    if(!us.players.some(p=>p.id===m.pid))return;
+    ST.morale[m.pid]=Math.max(10,(ST.morale[m.pid]||70)-10);
+    const ex=exPool.length?exPool.splice((Math.random()*exPool.length)|0,1)[0]:pickOne(GOJIN_EXCUSE);
+    msgs.push({who:m.pid,text:say(m.pid,ex[0],ex[1]),mood:'sad'});
+    if(m.woke){
+      // 각성했으면 사기 하락분을 되돌려주고 조금 더 얹는다
+      ST.morale[m.pid]=Math.min(100,(ST.morale[m.pid]||70)+18);
+      const wk=pickOne(GOJIN_WAKE_MSG);
+      msgs.push({who:m.pid,text:say(m.pid,wk[0],wk[1]),mood:'happy'});
+      msgs.push({who:m.pid,type:'notice',text:`${nameOf(m.pid)} 각성 — 사기 회복 +8`});
+    } else {
+      msgs.push({who:m.pid,type:'notice',text:`${nameOf(m.pid)} 사기 -10`});
+    }
+  });
+  return msgs;
+}
+
 /* 약속 요약 문구 (홈 화면·면담 화면 공용) */
 function promiseLabel(pr){
   if(!pr) return '';
@@ -2859,6 +2968,16 @@ function LiveGame(cfg){
   this.away = mk(cfg.away, cfg.awayLineup, cfg.awayRotation, cfg.awayTactics, cfg.awayCond, !cfg.userIsHome);
   this.home = mk(cfg.home, cfg.homeLineup, cfg.homeRotation, cfg.homeTactics, cfg.homeCond, cfg.userIsHome);
   this.sides = [this.away, this.home];
+  /* 안산유나이티드전 한정 — 고진선 특수 이벤트.
+     실제로 그 팀 에이스가 자기 팀 실책에 화내고 상대 벤치에 시비를 걸었다.
+     로스터에 고진선이 실제로 있어야 발동한다.                          */
+  const opT=(this.userIsHome?this.away:this.home).team;
+  const hasGo = opT && opT.id==='ansanutd' &&
+    ((opT.players||[]).some(x=>x.name==='고진선')||(opT.pitchers||[]).some(x=>x.name==='고진선'));
+  this.gojin = hasGo ? {log:[],mocked:[],threw:false,cleared:false} : null;
+  this.gojinUs = 1;      // 우리 팀 BABIP 배수 (패대기·벤치클리어링 여파)
+  this.gojinOpp = 1;     // 안산 BABIP 배수
+  this.gojinWake = {};   // 각성 예약 {pid:true} — 두 명이 동시에 예약될 수 있다
   this.log.push({t:'inning', inning:1, half:0, text:`1회 초 · ${this.away.team.name} 공격`});
   this.startedInning = true;
   this.checkPitcherChange(this.home);
@@ -3066,6 +3185,38 @@ LiveGame.prototype.stepPA = function(){
     if(bf.spd) batE.spd = Math.min(80, bat.spd*bf.spd);
     if(bf.all){ batE.con=bat.con*bf.all; batE.pow=bat.pow*bf.all; batE.spd=bat.spd*bf.all; }
   }
+  /* ---- 고진선 이벤트 ---- 순서 중요: 각성 판정을 놀림보다 먼저 해야
+     이번 타석이 아니라 '다음 타석'에 버프가 붙는다.                    */
+  if(this.gojin){
+    if(off.isUser && this.gojinWake[bat.id]){
+      batE={...batE, con:Math.min(80,batE.con*1.22), pow:Math.min(80,batE.pow*1.22)};
+      this.log.push({t:'gojin',text:`${bat.name} 눈빛이 달라졌다`});
+      const mk=this.gojin.mocked.find(m=>m.pid===bat.id);
+      if(mk)mk.woke=true;
+      delete this.gojinWake[bat.id];
+    }
+    // 그날 무안타인 우리 타자를 놀린다 (경기당 최대 2명, 같은 선수 1번)
+    if(off.isUser && bl.ab>=2 && bl.h===0 && this.gojin.mocked.length<2
+       && !this.gojin.mocked.some(m=>m.pid===bat.id) && rng()<0.30){
+      this.gojin.mocked.push({pid:bat.id,woke:false});
+      this.gojin.log.push('mock');
+      this.log.push({t:'gojin',text:pickOne(GOJIN_MOCK,rng)[0].replace('${n}',bat.name)});
+      if(rng()<0.35){ this.gojinWake[bat.id]=true;   // 확률적 각성
+        this.log.push({t:'gojin',text:`${bat.name}이(가) 배트를 고쳐 잡았다`}); }
+      else this.log.push({t:'gojin',text:`${bat.name}이(가) 아무 말도 못 했다`});
+    }
+    // 안산이 3점 이상 지고 있으면 시비를 건다 → 벤치클리어링 (경기당 1회)
+    if(!this.gojin.cleared && this.inning>=3
+       && (this.oppSide().runs - this.userSide().runs) <= -3 && rng()<0.10){
+      this.gojin.cleared=true;
+      this.gojin.log.push('clear');
+      this.log.push({t:'gojin',text:pickOne(GOJIN_CLEAR,rng)});
+      this.log.push({t:'gojin',text:'벤치클리어링 — 양 팀이 그라운드로 몰려나왔다'});
+      this.log.push({t:'gojin',text:'심판이 경고만 주고 경기를 재개했다'});
+      this.gojinOpp*=0.94; this.gojinUs*=0.96;   // 양 팀 다 흔들린다
+    }
+  }
+
   let pitE = pit;
   if(pit.heatFade && pl.outs>=6){
     const over=Math.min(12,pl.outs-6);
@@ -3078,6 +3229,9 @@ LiveGame.prototype.stepPA = function(){
     parkE={...this.park, babip:this.park.babip*0.92,
            d2:this.park.d2*1.18, err:this.park.err*1.06};
   }
+  // 고진선 이벤트 여파 — 공격 중인 쪽에 해당하는 배수를 곱한다
+  const gjM = off.isUser ? this.gojinUs : this.gojinOpp;
+  if(gjM!==1) parkE={...parkE, babip:parkE.babip*gjM};
   const res = simPA(batE, pitE, off.team, def.team, rng, off.tac, cond, parkE);
   // 번트 앤 런은 주자가 한 베이스 더 간다
   const advOdds = (off.isUser && this._buntRun) ? 0.62 : 0.35;
@@ -3098,7 +3252,15 @@ LiveGame.prototype.stepPA = function(){
     events.push({text:`${bat.name} ${isBB?'볼넷':'몸에 맞는 공'}`,cls:'bb'});
   }
   else if(res.type==='E'){ bl.ab++;def.errs++;adv(1,false);this.bases[0]=bat.id;
-    events.push({text:`${bat.name} 상대 실책 출루`,cls:'err'}); }
+    events.push({text:`${bat.name} 상대 실책 출루`,cls:'err'});
+    // 안산 야수가 실책하면 고진선이 폭발한다 (경기당 1회)
+    if(this.gojin && !this.gojin.threw && !def.isUser && rng()<0.65){
+      this.gojin.threw=true;
+      this.gojin.log.push('throw');
+      this.log.push({t:'gojin',text:pickOne(GOJIN_THROW,rng)});
+      this.log.push({t:'gojin',text:pickOne(GOJIN_THROW_AFTER,rng)});
+      this.gojinOpp*=0.92; this.gojinUs*=1.05;
+    } }
   else if(res.type==='OUT'){
     bl.ab++;pl.outs++;this.outs++;
     const dpB = def.isUser ? (typeof dpBonus==='function'?dpBonus(def.slots).bonus:0) : 0;
@@ -3219,6 +3381,7 @@ LiveGame.prototype.finish = function(){
     lp:tie?null:lose.rot[Math.min(lose.pIdx,lose.rot.length-1)],
     innings:this.inning, mercy:this.mercy, injuries:this.injuries,
     dpCount:this.dpCount||0, assists:this.assists||0, assistBy:this.assistBy||null, wp:this.wp||0,
+    gojin:this.gojin,
   };
 };
 
@@ -4718,7 +4881,7 @@ function flushLog(){
   const fresh=LIVE.log.slice(LIVE._logSeen||0);
   LIVE._logSeen=LIVE.log.length;
   fresh.forEach(l=>{
-    const cls=l.t==='inning'?'inn':(l.t==='sub'?'sub':(l.t==='me'?'meline':(l.cls||'')));
+    const cls=l.t==='inning'?'inn':(l.t==='sub'?'sub':(l.t==='me'?'meline':(l.t==='gojin'?'gojin':(l.cls||''))));
     const d=el('div','fl '+cls+(l.me?' me':'')); d.textContent=l.text; feed.appendChild(d);
   });
   while(feed.children.length>50)feed.removeChild(feed.firstChild);
@@ -5030,6 +5193,7 @@ function commitGame(res,usSide,thSide,uSlots){
   const miles = accrueCareer(ST,res,uSlots,won,tie,dpCount);
   ST.canParty = won;
   ST.kakaoPost = buildKakaoPost(ST,res,usSide,thSide,uSlots,miles);
+  applyGojin(ST,res.gojin).forEach(m=>ST.kakaoPost.push(m));
   promiseMsgs.forEach(m=>ST.kakaoPost.push(m));
   ST.sentPost=false;
   ST.partyDone = !won;
