@@ -801,7 +801,7 @@ table.hl-tbl td.hl-o{color:#c98a80}
   <div class="lock-box">
     <div class="lock-t">우완좌완 야구 매니저</div>
     <p class="lock-d">팀 사람들만 쓰는 게임이다.<br>단톡방에 올라온 <b>입장 코드</b>를 넣어라.</p>
-    <input id="lock-in" type="password" inputmode="text" autocomplete="off"
+    <input id="lock-in" type="password" inputmode="numeric" autocomplete="off"
       placeholder="입장 코드" aria-label="입장 코드">
     <button id="lock-go" class="btn primary">들어가기</button>
     <div id="lock-msg"></div>
@@ -3874,8 +3874,8 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.3.0';
-const APP_VERSION_NOTE = '입장 코드 · 검색 차단 · 안내역 사진에 야구공까지';
+const APP_VERSION = '1.3.1';
+const APP_VERSION_NOTE = '입장 코드 변경';
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
   const a=String(v||'0.0.0').split('.').map(x=>parseInt(x,10)||0);
@@ -10692,7 +10692,7 @@ function normalizeState(){
    그래도 링크를 우연히 눌러 들어온 사람, 검색으로 흘러든 사람은 확실히 막는다.
    진짜로 안 보이게 하려면 저장소를 비공개로 돌려야 한다.
    코드를 바꾸려면 아래 GATE_CODE 만 고치면 된다.                        */
-const GATE_CODE = 'wwzw2026';
+const GATE_CODE = '001012';
 const GATE_KEY  = 'wwzw_gate';
 function gateHash(v){
   let h=2166136261;
