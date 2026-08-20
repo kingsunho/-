@@ -441,8 +441,6 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .pf-name{font-size:21px;font-weight:800;letter-spacing:-.02em;display:flex;
   align-items:baseline;gap:7px;flex-wrap:wrap}
 .pf-nick{font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0}
-.pf-me{font-size:10px;font-weight:800;letter-spacing:0;color:#0d1015;background:var(--gold);
-  border-radius:4px;padding:2px 6px;align-self:center}
 .pf-sub{font-size:12px;color:var(--dim);margin:3px 0 7px}
 .pf-stars{display:flex;align-items:center;gap:6px;margin:1px 0}
 .pf-stars .lbl{font-size:10px;color:var(--dim);width:26px}
@@ -5822,7 +5820,6 @@ const DRINK_LABEL=['안 마신다','가끔 마신다','자주 마신다','끝까
 function personaLines(pid){
   const m=META[pid]; if(!m)return [];
   const out=[];
-  out.push(['말투', m.speech==='jon'?'단톡방에서 존댓말을 쓴다':'단톡방에서 반말을 쓴다']);
   out.push(['출석', `${Math.round((m.attend!=null?m.attend:0.85)*100)}%`
     + (m.attend<0.6?' — 자주 빠진다':m.attend>=0.85?' — 웬만하면 나온다':'')]);
   out.push(['회식', DRINK_LABEL[Math.min(3,m.drink||0)]]);
@@ -5858,7 +5855,7 @@ function renderPlayer(){
   head.innerHTML=`
     <div class="pf-photo-wrap">${avatarHTML(p.id)}</div>
     <div class="pf-id">
-      <div class="pf-name">${p.name}${p.id===(ST.playerId||MYID)?'<span class="pf-me">나</span>':''}${nickOf(p.id)?`<span class="pf-nick">'${nickOf(p.id)}'</span>`:''}</div>
+      <div class="pf-name">${p.name}${nickOf(p.id)?`<span class="pf-nick">'${nickOf(p.id)}'</span>`:''}</div>
       <div class="pf-sub">${2026-m.born}세 · ${p.bats==='L'?'좌타':'우타'} / ${m.throws==='L'?'좌투':'우투'}
         · ${main?POSNAMES[main]:'—'}</div>
       <div class="pf-stars"><span class="lbl">현재</span>${starHTML(ca)}</div>
