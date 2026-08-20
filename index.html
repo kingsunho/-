@@ -422,6 +422,11 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .pt-role{font-size:10px;color:var(--blue);margin-top:2px}
 .pt-row.bad .pt-role{color:#c98a80}
 .pt-ctl .rm{color:#c98a80}
+.starter-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+  background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin:8px 0}
+.starter-row span{font-size:11px;color:var(--dim)}
+.starter-row b{font-size:14px;font-weight:800;color:var(--gold)}
+.starter-row i{font-style:normal;font-size:10px;color:var(--dim);flex-basis:100%}
 /* 경기 하이라이트 */
 .hl-dec{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:center;
   background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:9px}
@@ -4004,6 +4009,7 @@ function newSeason(){
     promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
     mercs:[],                                              // 이번 경기 용병
+    recruit:null,                                          // 영입 접촉 진행 상태
     posTrain:{}, trainPos:null, trainStreak:0,             // 포지션 적응 훈련
     trainRain:false, trainPush:false,
     bond:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=50);return o;})(),
@@ -4894,6 +4900,18 @@ function renderLineup(){
   const head=el('div','card');
   head.appendChild(el('div','card-h','타순 · 수비'));
   head.appendChild(el('div','park-mini',`${(ST.calendar&&ST.calendar.label)||''} · ${park.name} — ${park.note}`));
+  // 선발 투수의 진실은 로테이션 1번이다. 헷갈리지 않게 위에 못박아 둔다.
+  const gr0=gameRotation()[0];
+  const spRow=el('div','starter-row');
+  spRow.innerHTML=`<span>오늘 선발 투수</span><b>${gr0?nameOf(gr0):'—'}</b>`+
+    (ST.useDH?'<i>지명타자 사용 중 — 투수는 타순에 안 선다</i>'
+             :'<i>지명타자 미사용 — 투수가 타순에 들어간다</i>');
+  head.appendChild(spRow);
+  if(ST._starterMoved){
+    head.appendChild(el('div','warn',
+      `${nameOf(ST._starterMoved)}을(를) 선발로 올렸다. 지명타자를 쓰는 중이라 타순에는 안 선다.`));
+    ST._starterMoved=null;
+  }
   const dhRow=el('div','dh-row');
   dhRow.innerHTML=`<span>지명타자 사용</span>`;
   const dhBtn=el('button','toggle'+(ST.useDH?' on':''), ST.useDH?'사용':'미사용');
@@ -5101,11 +5119,20 @@ function applyDHRule(){
       ST.lineup[slot]={id:sp,pos:'P'};
     }
   } else {
-    // DH 사용: P 포지션이 있으면 없앤다
+    /* DH 사용 중에는 투수가 타순에 서지 않는다.
+       그런데 유저가 타순의 누군가를 'P' 로 지정했다면
+       "이 사람을 선발로 쓰겠다"는 뜻이므로 로테이션 1번으로 올려주고
+       타순에서는 지명타자(또는 빈 야수 자리)로 되돌린다.
+       예전에는 그냥 지워버려서 아무 일도 안 일어난 것처럼 보였다.    */
     const pIdx=ST.lineup.findIndex(s=>s.pos==='P');
     if(pIdx>=0){
+      const who=ST.lineup[pIdx].id;
+      if(TBYID['wwzw'].pitchers.some(p=>p.id===who)&&ST.rotation[0]!==who){
+        ST.rotation=[who].concat((ST.rotation||[]).filter(x=>x!==who));
+        ST._starterMoved=who;         // 화면에서 안내 문구를 띄우기 위한 표시
+      }
       const hasDH=ST.lineup.some(s=>s.pos==='DH');
-      ST.lineup[pIdx].pos = hasDH ? (freePos(pIdx).find(x=>posFit(ST.lineup[pIdx].id,x)>0)||'RF') : 'DH';
+      ST.lineup[pIdx].pos = hasDH ? (freePos(pIdx).find(x=>posFit(who,x)>0)||'RF') : 'DH';
     }
   }
   syncStarter();
@@ -5166,17 +5193,36 @@ function openPosPicker(idx){
   $('#sheet-title').textContent=`${p.name} 수비 위치`;
   const body=$('#sheet-body'); body.innerHTML='';
   const taken={}; ST.lineup.forEach((s,i)=>{if(i!==idx)taken[s.pos]=true;});
-  const list = ST.useDH ? ALLPOS : ALLPOS.filter(x=>x!=='DH').concat(['P']);
+  /* 투수(P)는 지명타자를 쓰든 안 쓰든 항상 고를 수 있다.
+     고르면 '선발 지정'으로 해석해서 로테이션 1번으로 올린다.
+     예전에는 DH 사용 중이면 P 가 목록에 없거나 골라도 조용히 지워져서
+     "투수로 바꿨는데 아무 일도 안 일어난다"는 문제가 있었다.          */
+  const isP = TBYID['wwzw'].pitchers.some(x=>x.id===p.id);
+  const list = (ST.useDH ? ALLPOS : ALLPOS.filter(x=>x!=='DH')).concat(['P']);
   list.forEach(pos=>{
-    const fitV=posFit(p.id,pos);
+    const starter = ST.rotation[0]===p.id;
+    const fitV = pos==='P' ? (isP?Math.max(1,basePosFit(p.id,'P')):0) : posFit(p.id,pos);
     const fit=fitV>=45;
-    const row=el('button','pick-row'+(ST.lineup[idx].pos===pos?' cur':'')+(taken[pos]?' used':''));
+    const cur = pos==='P' ? starter : ST.lineup[idx].pos===pos;
+    const row=el('button','pick-row'+(cur?' cur':'')+(pos!=='P'&&taken[pos]?' used':''));
+    const note = pos==='P'
+      ? (!isP ? '투수로 등록되지 않은 선수다'
+              : (starter?'이미 오늘 선발이다':(ST.useDH?'선발로 지정한다 (타순에는 안 선다)':'선발로 지정한다')))
+      : (fitV<=0?'불가 (좌투)':fit?'주 포지션':'익숙하지 않다 — 수비 하락');
     row.innerHTML=`<div class="pk-l"><div class="pk-name">${POSNAMES[pos]}</div>
-      <div class="pk-note">${fitV<=0?'불가 (좌투)':fit?'주 포지션':'익숙하지 않다 — 수비 하락'}`+
-      `${posTrained(ST.lineup[idx].id,pos)>=1?` · 훈련 +${Math.round(posTrained(ST.lineup[idx].id,pos))}`:''}</div></div>
-      <div class="pk-r"><div class="pk-stat">${taken[pos]?'중복':(fitV>0?fitV:'—')}</div></div>`;
+      <div class="pk-note">${note}`+
+      `${pos!=='P'&&posTrained(p.id,pos)>=1?` · 훈련 +${Math.round(posTrained(p.id,pos))}`:''}</div></div>
+      <div class="pk-r"><div class="pk-stat">${pos==='P'?(isP?'선발':'—'):(taken[pos]?'중복':(fitV>0?fitV:'—'))}</div></div>`;
     if(fitV<=0) row.classList.add('bad');
     row.onclick=()=>{
+      if(pos==='P'){
+        if(!isP){toast(`${p.name}은(는) 투수 로테이션에 없다. 로테이션에서 먼저 추가해라`);return;}
+        setStarter(p.id);
+        closeSheet(); saveGame(true); renderLineup();
+        toast(ST.useDH?`${p.name} 선발 지정 — 지명타자를 쓰는 중이라 타순에는 안 선다`
+                      :`${p.name} 선발 지정`);
+        return;
+      }
       const o=ST.lineup.findIndex((s,i)=>i!==idx&&s.pos===pos);
       if(o>=0)ST.lineup[o].pos=ST.lineup[idx].pos;
       ST.lineup[idx].pos=pos;
@@ -5489,7 +5535,12 @@ function sanitizeRotation(){
 }
 
 /* 이번 경기에 실제로 쓸 등판 순서.
-   결장·부상자를 '이 경기에서만' 건너뛴다. ST.rotation 은 그대로 둔다.  */
+   결장·부상자를 '이 경기에서만' 건너뛴다. ST.rotation 은 그대로 둔다.
+
+   선발 투수의 유일한 진실은 ST.rotation[0] 이다.
+   예전에는 라인업의 P 슬롯과 로테이션 1번이 따로 놀아서
+   "타순에 보이는 투수와 실제 등판 투수가 다르다"는 문제가 있었다.
+   지금은 setStarter() 가 양쪽을 한꺼번에 맞춘다.                      */
 function gameRotation(){
   const t=TBYID['wwzw'];
   sanitizeRotation();
@@ -5500,17 +5551,33 @@ function gameRotation(){
       .sort((a,b)=>(b.stf*1.1+b.ctl*1.3+b.sta*0.8)-(a.stf*1.1+a.ctl*1.3+a.sta*0.8))
       .slice(0,6).map(p=>p.id);
   }
-  // 라인업 투수 자리에 앉힌 선수가 있으면 그 사람이 선발이다
-  const pSlot=ST.lineup.find(x=>x.pos==='P');
-  if(pSlot&&isAvailable(pSlot.id)&&rot.indexOf(pSlot.id)>=0){
-    rot=[pSlot.id].concat(rot.filter(id=>id!==pSlot.id));
-  }
   return rot;
+}
+
+/* 선발 투수 지정 — 로테이션 1번으로 올리고 라인업까지 맞춘다.
+   라인업 포지션 시트에서 'P' 를 고르면 이걸 부른다.                   */
+function setStarter(pid){
+  const t=TBYID['wwzw'];
+  if(!t.pitchers.some(p=>p.id===pid)) return false;
+  ST.rotation=[pid].concat((ST.rotation||[]).filter(x=>x!==pid));
+  applyDHRule();
+  return true;
 }
 
 function makeLive(){
   sanitizeRotation();
   ST.gameRotation=gameRotation();     // 이번 경기 등판 순서 스냅샷
+  /* 지명타자를 안 쓰면 타순의 투수 자리에 '실제로 던질 사람'이 앉아야 한다.
+     로테이션 1번이 그날 결장이면 타순 투수와 등판 투수가 어긋났었다.     */
+  if(!ST.useDH && ST.gameRotation.length){
+    const sp=ST.gameRotation[0];
+    const pIdx=ST.lineup.findIndex(x=>x.pos==='P');
+    if(pIdx>=0 && ST.lineup[pIdx].id!==sp){
+      const dup=ST.lineup.findIndex(x=>x.id===sp);
+      if(dup>=0 && dup!==pIdx){ ST.lineup[dup].pos=ST.lineup[pIdx].pos; }
+      ST.lineup[pIdx].id=sp; ST.lineup[pIdx].pos='P';
+    }
+  }
   const next=ST.schedule[ST.round];
   const opp=TBYID[next.opp];
   const raw=TBYID['wwzw'];
@@ -6417,7 +6484,9 @@ function renderScout(){
   const head=el('div','card');
   head.innerHTML=`<div class="card-h">스카우트</div>
     <p class="muted">운영비 <b>${ST.budget.toFixed(0)}만원</b> · 경기를 치를 때마다 회비가 들어온다.<br>
-    영입 비용은 선수 가치의 1.5배다. 실패하면 절반만 돌려받는다. 로스터 최대 18명.</p>`;
+    영입은 버튼 한 번으로 안 된다. <b>접촉</b>해서 카톡으로 몇 마디 주고받아야 한다.<br>
+    그냥 찔러보면 성공률 0.1%다. 말을 잘 풀어야 올라간다. 비용은 제안할 때 나가고,
+    실패하면 절반만 돌려받는다. 로스터 최대 18명.</p>`;
   c.appendChild(head);
 
   if(ST.scoutBlocked){
@@ -6448,42 +6517,268 @@ function renderScout(){
     row.innerHTML=`<div class="sc-l"><div class="sc-n">${p.name}${p.bats==='L'?'<span class="lh">좌</span>':''}</div>
       <div class="sc-s">${POSNAMES[p.pos[0]]||''} · ${st.pa?`${fmt3(avg(st))} OPS ${ops(st).toFixed(3)}`:'기록 없음'}</div>
       ${starHTML(calcCA(p))}</div>
-      <div class="sc-r"><div class="sc-v">${wonStr(val*1.5)}</div><button class="sc-b">영입</button></div>`;
-    row.querySelector('.sc-b').onclick=()=>tryScout(p,t,val);
+      <div class="sc-r"><div class="sc-v">${wonStr(val*1.5)}</div><button class="sc-b">접촉</button></div>`;
+    row.querySelector('.sc-b').onclick=()=>startRecruit(p,t,val);
     card.appendChild(row);
   });
   c.appendChild(card);
 }
-function tryScout(p,fromTeam,val){
+/* =========================================================
+   영입 — 삼국지 등용 방식
+   ---------------------------------------------------------
+   버튼 한 번으로 되는 게 아니라 카톡으로 몇 마디 주고받아야 한다.
+   그냥 찔러보면 성공률 0.1%. 대화를 잘 풀어야 확률이 올라간다.
+   ========================================================= */
+const RECRUIT_BASE = 0.001;     // 아무 노력 없이 찔렀을 때의 확률
+const RECRUIT_MAX  = 0.62;      // 대화를 완벽하게 풀었을 때의 상한
+
+/* 단계별 선택지. good=호감, bad=역효과, 각 항목 [라벨, 설명, 델타] */
+const RECRUIT_STEPS = [
+  { q:['어떻게 말을 꺼낼까'],
+    opts:[
+      ['같이 야구하고 싶다고 솔직하게 말한다','진심이 제일 잘 먹힌다',       +14],
+      ['우리 팀 분위기를 자랑한다','회식·단톡 얘기로 분위기를 판다',        +8],
+      ['지금 팀에서 대우가 별로지 않냐고 묻는다','잘 먹히면 크지만 기분 상할 수 있다', 0],
+      ['일단 밥부터 사겠다고 한다','무난하다',                              +6],
+    ]},
+  { q:['상대가 뜸을 들인다. 뭘 내밀까'],
+    opts:[
+      ['주전 자리를 약속한다','확실하지만 약속을 지켜야 한다',              +16],
+      ['타순 상위를 약속한다','비슷하다',                                   +12],
+      ['돈 얘기를 꺼낸다','사회인야구에서 돈 얘기는 위험하다',              -6],
+      ['편하게 생각하라고 한다','부담을 줄여준다',                          +7],
+    ]},
+  { q:['마지막이다. 어떻게 마무리할까'],
+    opts:[
+      ['다음 경기 한번 보러 오라고 한다','직접 보게 만든다',                +15],
+      ['단톡방에 미리 초대한다','친해지면 넘어온다',                        +11],
+      ['오늘 답을 달라고 한다','밀어붙인다. 도박이다',                      -4],
+      ['천천히 생각해보라고 한다','여지를 남긴다',                          +6],
+    ]},
+];
+/* 상대 반응 대사 */
+const RECRUIT_REACT = {
+  hi:['오 진짜요? 생각해볼게요','말씀 감사합니다','솔깃하네요','안 그래도 고민 중이었어요',
+      '형들 좋다는 얘기는 들었습니다','재밌겠는데요'],
+  mid:['음... 좀 더 생각해볼게요','바로는 답 못 드리겠네요','팀에 얘기는 해봐야죠',
+       '나쁘진 않은데요','고민 좀 해보겠습니다'],
+  lo:['글쎄요...','지금은 좀 어렵습니다','여기도 나쁘지 않아서요','죄송한데 못 갈 것 같아요',
+      '그런 얘기는 좀 그렇네요'],
+};
+
+function recruitFavorStart(p, fromTeam){
+  // 우리 성적이 좋고 사기가 높으면 처음부터 호감이 있다.
+  // 상대 팀이 잘나가면 굳이 옮길 이유가 없다.
+  const us=TBYID['wwzw'], st=ST.stand['wwzw'];
+  const winPct=st.g?st.w/st.g:0.3;
+  const theirs=ST.stand[fromTeam.id]||{w:0,g:0};
+  const theirPct=theirs.g?theirs.w/theirs.g:0.5;
+  const avgM=us.players.reduce((a,x)=>a+(ST.morale[x.id]||70),0)/us.players.length;
+  let f = 18 + winPct*26 - theirPct*18 + (avgM-60)*0.30;
+  return Math.max(2, Math.min(55, Math.round(f)));
+}
+function recruitChance(favor){
+  const t=Math.max(0,Math.min(1,favor/100));
+  return RECRUIT_BASE + (RECRUIT_MAX-RECRUIT_BASE)*Math.pow(t,1.35);
+}
+
+/* 접촉 시작 */
+function startRecruit(p, fromTeam, val){
   const us=TBYID['wwzw'];
   if(us.players.length>=18){toast('로스터가 꽉 찼다 (18명)');return;}
+  if(us.players.some(x=>x.id==='new_'+p.id)){toast('이미 영입한 선수다');return;}
   const cost=val*1.5;
-  if(ST.budget<cost){toast(`운영비 부족 — ${wonStr(cost)} 필요`);return;}
-  const st=ST.stand['wwzw'];
-  const winPct=st.g?st.w/st.g:0.3;
-  const avgM=us.players.reduce((s,x)=>s+(ST.morale[x.id]||70),0)/us.players.length;
-  let ch=0.22+winPct*0.40+(avgM-60)/220;
-  ch=Math.max(0.06,Math.min(0.85,ch));
-  ST.budget-=cost;
+  ST.recruit={
+    pid:p.id, name:p.name, team:fromTeam.id, teamName:fromTeam.name,
+    cost, step:0, favor:recruitFavorStart(p,fromTeam), done:false,
+    log:[{who:'me',text:`${p.name}님, 잠깐 얘기 좀 할 수 있을까요`}]
+  };
+  ST.recruit.log.push({who:'them',text:pickOne(['네 말씀하세요','무슨 일이신가요','아 안녕하세요'])});
+  go('recruit');
+}
+
+function recruitPick(i){
+  const R=ST.recruit; if(!R||R.done)return;
+  const step=RECRUIT_STEPS[R.step];
+  const o=step.opts[i]; if(!o)return;
+  R.log.push({who:'me',text:o[0]});
+  // 델타에 약간의 운을 섞는다
+  const roll=(Math.random()*10-4)|0;
+  R.favor=Math.max(0,Math.min(100,R.favor+o[2]+roll));
+  const tier=R.favor>=58?'hi':(R.favor>=32?'mid':'lo');
+  R.log.push({who:'them',text:pickOne(RECRUIT_REACT[tier])});
+  R.step++;
+  if(R.step>=RECRUIT_STEPS.length) R.ready=true;
+  saveGame(true); renderRecruit();
+}
+
+/* 최종 제안 */
+function recruitFinish(){
+  const R=ST.recruit; if(!R||R.done)return;
+  const us=TBYID['wwzw'];
+  if(ST.budget<R.cost){toast(`운영비 부족 — ${wonStr(R.cost)} 필요`);return;}
+  const from=TBYID[R.team];
+  const src=from?from.players.find(x=>x.id===R.pid):null;
+  if(!src){toast('그 선수는 이미 팀을 떠났다');ST.recruit=null;go('scout');return;}
+  const ch=recruitChance(R.favor);
+  ST.budget-=R.cost;
+  R.done=true;
   if(Math.random()<ch){
-    const nid='new_'+p.id;
-    if(us.players.some(x=>x.id===nid)){toast('이미 영입한 선수다');return;}
-    const np={id:nid,name:p.name,bats:p.bats,con:p.con,pow:p.pow,eye:p.eye,spd:p.spd,def:p.def,arm:p.arm,
-      pos:p.pos.slice(),pitch:null,real:null};
-    us.players.push(np);
-    ST.bat[nid]=blankBat(); ST.lgBat[nid]=blankBat();
-    ST.cond[nid]=72; ST.morale[nid]=70; ST.injury[nid]=null;
-    ST.ca[nid]=calcCA(np); ST.growth[nid]=0;
-    META[nid]={born:1999,drink:2,loyal:70,pot:4,traits:['영입'],friends:[],rival:null,
-      kakao:['잘 부탁드립니다','ㅇㅋ'],desc:`${fromTeam.name}에서 영입`};
-    finalizeTeam(us);
-    ST.signed.push(p.name);
-    toast(`${p.name} 영입 성공`);
+    signPlayer(src, from);
+    R.result='ok';
+    R.log.push({who:'them',text:pickOne(['가겠습니다. 잘 부탁드립니다','좋습니다 같이 하시죠','다음 주부터 나가겠습니다'])});
+    toast(`${R.name} 영입 성공`);
   } else {
-    ST.budget+=cost*0.5;
-    toast(`${p.name} 영입 실패 — 절반 반환`);
+    ST.budget+=R.cost*0.5;
+    R.result='no';
+    R.log.push({who:'them',text:pickOne(['죄송합니다 여기 남겠습니다','아무래도 어렵겠어요','좋게 봐주셔서 감사합니다만...'])});
+    toast(`${R.name} 영입 실패 — 절반 반환`);
   }
-  saveGame(true); renderScout();
+  saveGame(true); renderRecruit();
+}
+
+/* 실제 이적 처리 — 원 소속팀에서 빼고, 인원이 모자라면 새 선수를 만든다 */
+function signPlayer(src, fromTeam){
+  const us=TBYID['wwzw'];
+  const nid='new_'+src.id;
+  const np={id:nid,name:src.name,bats:src.bats,con:src.con,pow:src.pow,eye:src.eye,
+    spd:src.spd,def:src.def,arm:src.arm,pos:(src.pos||['RF']).slice(),
+    pitch:src.pitch?{...src.pitch}:null, real:null};
+  us.players.push(np);
+  META[nid]=makeSignedMeta(nid, src, fromTeam);
+  ST.bat[nid]=blankBat(); ST.lgBat[nid]=blankBat();
+  ST.cond[nid]=72; ST.morale[nid]=74; ST.injury[nid]=null;
+  ST.ca[nid]=calcCA(np); ST.growth[nid]=0;
+  if(ST.caStart)ST.caStart[nid]=ST.ca[nid];
+  if(ST.bond)ST.bond[nid]=48;
+  ST.pit[nid]=ST.pit[nid]||blankPit(); ST.rest[nid]=3;
+
+  // 원 소속팀에서 실제로 제거한다
+  const i=fromTeam.players.findIndex(x=>x.id===src.id);
+  if(i>=0)fromTeam.players.splice(i,1);
+  if(fromTeam.pitchers)fromTeam.pitchers=fromTeam.pitchers.filter(x=>x.id!==src.id);
+  // 9명 밑으로 떨어지면 그 팀도 사람을 구해온다
+  refillTeam(fromTeam);
+  finalizeTeam(fromTeam);
+  finalizeTeam(us); buildPitcherPool();
+  ST.signed.push(src.name);
+}
+
+/* 영입 선수의 인적 정보. 예전에는 pos·speech·throws 가 없어서
+   포지션 적합도·말투가 전부 기본값으로 떨어졌다.                      */
+function makeSignedMeta(nid, src, fromTeam){
+  const pos={};
+  const ALL=['C','1B','2B','3B','SS','LF','CF','RF','DH','P'];
+  ALL.forEach(k=>pos[k]=22);
+  pos.DH=50;
+  (src.pos||[]).forEach((k,i)=>{ if(pos[k]!==undefined) pos[k]=i===0?56:48; });
+  if(src.pitch){ pos.P=Math.max(pos.P, 52); }
+  else pos.P=Math.max(20, Math.min(38, Math.round(src.arm*0.5)));
+  // 좌투면 내야 안쪽은 못 선다
+  const throws = src.pitch&&src.bats==='L' ? 'L' : (src.bats==='L'&&Math.random()<0.3?'L':'R');
+  if(throws==='L') LEFTY_BLOCKED.forEach(k=>pos[k]=0);
+  return {
+    born:1999, speech:'jon', throws, car:false, school:'-', drink:2,
+    attend:0.72, loyal:66, pot:4,
+    traits:['영입'], friends:[], rival:null, coach:{}, pos,
+    desc:`${fromTeam.name}에서 영입`
+  };
+}
+
+/* 선수를 뺏긴 팀이 9명 밑으로 내려가면 새 선수를 만들어 채운다 */
+const FILL_SUR=['김','이','박','최','정','강','조','윤','장','임','한','오','서','신','권','황','안','송','류','전'];
+const FILL_GIV=['민준','서준','도윤','예준','시우','하준','지호','준우','준서','건우','현우','우진','선우','연우',
+                '유준','정우','승현','지훈','성민','재윤','동현','태윤','승우','시현','准호'];
+function refillTeam(team){
+  let guard=0;
+  while(team.players.length<10 && guard++<8){
+    const nm=pickOne(FILL_SUR)+pickOne(FILL_GIV).replace('准','준');
+    const id=team.id+'_fill'+(team.players.length)+'_'+guard;
+    const posPool=['C','1B','2B','3B','SS','LF','CF','RF'];
+    const mainPos=pickOne(posPool);
+    const q=0.9+Math.random()*0.25;
+    const np={id,name:nm,bats:Math.random()<0.25?'L':'R',
+      con:Math.round(38*q+Math.random()*16), pow:Math.round(30*q+Math.random()*16),
+      eye:Math.round(32*q+Math.random()*14), spd:Math.round(38*q+Math.random()*14),
+      def:Math.round(36*q+Math.random()*14), arm:Math.round(38*q+Math.random()*14),
+      pos:[mainPos], pitch:null, real:null};
+    team.players.push(np);
+    if(ST&&ST.lgBat&&!ST.lgBat[id])ST.lgBat[id]=blankBat();
+  }
+  // 투수가 한 명도 없으면 야수 중 한 명을 마운드에 올린다
+  if(!team.pitchers||!team.pitchers.length){
+    const c=team.players.slice().sort((a,b)=>b.arm-a.arm)[0];
+    if(c){
+      team.pitchers=[{id:c.id,name:c.name,
+        stf:Math.round(clamp(c.arm*0.7,20,55)),
+        ctl:Math.round(clamp(c.eye*0.6+12,18,50)),
+        sta:Math.round(clamp(c.def*0.5+22,24,50))}];
+      if(ST&&ST.lgPit&&!ST.lgPit[c.id])ST.lgPit[c.id]=blankPit();
+    }
+  }
+}
+
+/* 영입 화면 */
+function renderRecruit(){
+  const c=$('#view'); c.innerHTML='';
+  const R=ST.recruit;
+  if(!R){ go('scout'); return; }
+  const head=el('div','card');
+  const ch=recruitChance(R.favor);
+  head.innerHTML=`<div class="card-h">영입 접촉 · ${R.name}</div>
+    <p class="muted">${R.teamName} 소속 · 영입 비용 ${wonStr(R.cost)} · 현재 운영비 ${ST.budget.toFixed(0)}만원</p>
+    <div class="tend-row"><span class="tn">호감</span>
+      <div class="tbar"><div class="${R.favor>=58?'g':'r'}" style="width:${R.favor}%"></div></div>
+      <span class="tv">${R.favor}</span></div>
+    <div class="pc-prom">지금 제안하면 성공률 ${(ch*100).toFixed(1)}%</div>`;
+  c.appendChild(head);
+
+  const room=el('div','kakao');
+  R.log.forEach(m=>{
+    const mine=m.who==='me';
+    const wdiv=el('div','kmsg'+(mine?' mine':''));
+    wdiv.innerHTML=`${mine?'':`<div class="kname">${R.name}</div>`}<div class="kbub">${m.text}</div>`;
+    room.appendChild(wdiv);
+  });
+  c.appendChild(room);
+
+  if(R.done){
+    const r=el('div','card');
+    r.innerHTML=`<div class="card-h">${R.result==='ok'?'영입 성공':'영입 실패'}</div>
+      <p class="muted">${R.result==='ok'
+        ? `${R.name}이(가) 우리 팀에 합류했다. ${R.teamName}에서는 빠졌다.`
+        : `${R.name}은(는) 남기로 했다. 비용 절반을 돌려받았다.`}</p>`;
+    c.appendChild(r);
+    const b=el('button','btn primary','돌아가기');
+    b.onclick=()=>{ST.recruit=null;go('scout');};
+    c.appendChild(b);
+    return;
+  }
+
+  if(R.step<RECRUIT_STEPS.length){
+    const step=RECRUIT_STEPS[R.step];
+    const box=el('div','card sendbox');
+    box.appendChild(el('div','card-h',`${step.q[0]} (${R.step+1}/${RECRUIT_STEPS.length})`));
+    step.opts.forEach((o,i)=>{
+      const b=el('button','sendopt');
+      b.innerHTML=`<b>${o[0]}</b><span>${o[1]}</span>`;
+      b.onclick=()=>recruitPick(i);
+      box.appendChild(b);
+    });
+    c.appendChild(box);
+  } else {
+    const box=el('div','card');
+    box.appendChild(el('div','card-h','제안한다'));
+    box.appendChild(el('p','muted',
+      `호감 ${R.favor} → 성공률 ${(ch*100).toFixed(1)}%. 실패하면 비용 절반만 돌려받는다.`));
+    const b=el('button','btn primary',`제안한다 (${wonStr(R.cost)})`);
+    b.onclick=recruitFinish;
+    box.appendChild(b);
+    c.appendChild(box);
+  }
+  const back=el('button','btn','그만둔다');
+  back.onclick=()=>{ST.recruit=null;go('scout');};
+  c.appendChild(back);
 }
 
 /* ---------- 순위·기록 ---------- */
@@ -6956,7 +7251,7 @@ function renderMore(){
 /* ---------- 네비 ---------- */
 const VIEWS={home:renderHome,squad:renderSquad,lineup:renderLineup,kakao:renderKakao,
   game:renderGame,train:renderTrain,scout:renderScout,stand:renderStand,stats:renderStats,
-  records:renderRecords,pick:renderPick,more:renderMore,meet:renderMeet};
+  records:renderRecords,pick:renderPick,more:renderMore,meet:renderMeet,recruit:renderRecruit};
 function go(v){
   clearInterval(playTimer);
   curView=v;
@@ -6975,8 +7270,7 @@ function normalizeState(){
         const np={id,name:src.name,bats:src.bats,con:src.con,pow:src.pow,eye:src.eye,
           spd:src.spd,def:src.def,arm:src.arm,pos:src.pos.slice(),pitch:null,real:null};
         us.players.push(np);
-        META[id]={born:1999,speech:'jon',throws:'R',car:false,school:'-',drink:2,loyal:70,pot:4,
-          traits:['영입'],friends:[],rival:null,coach:{},pos:PR({}),desc:'영입 선수'};
+        META[id]=makeSignedMeta(id, src, {name:'타팀'});
       }
     }
   });
@@ -7030,6 +7324,8 @@ function normalizeState(){
     // 로스터에 없는 선수(이적·방출)의 약속은 정리한다
     if(ST.promise[pid]&&!us.players.some(p=>p.id===pid))delete ST.promise[pid];
   });
+  if(ST.recruit===undefined)ST.recruit=null;
+  if(ST.recruit&&!TBYID[ST.recruit.team])ST.recruit=null;
   if(!ST.bond)ST.bond={};
   us.players.forEach(p=>{ if(ST.bond[p.id]==null)ST.bond[p.id]=50; });
   if(ST.drinkInvite===undefined)ST.drinkInvite=null;
@@ -7060,7 +7356,13 @@ function normalizeState(){
   if(!ST.lineup||ST.lineup.length<9||ST.lineup.some(s=>!us.players.some(p=>p.id===s.id)))
     ST.lineup=recommendLineup();
   if(!ST.rotation||!ST.rotation.length)ST.rotation=recommendRotation();
-  else sanitizeRotation();
+  else {
+    sanitizeRotation();
+    // 예전 버그(결장자를 로테이션에서 영구 삭제)로 인원이 깎인 세이브를 복구한다
+    if(ST.rotation.length<6){
+      recommendRotation().forEach(id=>{ if(ST.rotation.length<6&&ST.rotation.indexOf(id)<0)ST.rotation.push(id); });
+    }
+  }
 }
 
 async function boot(){
