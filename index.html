@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow,noarchive,noimageindex">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0d1015">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -436,6 +437,13 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .savestat{font-size:11px;color:var(--blue);background:var(--panel2);border:1px solid var(--line);
   border-radius:9px;padding:8px 10px;margin:8px 0}
 .savestat.bad{color:#ffb4a8;border-color:#7a3b34}
+#updbar{position:fixed;left:0;right:0;bottom:0;z-index:150;max-width:560px;margin:0 auto;
+  background:var(--gold);color:#14181e;font-size:12.5px;font-weight:700;
+  padding:11px 14px calc(11px + env(safe-area-inset-bottom));
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;line-height:1.5}
+#updbar b{font-weight:900}
+#updgo{margin-left:auto;background:#14181e;color:var(--gold);border:0;border-radius:8px;
+  padding:9px 14px;font-size:12.5px;font-weight:800;font-family:inherit}
 #lock{position:fixed;inset:0;z-index:200;background:var(--bg);
   display:flex;align-items:center;justify-content:center;padding:24px}
 #lock.off{display:none}
@@ -1436,7 +1444,7 @@ const META = {
 
   ksn:{born:2000,speech:'jon',throws:'L',car:true,school:'흥진고',drink:3,attend:0.69,loyal:78,pot:5,
     traits:['장타형','좌투','외야미숙'],friends:['ksw','kig','ksh','kjh'],rival:null,coach:{},
-    pos:PR({'1B':52,LF:38,RF:38,C:0,'2B':0,'3B':0,SS:0,CF:0,P:38}),
+    pos:PR({'1B':52,LF:38,RF:38,C:0,'2B':0,'3B':0,SS:0,CF:0,P:28}),
     desc:'1루수. 좌투우타라 내야는 1루만 가능하다.'},
 
   ksw:{born:2000,speech:'jon',throws:'R',car:false,school:'군포고',drink:0,attend:0.38,loyal:80,pot:10,
@@ -3874,8 +3882,8 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.3.2';
-const APP_VERSION_NOTE = '직접 지휘에서 지시를 골라도 안 넘어가던 문제 수정';
+const APP_VERSION = '1.3.3';
+const APP_VERSION_NOTE = '새 버전 자동 알림 · 김상훈 투수 너프';
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
   const a=String(v||'0.0.0').split('.').map(x=>parseInt(x,10)||0);
@@ -10413,6 +10421,10 @@ function renderMore(){
     우연히 링크를 누른 사람이나 검색으로 흘러든 사람은 확실히 막지만,
     작정하고 보려는 사람은 못 막는다.<br>
     진짜로 가리려면 <b>깃허브 저장소를 비공개</b>로 돌려야 한다.</p>`;
+  const rb=el('button','btn','최신 버전으로 새로 받기');
+  rb.onclick=()=>{ saveGame(true);
+    location.replace(location.pathname+'?v='+Date.now()); };
+  gc.appendChild(rb);
   const gb=el('button','btn','이 기기에서 코드 다시 묻기');
   gb.onclick=()=>{ try{localStorage.removeItem(GATE_KEY);}catch(e){}
     toast('다음에 열 때 코드를 다시 묻는다'); };
@@ -10736,6 +10748,33 @@ function setupGate(){
   return false;
 }
 
+/* ================= 새 버전 감지 =================
+   깃허브 페이지는 HTML 을 캐시한다. 그래서 고쳐서 올려도 애들 폰에는
+   한참 동안 옛날 판이 그대로 떠 있었다. "고쳤다는데 왜 그대로냐"의 원인이다.
+   열릴 때 자기 자신을 캐시 무시하고 한 번 받아서 버전을 비교하고,
+   다르면 알려준다. 누르면 새로 받는다.                                 */
+async function checkForUpdate(){
+  try{
+    if(location.protocol==='file:')return;
+    const r=await fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'});
+    if(!r.ok)return;
+    const t=await r.text();
+    const m=t.match(/const APP_VERSION = '([^']+)'/);
+    if(!m)return;
+    const latest=m[1];
+    if(verNum(latest)<=verNum(APP_VERSION))return;
+    const bar=document.createElement('div');
+    bar.id='updbar';
+    bar.innerHTML=`<b>새 버전 v${latest}</b> 이 나왔다. 지금 쓰는 건 v${APP_VERSION} 이다.
+      <button id="updgo">새로 받기</button>`;
+    document.body.appendChild(bar);
+    document.getElementById('updgo').onclick=()=>{
+      try{ if(ST) saveGame(true); }catch(e){}
+      location.replace(location.pathname+'?v='+Date.now());
+    };
+  }catch(e){/* 못 받아도 게임은 그대로 돌아간다 */}
+}
+
 async function boot(){
   setupGate();
   TEAMS=buildAllTeams();
@@ -10770,6 +10809,7 @@ async function boot(){
     const st0=ST.stand['wwzw']||{w:0,l:0};
     setTimeout(()=>toast(`이어서 진행한다 — ${ST.round}차전 · ${st0.w}승 ${st0.l}패`),300);
   }
+  setTimeout(checkForUpdate, 1500);      // 새 버전이 올라와 있으면 알려준다
 }
 document.addEventListener('DOMContentLoaded',boot);
 
