@@ -445,6 +445,31 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .ot-pic{width:104px;flex:0 0 104px;aspect-ratio:3/4;border:1px solid var(--nvl);
   border-radius:4px;overflow:hidden;background:#101a29}
 .pf-photo,.pf-clay{display:block;width:100%;height:100%;object-fit:cover}
+.gear-row{border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin:8px 0;background:var(--panel2)}
+.gr-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.gr-top b{font-size:13px}
+.gr-lv{display:flex;align-items:center;gap:5px}
+.gr-lv i{width:9px;height:9px;border-radius:2px;background:#2a323d;display:block}
+.gr-lv i.on{background:var(--gold)}
+.gr-lv em{font-style:normal;font-size:10px;color:var(--dim)}
+.gr-d{font-size:11px;color:var(--dim);margin:4px 0 2px;line-height:1.5}
+.gr-e{font-size:11px;color:var(--turf);margin-bottom:5px}
+.gr-wear{height:5px;background:#0d1015;border-radius:3px;overflow:hidden;margin-bottom:3px}
+.gr-wear>i{display:block;height:100%}
+.gr-wear>i.ok{background:#2f7a58}.gr-wear>i.mid{background:#c9a227}.gr-wear>i.bad{background:#d2544a}
+.gr-wl{font-size:10px;color:var(--dim);margin-bottom:6px}
+.po-card{border-color:var(--gold)}
+.po-seeds{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px}
+.po-seed{background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+  padding:6px 4px;text-align:center}
+.po-seed b{display:block;font-size:11px;color:var(--gold)}
+.po-seed span{display:block;font-size:10px;color:var(--dim);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.po-seed.me{border-color:var(--gold);background:rgba(201,162,39,.14)}
+.po-seed.me span{color:var(--ink)}
+.po-log{font-size:11px;color:var(--dim);padding:3px 0;border-bottom:1px solid var(--line)}
+.po-next{margin-top:8px;font-size:13px;font-weight:700;color:var(--gold)}
+.po-fin{margin-top:8px;font-size:16px;font-weight:800;color:var(--gold)}
 .ot-nm{flex:1 1 auto;min-width:0}
 .ot-n1{font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.15;
   display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -3297,16 +3322,16 @@ const PARTY_COST = 45;       // 회식 한 번 값 (14명 기준)
 
 /* 시즌 초 장비 구매 안건. 사면 좋지만 돈이 없다. */
 const GEAR_ITEMS = [
-  {id:'catcher', name:'포수 장비 새로 맞추기', cost:95,
-   desc:'레그가드·프로텍터·마스크 한 세트. 지금 건 유지효가 두고 오는 그거다.',
+  {id:'catcher', name:'포수 장비', cost:95, wear:3.5,
+   desc:'레그가드·프로텍터·마스크 한 세트. 지금 건 오래 썼다.',
    effect:'포수 수비 안정 · 장비 누락 사고 감소', eff:{gear:1}},
-  {id:'balls', name:'연습구 두 박스', cost:38,
-   desc:'훈련 때마다 공이 모자라서 세 개로 돌린다.',
+  {id:'balls', name:'연습구', cost:38, wear:5.0,
+   desc:'훈련 때마다 공이 모자라서 세 개로 돌린다. 제일 빨리 없어진다.',
    effect:'훈련 효율 +12%', eff:{train:1.12}},
-  {id:'helmet', name:'헬멧·배트 보강', cost:52,
+  {id:'helmet', name:'헬멧·배트', cost:52, wear:2.5,
    desc:'금 간 헬멧으로 타석에 들어가는 건 좀 그렇다.',
-   effect:'팀 사기 +5 · 부상 위험 소폭 감소', eff:{inj:0.88}},
-  {id:'net', name:'이동식 배팅 네트', cost:74,
+   effect:'부상 위험 감소', eff:{inj:0.88}},
+  {id:'net', name:'이동식 배팅 네트', cost:74, wear:3.0,
    desc:'경기장 옆에서 스윙을 돌릴 수 있다.',
    effect:'타격 훈련 효율 +18%', eff:{bat:1.18}},
 ];
@@ -3346,21 +3371,91 @@ const DUES_LEAD=[
   '가입비 기한이 다음 주다. 부족한 만큼만 걷자',
 ];
 
-function gearOwned(id){ return !!(ST.gear&&ST.gear[id]); }
+/* ================= 장비 =================
+   장비는 소모품이다. 한 번 사면 끝이 아니라 쓸수록 닳고, 다 닳으면 등급이 내려간다.
+   같은 걸 또 사면 버리는 게 아니라 등급이 올라간다 — 좋은 걸로 바꿔 다는 셈이다.
+   ST.gear[id] = {lv:1~3, wear:0~100}                                     */
+const GEAR_MAX_LV = 3;
+function gearSlot(id){
+  if(ST.playoff===undefined)ST.playoff=null;
+  if(!ST.gear)ST.gear={};
+  // 예전 세이브는 장비가 true/false 였다. 등급 구조로 옮긴다.
+  Object.keys(ST.gear).forEach(id=>{
+    const v=ST.gear[id];
+    if(!GEAR_ITEMS.some(g=>g.id===id)){ delete ST.gear[id]; return; }
+    if(v===true){ ST.gear[id]={lv:1,wear:0}; return; }
+    if(!v||typeof v!=='object'){ delete ST.gear[id]; return; }
+    if(v.lv==null)v.lv=1;
+    if(v.wear==null)v.wear=0;
+    v.lv=Math.max(0,Math.min(GEAR_MAX_LV,v.lv));
+    if(v.lv<=0)delete ST.gear[id];
+  });
+  const v=ST.gear[id];
+  if(v===true) return (ST.gear[id]={lv:1,wear:0});        // 예전 세이브 보정
+  if(!v||typeof v!=='object') return null;
+  return v;
+}
+function gearLv(id){ const g=gearSlot(id); return g?g.lv:0; }
+function gearWear(id){ const g=gearSlot(id); return g?g.wear:0; }
+function gearOwned(id){ return gearLv(id)>0; }
+function gearDef(id){ return GEAR_ITEMS.find(g=>g.id===id); }
+/* 다음 등급 값 — 올릴수록 비싸진다 */
+function gearCost(id){
+  const d=gearDef(id); if(!d)return 0;
+  return Math.round(d.cost*(1+0.55*gearLv(id)));
+}
+/* 닳으면 성능도 같이 떨어진다. 80% 넘게 닳으면 절반만 먹는다. */
+function gearPower(id){
+  const lv=gearLv(id); if(!lv)return 0;
+  const w=gearWear(id);
+  const cond = w>=80 ? 0.5 : (w>=50 ? 0.8 : 1);
+  return lv*cond;
+}
+function gearLabel(id){
+  const lv=gearLv(id);
+  if(!lv)return '없음';
+  return ['','기본','보강','최상'][Math.min(3,lv)];
+}
 /* 장비로 얻는 훈련 배수 */
 function gearTrainMul(kind){
   let m=1;
   GEAR_ITEMS.forEach(g=>{
-    if(!gearOwned(g.id))return;
-    if(g.eff.train)m*=g.eff.train;
-    if(g.eff.bat&&kind==='bat')m*=g.eff.bat;
+    const pw=gearPower(g.id); if(!pw)return;
+    if(g.eff.train)m*=1+(g.eff.train-1)*pw;
+    if(g.eff.bat&&kind==='bat')m*=1+(g.eff.bat-1)*pw;
   });
   return m;
 }
 function gearInjMul(){
   let m=1;
-  GEAR_ITEMS.forEach(g=>{ if(gearOwned(g.id)&&g.eff.inj)m*=g.eff.inj; });
-  return m;
+  GEAR_ITEMS.forEach(g=>{
+    const pw=gearPower(g.id); if(!pw||!g.eff.inj)return;
+    m*=1-(1-g.eff.inj)*pw;
+  });
+  return Math.max(0.55,m);
+}
+/* 한 등급 올린다(사거나 강화하거나). 값은 이미 치른 뒤에 부른다. */
+function gearBuy(id){
+  if(!ST.gear)ST.gear={};
+  const g=gearSlot(id);
+  if(!g){ ST.gear[id]={lv:1,wear:0}; return 1; }
+  g.lv=Math.min(GEAR_MAX_LV,g.lv+1); g.wear=0;
+  return g.lv;
+}
+/* 경기 한 번 치를 때마다 닳는다. 다 닳으면 등급이 하나 내려간다. */
+function gearWearTick(){
+  const msgs=[];
+  GEAR_ITEMS.forEach(d=>{
+    const g=gearSlot(d.id); if(!g)return;
+    g.wear += d.wear*(0.75+Math.random()*0.5);
+    if(g.wear>=100){
+      g.lv--; g.wear=0;
+      if(g.lv<=0){ delete ST.gear[d.id];
+        msgs.push({who:'ksh',type:'notice',text:`${d.name} — 다 써서 못 쓰게 됐다. 다시 사야 한다`}); }
+      else msgs.push({who:'ksh',type:'notice',text:`${d.name} — 낡아서 ${gearLabel(d.id)} 등급으로 내려갔다`});
+    }
+  });
+  return msgs;
 }
 
 /* 회비 걷기 — 부족한 금액을 인원수로 나눠 걷는다 */
@@ -4755,6 +4850,7 @@ function newSeason(){
     playerId:MYID, year:2026, seasonNo:1, discharged:false, justDischarged:false,
     useDH:true, park:'benamul', gearLevel:0, feud:null, pendingAbsent:{},
     unhappy:{}, spark:{}, career:{}, teamCareer:null, milestones:[], firsts:{}, weather:'clear',
+    playoff:null,
     playSec:(typeof ST!=='undefined'&&ST&&ST.playSec)?ST.playSec:0,
     promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
@@ -5120,8 +5216,8 @@ function renderHome(){
     <div class="record"><div><b>${st.w}</b><span>승</span></div><div><b>${st.l}</b><span>패</span></div>
     <div><b>${st.t}</b><span>무</span></div><div class="rsep"></div>
     <div><b>${st.rf}</b><span>득점</span></div><div><b>${st.ra}</b><span>실점</span></div></div>
-    <div class="progress"><div class="bar" style="width:${played/22*100}%"></div></div>
-    <div class="hero-foot">${played} / 22 경기 · 리그 ${leagueRank('wwzw')}위 · 운영비 ${ST.budget.toFixed(0)}만원<br>${holidayFor(ST.round,ST.year||2026).label} 예정 · 다음 시즌 가입비 ${LEAGUE_FEE}만원</div>
+    <div class="progress"><div class="bar" style="width:${Math.min(100,played/regGames()*100)}%"></div></div>
+    <div class="hero-foot">${Math.min(played,regGames())} / ${regGames()} 경기 · 리그 ${leagueRank('wwzw')}위 · 운영비 ${ST.budget.toFixed(0)}만원<br>${holidayFor(ST.round,ST.year||2026).label} 예정 · 다음 시즌 가입비 ${LEAGUE_FEE}만원</div>
     <div class="hero-me">플레이 중: <b>${nameOf(ST.playerId||MYID)}</b></div>`;
   c.appendChild(hero);
 
@@ -5152,6 +5248,31 @@ function renderHome(){
     mood.appendChild(line);
   }
   c.appendChild(mood);
+
+  // 플레이오프
+  if(ST.playoff){
+    const po=ST.playoff;
+    const pc2=el('div','card po-card');
+    pc2.appendChild(el('div','card-h','단원리그 C 플레이오프'));
+    const seedList=el('div','po-seeds');
+    po.seeds.forEach((id,i)=>{
+      const r=el('div','po-seed'+(id==='wwzw'?' me':''));
+      r.innerHTML=`<b>${i+1}</b><span>${poName(id)}</span>`;
+      seedList.appendChild(r);
+    });
+    pc2.appendChild(seedList);
+    po.log.forEach(l=>pc2.appendChild(el('div','po-log',l)));
+    if(po.done){
+      pc2.appendChild(el('div','po-fin',
+        po.place==='탈락' ? '플레이오프 진출 실패' : `${po.place} · 상금 ${po.prize}만원`));
+    } else {
+      const nx=ST.schedule[ST.round];
+      pc2.appendChild(el('div','po-next',
+        `${po.stage==='final'?'결승':'준결승'} 상대 ${nx?poName(nx.opp):'-'}`));
+    }
+    pc2.appendChild(el('p','muted','우승 50만원 · 준우승 30만원 · 공동 3위 10만원. 무승부는 정규시즌 순위가 높은 팀이 올라간다.'));
+    c.appendChild(pc2);
+  }
 
   // 플레이타임
   const ptc=el('div','card');
@@ -5263,25 +5384,26 @@ function renderHome(){
       <p class="muted">단톡방에서 뭘 살지로 말이 오간다. 운영비 <b>${ST.budget.toFixed(0)}만원</b>.
       시즌이 끝나면 다음 시즌 리그 가입비 <b>${LEAGUE_FEE}만원</b>을 내야 한다. 다 쓰면 회비를 걷어야 한다.</p>`;
     GEAR_ITEMS.forEach(g=>{
-      const own=gearOwned(g.id), poor=ST.budget<g.cost;
-      const b=el('button','sendopt'+(own?' bought':''));
+      const lv=gearLv(g.id), cost=gearCost(g.id), maxed=lv>=GEAR_MAX_LV, poor=ST.budget<cost;
+      const b=el('button','sendopt'+(maxed?' bought':''));
       const forL=pickOne(GEAR_FOR), agL=pickOne(GEAR_AGAINST);
       const a=speakers(ST,null,2,Math.random);
-      b.innerHTML=`<b>${g.name} · ${g.cost}만원${own?' (구매함)':''}</b>`+
-        `<span>${g.desc}<br>${g.effect}`+
-        (own?'':`<br><i class="gfor">${a[0]?nameOf(a[0].id)+': ':''}${a[0]?sayTo(a[0].id,ST.playerId,forL[0],forL[1]):''}</i>`+
+      b.innerHTML=`<b>${lv?`${g.name} 강화 (${gearLabel(g.id)} → ${['','기본','보강','최상'][Math.min(3,lv+1)]})`:g.name} · ${maxed?'최상 등급':cost+'만원'}</b>`+
+        `<span>${g.desc}<br>${g.effect}${lv?` · 지금 ${gearLabel(g.id)} 등급`:''}`+
+        (maxed?'':`<br><i class="gfor">${a[0]?nameOf(a[0].id)+': ':''}${a[0]?sayTo(a[0].id,ST.playerId,forL[0],forL[1]):''}</i>`+
              `<br><i class="gag">${a[1]?nameOf(a[1].id)+': ':''}${a[1]?sayTo(a[1].id,ST.playerId,agL[0],agL[1]):''}</i>`)+
         `</span>`;
-      if(!own&&!poor)b.onclick=()=>{
-        ST.budget-=g.cost;
-        ST.gear=ST.gear||{}; ST.gear[g.id]=true;
+      if(!maxed&&!poor)b.onclick=()=>{
+        ST.budget-=cost;
+        const nl=gearBuy(g.id);
         if(g.eff.gear)ST.gearLevel=0;
         TBYID['wwzw'].players.forEach(p=>ST.morale[p.id]=Math.min(100,(ST.morale[p.id]||70)+5));
         ST.kakao=ST.kakao||[];
-        ST.kakao.push({who:'lg',type:'notice',text:`${g.name} 구매 — ${g.cost}만원\n전원 사기 +5`});
-        saveGame(true); go('home'); toast(`${g.name} 구매`);
+        ST.kakao.push({who:'lg',type:'notice',
+          text:`${g.name} ${nl>1?'강화':'구매'} — ${cost}만원\n${gearLabel(g.id)} 등급\n전원 사기 +5`});
+        saveGame(true); go('home'); toast(`${g.name} ${gearLabel(g.id)}`);
       };
-      else if(poor&&!own) b.onclick=()=>toast(`운영비가 부족하다 (${g.cost}만원 필요)`);
+      else if(poor&&!maxed) b.onclick=()=>toast(`운영비가 부족하다 (${cost}만원 필요)`);
       gc.appendChild(b);
     });
     const done=el('button','btn','장비 얘기 마무리');
@@ -5446,7 +5568,10 @@ function renderHome(){
     });
     c.appendChild(aw);
     const d=el('div','card');
-    d.innerHTML=`<div class="card-h">시즌 종료</div><p class="muted">최종 ${st.w}승 ${st.l}패 ${st.t}무 · 리그 ${leagueRank('wwzw')}위</p>`;
+    const po=ST.playoff;
+    d.innerHTML=`<div class="card-h">시즌 종료</div><p class="muted">정규시즌 ${st.w}승 ${st.l}패 ${st.t}무 · 리그 ${leagueRank('wwzw')}위`
+      +(po?`<br>플레이오프 <b>${po.place||'-'}</b>${po.prize?` · 상금 <b>${po.prize}만원</b>`:' · 상금 없음'}`:'')
+      +`</p>`;
     const b=el('button','btn primary','새 시즌 시작');
     b.onclick=async()=>{
       const keep={career:ST.career,teamCareer:ST.teamCareer,milestones:ST.milestones,firsts:ST.firsts,
@@ -5699,9 +5824,10 @@ function forfeit(){
   const u=ST.stand['wwzw'], t=ST.stand[sch.opp];
   u.g++;t.g++;u.l++;t.w++;u.ra+=7;t.rf+=7;
   TBYID['wwzw'].players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-10));
-  simOtherGames(sch.opp);
+  if(!sch.po) simOtherGames(sch.opp);
   ST.round++;ST.weekDone=false;ST.events=[];
-  if(ST.round>=ST.schedule.length)ST.seasonOver=true;
+  if(sch.po) advancePlayoff(false,false,0,7);
+  else if(ST.round>=ST.schedule.length) startPlayoff();
   saveGame(true);go('home');toast('몰수패');
 }
 
@@ -5718,6 +5844,117 @@ function scoutLine(opp){
   b.push(`선발 ${a.name} (구위 ${a.stf}/제구 ${a.ctl})`);
   return b.join(' · ');
 }
+/* ================= 플레이오프 =================
+   단원리그 C 규정. 정규시즌이 끝나면 상위 4팀이 붙는다.
+     준결승  1위 vs 4위 · 2위 vs 3위
+     결승    준결승 승자끼리
+   상금  우승 50만원 · 준우승 30만원 · 공동 3위(준결승 패자) 각 10만원
+   무승부는 정규시즌 순위가 높은 쪽이 올라간다.                        */
+const PO_PRIZE={win:50, runner:30, third:10};
+function poSeeds(){
+  return TEAMS.slice().sort((x,y)=>{
+    const A=ST.stand[x.id],B=ST.stand[y.id];
+    const pa=A.g?A.w/A.g:0,pb=B.g?B.w/B.g:0;
+    if(pb!==pa)return pb-pa; return (B.rf-B.ra)-(A.rf-A.ra);
+  }).slice(0,4).map(t=>t.id);
+}
+/* 우리가 안 낀 경기는 그냥 돌린다. 무승부면 상위 시드가 올라간다. */
+function poSim(aId,bId,seedOf){
+  const A=TBYID[aId], B=TBYID[bId];
+  const rng=makeRng((ST.seed+aId.length*7919+bId.length*104729+ST.round*31)>>>0);
+  const r=simGame(A,B,{rng,innings:7,awayLineup:aiLineup(B),awayRotation:aiRotation(B),
+    homeLineup:aiLineup(A),homeRotation:aiRotation(A)});
+  let winner;
+  if(r.tie) winner = seedOf(aId)<seedOf(bId)?aId:bId;
+  else winner = r.home.runs>r.away.runs?aId:bId;
+  return {winner, loser:winner===aId?bId:aId, hs:r.home.runs, as:r.away.runs, tie:r.tie};
+}
+function poName(id){ return TBYID[id]?TBYID[id].name:id; }
+
+/* 정규시즌이 끝난 직후 한 번 불린다 */
+function startPlayoff(){
+  const seeds=poSeeds();
+  const seedOf=id=>{const i=seeds.indexOf(id);return i<0?99:i;};
+  ST.playoff={seeds, stage:'sf', log:[], prize:0, place:null, done:false};
+  const me=seeds.indexOf('wwzw');
+  if(me<0){
+    /* 우리가 못 올라갔다. 남의 잔치는 돌려서 결과만 본다. */
+    const s1=poSim(seeds[0],seeds[3],seedOf), s2=poSim(seeds[1],seeds[2],seedOf);
+    const f=poSim(s1.winner,s2.winner,seedOf);
+    ST.playoff.log=[
+      `준결승 ${poName(seeds[0])} ${s1.hs}:${s1.as} ${poName(seeds[3])} → ${poName(s1.winner)}`,
+      `준결승 ${poName(seeds[1])} ${s2.hs}:${s2.as} ${poName(seeds[2])} → ${poName(s2.winner)}`,
+      `결승 ${poName(f.winner)} 우승`];
+    ST.playoff.done=true; ST.playoff.place='탈락';
+    ST.seasonOver=true; ST.feeDue=true;
+    ST.notices.push({type:'po',title:'플레이오프 진출 실패',
+      body:`정규시즌 ${leagueRank('wwzw')}위. 상위 4팀에 못 들었다.`,
+      effect:`${poName(f.winner)} 우승 · 상금 없음`});
+    return;
+  }
+  /* 우리 준결승 상대를 일정 뒤에 붙인다. 나머지는 평소 흐름 그대로다. */
+  const opp=seeds[3-me];
+  ST.schedule.push({round:ST.schedule.length+1, opp, homeGame:me<2, played:false, result:null,
+    park:PARKS[(ST.schedule.length*7+3)%PARKS.length].id, po:'sf'});
+  ST.notices.push({type:'po',title:'플레이오프 진출',
+    body:`정규시즌 ${me+1}위로 4강에 올랐다. 준결승 상대는 ${poName(opp)}(${seeds.indexOf(opp)+1}위)다.`,
+    effect:'우승 50만원 · 준우승 30만원 · 공동 3위 10만원'});
+}
+
+/* 플레이오프 경기를 하나 치른 뒤 */
+function advancePlayoff(won, tie, myRuns, oppRuns){
+  const po=ST.playoff; if(!po||po.done)return [];
+  const seeds=po.seeds, seedOf=id=>{const i=seeds.indexOf(id);return i<0?99:i;};
+  const me=seeds.indexOf('wwzw');
+  const sch=ST.schedule[ST.round-1];
+  const msgs=[];
+  /* 무승부면 정규시즌 순위가 높은 쪽이 올라간다 */
+  const advance = tie ? (seedOf('wwzw')<seedOf(sch.opp)) : won;
+
+  if(po.stage==='sf'){
+    po.log.push(`준결승 우완좌완 ${myRuns}:${oppRuns} ${poName(sch.opp)}`
+      +(tie?' (무승부 — 정규시즌 순위로 판정)':''));
+    if(!advance){
+      po.place='공동 3위'; po.prize=PO_PRIZE.third; po.done=true;
+      ST.budget+=po.prize;
+      msgs.push({who:'lg',type:'notice',
+        text:`플레이오프 준결승 탈락 — 공동 3위\n상금 ${PO_PRIZE.third}만원 입금`});
+      ST.seasonOver=true; ST.feeDue=true;
+      return msgs;
+    }
+    /* 반대편 준결승을 돌리고 결승 상대를 정한다 */
+    const oi=(me<2)?1:0;                       // 우리가 1·4 조면 반대는 2·3 조
+    const a=seeds[oi===1?1:0], bb=seeds[oi===1?2:3];
+    const other=poSim(a,bb,seedOf);
+    po.log.push(`준결승 ${poName(a)} ${other.hs}:${other.as} ${poName(bb)} → ${poName(other.winner)}`);
+    po.stage='final';
+    ST.schedule.push({round:ST.schedule.length+1, opp:other.winner, homeGame:seedOf('wwzw')<seedOf(other.winner),
+      played:false, result:null, park:'singil', po:'final'});
+    msgs.push({who:'lg',type:'notice',
+      text:`준결승 통과 — 결승 진출\n상대는 ${poName(other.winner)}. 이기면 50만원, 져도 30만원`});
+    TBYID['wwzw'].players.forEach(p=>ST.morale[p.id]=Math.min(100,(ST.morale[p.id]||70)+12));
+    return msgs;
+  }
+
+  if(po.stage==='final'){
+    po.log.push(`결승 우완좌완 ${myRuns}:${oppRuns} ${poName(sch.opp)}`
+      +(tie?' (무승부 — 정규시즌 순위로 판정)':''));
+    po.done=true;
+    if(advance){ po.place='우승'; po.prize=PO_PRIZE.win;
+      TBYID['wwzw'].players.forEach(p=>ST.morale[p.id]=100);
+      msgs.push({who:'lg',type:'notice',text:`단원리그 C 우승\n상금 ${PO_PRIZE.win}만원 입금`});
+    } else { po.place='준우승'; po.prize=PO_PRIZE.runner;
+      msgs.push({who:'lg',type:'notice',text:`준우승\n상금 ${PO_PRIZE.runner}만원 입금`});
+    }
+    ST.budget+=po.prize;
+    ST.seasonOver=true; ST.feeDue=true;
+    return msgs;
+  }
+  return msgs;
+}
+/* 정규시즌 경기 수 (플레이오프 제외) */
+function regGames(){ return ST.schedule.filter(x=>!x.po).length; }
+
 function leagueRank(id){
   const a=TEAMS.slice().sort((x,y)=>{
     const A=ST.stand[x.id],B=ST.stand[y.id];
@@ -6524,6 +6761,24 @@ const TUTORIAL=[
      <b>면담</b> — 선수단 화면에서 아무나 불러 이야기할 수 있다.
      약속을 하면 지켜야 한다. 어기면 사기가 크게 떨어진다.<br>
      <b>카풀</b> — 차 있는 사람이 없는 사람을 태워 온다. 운전자가 빠지면 누군가는 못 온다.`},
+ {t:'단원리그 C 규정',
+  b:`정규시즌 22경기를 치르고 <b>상위 4팀</b>이 플레이오프에 간다.<br><br>
+     <b>준결승</b> — 1위 vs 4위 · 2위 vs 3위<br>
+     <b>결승</b> — 준결승을 통과한 두 팀<br>
+     무승부면 정규시즌 순위가 높은 팀이 올라간다.<br><br>
+     <b>상금</b><br>
+     우승 <b>50만원</b> · 준우승 <b>30만원</b> · 공동 3위 각 <b>10만원</b><br>
+     상금은 운영비로 들어간다. 다음 시즌 가입비가 ${LEAGUE_FEE}만원이니
+     4강만 가도 숨통이 트인다.`},
+ {t:'장비는 소모품이다',
+  b:`장비는 한 번 사면 끝이 아니다. 경기를 치를수록 닳는다.<br><br>
+     <b>닳음</b> — 100%가 되면 등급이 한 칸 내려가고, 바닥나면 아예 없어진다.
+     50%를 넘기면 효과가 80%, 80%를 넘기면 절반만 먹는다.<br>
+     연습구가 제일 빨리 없어지고 헬멧이 제일 오래 간다.<br><br>
+     <b>강화</b> — 같은 걸 다시 사면 버리는 게 아니라 등급이 올라간다.
+     기본 → 보강 → 최상. 올릴수록 값이 비싸지지만 효과도 그만큼 커지고
+     닳음도 0으로 돌아간다.<br><br>
+     설정 화면의 <b>장비</b>에서 언제든 사고 강화할 수 있다.`},
  {t:'훈련과 돈',
   b:`<b>훈련</b> — 한 명을 정해 집중적으로 키운다. 나온 사람만 큰다.
      매주 부르면 참석률이 떨어지니 가끔 쉬어야 한다. 비 오는 날은 강행할지 고를 수 있다.<br><br>
@@ -6845,7 +7100,7 @@ function renderGame(){
 
   const next=ST.schedule[ST.round], opp=TBYID[next.opp];
   const head=el('div','card');
-  head.innerHTML=`<div class="card-h">${next.round}차전</div>
+  head.innerHTML=`<div class="card-h">${next.po?(next.po==='final'?'단원리그 C 결승':'단원리그 C 준결승'):next.round+'차전'}</div>
     <div class="vs"><span>${next.homeGame?opp.name:'우완좌완'}</span><b>vs</b><span>${next.homeGame?'우완좌완':opp.name}</span></div>
     <div class="gdate">${(ST.calendar&&ST.calendar.label)||''} · ${(PARKS.find(p=>p.id===ST.park)||PARKS[0]).name} · ${(WEATHERS.find(w=>w.id===ST.weather)||WEATHERS[0]).name}</div>
     <div class="daterow"><b>${(ST.calendar&&ST.calendar.label)||''}</b><span>${((WEATHERS.find(w=>w.id===ST.weather)||WEATHERS[0]).name)}</span></div>
@@ -7431,14 +7686,21 @@ function commitGame(res,usSide,thSide,uSlots){
   ST.partyDone = !won;
   ST.mystery = rollMysteryEvent(ST, uSlots);
   rollBossTalk();                    // 내 성적을 보고 감독이 부를지 판정
-  simOtherGames(sch.opp);
+  if(!sch.po) simOtherGames(sch.opp);   // 플레이오프는 네 팀만 뛴다
   applyTraining();
   const mn=releaseMercs(false);       // 용병은 그날로 끝이다
   if(mn)ST.kakaoPost.push({who:'lg',type:'notice',text:`용병 ${mn}명 오늘까지. 다음 주엔 사람 좀 채우자`});
+  gearWearTick().forEach(m=>ST.kakaoPost.push(m));   // 장비는 쓸수록 닳는다
   ST.round++; ST.weekDone=false; ST.events=[];
-  if(ST.round>=ST.schedule.length){ ST.seasonOver=true; ST.feeDue=true; }
+  if(sch.po){
+    advancePlayoff(won,tie,usSide.runs,thSide.runs).forEach(m=>ST.kakaoPost.push(m));
+  } else if(ST.round>=ST.schedule.length){
+    startPlayoff();                      // 정규시즌 끝 — 상위 4팀은 플레이오프로 간다
+  }
   saveGame(true); LIVE=null;
-  go('kakao'); toast(tie?'무승부':(won?'승리':'패배'));
+  go('kakao');
+  toast(sch.po&&ST.playoff&&ST.playoff.place==='우승' ? '우승!'
+    : (tie?'무승부':(won?'승리':'패배')));
 }
 
 function simOtherGames(exclude){
@@ -8667,6 +8929,40 @@ function renderMore(){
   };
   sv.appendChild(e4);
   c.appendChild(sv);
+
+  /* 장비 창고 — 언제든 사고 강화할 수 있다 */
+  const gw=el('div','card');
+  gw.appendChild(el('div','card-h','장비'));
+  gw.appendChild(el('p','muted',
+    `운영비 ${ST.budget.toFixed(0)}만원. 장비는 소모품이라 경기를 치를수록 닳는다. `+
+    `다 닳으면 등급이 한 칸 내려가고, 바닥나면 아예 없어진다. `+
+    `같은 걸 다시 사면 버리는 게 아니라 <b>등급이 올라간다</b> (기본 → 보강 → 최상).`));
+  gw.lastChild.innerHTML=gw.lastChild.textContent
+    .replace('등급이 올라간다','<b>등급이 올라간다</b>');
+  GEAR_ITEMS.forEach(g=>{
+    const lv=gearLv(g.id), cost=gearCost(g.id), maxed=lv>=GEAR_MAX_LV, wear=gearWear(g.id);
+    const row=el('div','gear-row');
+    const pips=[1,2,3].map(i=>`<i class="${i<=lv?'on':''}"></i>`).join('');
+    row.innerHTML=`<div class="gr-top"><b>${g.name}</b><span class="gr-lv">${pips}<em>${gearLabel(g.id)}</em></span></div>
+      <div class="gr-d">${g.desc}</div>
+      <div class="gr-e">${g.effect}${lv?` · 지금 성능 ${(gearPower(g.id)*100).toFixed(0)}%`:''}</div>
+      ${lv?`<div class="gr-wear"><i style="width:${Math.min(100,wear)}%" class="${wear>=80?'bad':wear>=50?'mid':'ok'}"></i></div>
+        <div class="gr-wl">닳은 정도 ${Math.round(wear)}% ${wear>=80?'· 곧 등급이 내려간다':''}</div>`:''}`;
+    const b=el('button','btn'+(maxed?'':' primary'),
+      maxed?'최상 등급':(lv?`강화 · ${cost}만원`:`구매 · ${cost}만원`));
+    if(maxed) b.disabled=true;
+    else b.onclick=()=>{
+      if(ST.budget<cost){ toast(`운영비가 부족하다 (${cost}만원 필요)`); return; }
+      ST.budget-=cost; gearBuy(g.id);
+      if(g.eff.gear)ST.gearLevel=0;
+      ST.kakao=ST.kakao||[];
+      ST.kakao.push({who:'lg',type:'notice',text:`${g.name} — ${gearLabel(g.id)} 등급 (${cost}만원)`});
+      saveGame(true); go('more'); toast(`${g.name} ${gearLabel(g.id)}`);
+    };
+    row.appendChild(b);
+    gw.appendChild(row);
+  });
+  c.appendChild(gw);
 
   const ptm=el('div','card');
   ptm.innerHTML=`<div class="card-h">플레이타임</div>
