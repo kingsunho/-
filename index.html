@@ -3874,8 +3874,8 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.3.1';
-const APP_VERSION_NOTE = '입장 코드 변경';
+const APP_VERSION = '1.3.2';
+const APP_VERSION_NOTE = '직접 지휘에서 지시를 골라도 안 넘어가던 문제 수정';
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
   const a=String(v||'0.0.0').split('.').map(x=>parseInt(x,10)||0);
@@ -4929,6 +4929,11 @@ function LiveGame(cfg){
   this.benchPool = cfg.benchPool||[];   // 나왔는데 라인업엔 못 든 사람들
   this.dpCount=0; this.assists=0; this.wp=0;
   this.hot = !!cfg.hot;
+  /* 판단창은 한 타석에 한 번만 뜬다.
+     예전에는 지시를 고르고 나면 타석을 진행하기도 전에 같은 상황을 다시 검사해서
+     판단창이 곧바로 또 떴다. 유저 입장에서는 "골라도 안 넘어간다"로 보였다.  */
+  this.paSeq = 0;         // 완료된 타석 수
+  this.lastDecPA = -1;    // 마지막으로 판단을 물어본 타석
   this.timeouts = 5;      // 공격 작전 지시 가능 횟수
   this.defTimeouts = 3;   // 수비 판단(고의4구·시프트) 가능 횟수
   this.myId = cfg.myId||null;      // 플레이어가 고른 선수 — 피드 강조용
@@ -5032,6 +5037,8 @@ LiveGame.prototype.curPitcherNext = function(s){
 /* 판단 지점 탐지 */
 LiveGame.prototype.detectDecision = function(){
   if(this.pending) return this.pending;
+  // 이 타석에서 이미 물어봤으면 타석이 끝날 때까지 다시 묻지 않는다
+  if(this.paSeq===this.lastDecPA) return null;
   const off=this.off();
 
   /* 우리가 수비 중일 때의 판단 지점 — 투수 교체·고의4구·시프트 */
@@ -5121,7 +5128,7 @@ LiveGame.prototype.step = function(){
   const offWasUser=this.off().isUser;
   this._paDone=false;
   const r=this.stepPA();
-  if(this._paDone) this.tickTactics(offWasUser);
+  if(this._paDone){ this.paSeq++; this.tickTactics(offWasUser); }
   return r;
 };
 
@@ -5507,6 +5514,7 @@ LiveGame.prototype.applyDecision = function(choice){
   const s=this.userSide();
   const p=this.pending;
   this.pending=null;
+  this.lastDecPA=this.paSeq;          // 이 타석은 물어봤다
   if(p && p.kind==='pitcherChange'){
     if(choice==='change'){
       const old=this.curPitcher(p.side).name;
@@ -5523,13 +5531,13 @@ LiveGame.prototype.applyDecision = function(choice){
     if(!this.userPitcherChange()) this.log.push({t:'sub',text:'바꿀 투수가 없다'});
     return;
   }
-  if(choice==='ibb'){ this.defTimeouts--; this.intentionalWalk(); return; }
-  if(choice==='shift'){ this.defTimeouts--; this.setShift(true); return; }
+  if(choice==='ibb'){ this.defTimeouts=Math.max(0,this.defTimeouts-1); this.intentionalWalk(); return; }
+  if(choice==='shift'){ this.defTimeouts=Math.max(0,this.defTimeouts-1); this.setShift(true); return; }
   if(choice==='unshift'){ this.setShift(false); return; }
-  if(choice==='defnone'){ this.defTimeouts--; this.log.push({t:'sub',text:'그대로 간다'}); return; }
+  if(choice==='defnone'){ this.defTimeouts=Math.max(0,this.defTimeouts-1); this.log.push({t:'sub',text:'그대로 간다'}); return; }
 
   /* ---- 공격 작전 ---- 전부 유효 타석 수가 붙는다 (무한 지속 버그 수정) */
-  this.timeouts--;
+  this.timeouts=Math.max(0,this.timeouts-1);
   if(choice==='bunt'){
     s.tac.bat='contact'; this._buntRun=false; this.tacTTL.bat=1;
     this.log.push({t:'sub',text:'작전: 번트 · 진루타 지시 (1타석)'});
@@ -8762,7 +8770,10 @@ function runLive(){
 }
 
 /* 판단창을 닫고 경기를 다시 굴린다 */
-function decDone(box){ box.classList.remove('on'); box.innerHTML=''; flushLog(); updateLiveUI(); runLive(); }
+function decDone(box){
+  if(LIVE) LIVE.lastDecPA=LIVE.paSeq;      // 이 타석은 끝났다고 표시
+  box.classList.remove('on'); box.innerHTML=''; flushLog(); updateLiveUI(); runLive();
+}
 
 /* 감독 액션 버튼 — 물통 차기 등. 판단창 양쪽에 붙는다 */
 function mgrBtn(box){
@@ -8859,7 +8870,7 @@ function showDecision(d){
     const g=el('div','dec-g');
     [['change',`${d.to} 투입`],['stay',`${d.from} 계속`]].forEach(([v,n])=>{
       const b=el('button','decb',n);
-      b.onclick=()=>{LIVE.applyDecision(v);box.classList.remove('on');box.innerHTML='';flushLog();runLive();};
+      b.onclick=()=>{LIVE.applyDecision(v);decDone(box);};
       g.appendChild(b);
     });
     box.appendChild(g); return;
@@ -8911,7 +8922,7 @@ function showDecision(d){
           rr.innerHTML=`<div class="pk-l"><div class="pk-name">${POSNAMES[pos]}</div>
             <div class="pk-note">${f<=0?'불가':f>=45?'주 포지션':'익숙하지 않다'}</div></div>
             <div class="pk-r"><div class="pk-stat">${f>0?f:'—'}</div></div>`;
-          if(f>0) rr.onclick=()=>{LIVE.movePos(i,pos);closeSheet();box.classList.remove('on');box.innerHTML='';flushLog();runLive();};
+          if(f>0) rr.onclick=()=>{LIVE.movePos(i,pos);closeSheet();decDone(box);};
           body.appendChild(rr);
         });
       };
@@ -8934,7 +8945,7 @@ function showDecision(d){
         r.innerHTML=`<div class="pk-l"><div class="pk-name">${p.name}</div>
           <div class="pk-note">${condLabel(ST.cond[p.id]||70)} · ${META[p.id]?META[p.id].traits.join(' '):''}</div></div>
           <div class="pk-r">${starHTML(effCA(p.id))}</div>`;
-        r.onclick=()=>{LIVE.pinchHit(p.id);closeSheet();box.classList.remove('on');box.innerHTML='';flushLog();runLive();};
+        r.onclick=()=>{LIVE.pinchHit(p.id);closeSheet();decDone(box);};
         body.appendChild(r);
       });
       $('#sheet').classList.add('open');
