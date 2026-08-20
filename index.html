@@ -441,6 +441,8 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .pf-name{font-size:21px;font-weight:800;letter-spacing:-.02em;display:flex;
   align-items:baseline;gap:7px;flex-wrap:wrap}
 .pf-nick{font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0}
+.pf-me{font-size:10px;font-weight:800;letter-spacing:0;color:#0d1015;background:var(--gold);
+  border-radius:4px;padding:2px 6px;align-self:center}
 .pf-sub{font-size:12px;color:var(--dim);margin:3px 0 7px}
 .pf-stars{display:flex;align-items:center;gap:6px;margin:1px 0}
 .pf-stars .lbl{font-size:10px;color:var(--dim);width:26px}
@@ -2966,7 +2968,7 @@ function kakaoOptions(ST, phase){
        us.players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-3));
        return react('review'); }},
     {id:'scold',label:T('오늘 집중력이 없었어요','오늘 집중력이 없었다'),
-     desc:'전원 사기 하락 · 불만러 이탈 위험',
+     desc:'전원 사기 하락 · 예민한 선수는 크게 삐진다',
      run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-7));
        const c=us.players.find(p=>META[p.id]&&META[p.id].traits.includes('불만러'));
        if(c&&ST.unhappy&&ST.unhappy[c.id])ST.unhappy[c.id].level=Math.min(4,ST.unhappy[c.id].level+1);
@@ -5046,7 +5048,7 @@ function renderPick(){
   };
   const roleLabel=p=>{
     const m=META[p.id]; if(!m)return '';
-    const show=(m.traits||[]).filter(t=>['안방마님','리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형'].includes(t));
+    const show=shownTraits(p.id).filter(t=>['안방마님','리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형'].includes(t));
     return show.slice(0,2).join(' · ');
   };
   us.players.forEach(p=>{
@@ -5743,11 +5745,18 @@ function clayAvatar(pid){
         <circle cx="60" cy="27" r="3.4" fill="#26314c"/>`:''}
     </g></svg>`;
 }
+/* 화면에 띄우지 않는 특성.
+   실제 사람이 하는 게임이라 대놓고 라벨로 붙이면 곤란한 것들이다.
+   엔진에서는 그대로 돌아가고 표시만 뺀다.                              */
+const HIDDEN_TRAITS=['불만러'];
+function shownTraits(pid){
+  const m=META[pid]; if(!m)return [];
+  return (m.traits||[]).filter(t=>HIDDEN_TRAITS.indexOf(t)<0);
+}
 /* 별명 — 선수를 한마디로 설명하는 특성 하나를 골라 쓴다 */
-const NICK_TRAITS=['안방마님','리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형','불만러','과묵','노력파'];
+const NICK_TRAITS=['안방마님','리더','감독','에이스','분석가','코치','좌완','유틸','장타형','주루형','과묵','노력파'];
 function nickOf(pid){
-  const m=META[pid]; if(!m)return '';
-  return (m.traits||[]).find(t=>NICK_TRAITS.indexOf(t)>=0)||'';
+  return shownTraits(pid).find(t=>NICK_TRAITS.indexOf(t)>=0)||'';
 }
 function avatarHTML(pid){
   return PHOTOS[pid]
@@ -5819,9 +5828,11 @@ function personaLines(pid){
   out.push(['회식', DRINK_LABEL[Math.min(3,m.drink||0)]]);
   out.push(['이동', m.car?'차가 있다. 다른 선수를 태우고 온다':'차가 없다. 누군가 태워줘야 한다']);
   if(m.school) out.push(['출신', m.school]);
-  const bd=bondOf(pid);
-  out.push(['나와의 관계', `${bondLabel(bd)} (${Math.round(bd)})`]);
-  out.push(['팀 애착', m.loyal>=80?'아주 높다':m.loyal>=70?'높다':m.loyal>=55?'보통':'낮다']);
+  if(pid===(ST.playerId||MYID)) out.push(['나와의 관계','나']);
+  else {
+    const bd=bondOf(pid);
+    out.push(['나와의 관계', `${bondLabel(bd)} (${Math.round(bd)})`]);
+  }
   return out;
 }
 
@@ -5847,7 +5858,7 @@ function renderPlayer(){
   head.innerHTML=`
     <div class="pf-photo-wrap">${avatarHTML(p.id)}</div>
     <div class="pf-id">
-      <div class="pf-name">${p.name}${nickOf(p.id)?`<span class="pf-nick">'${nickOf(p.id)}'</span>`:''}</div>
+      <div class="pf-name">${p.name}${p.id===(ST.playerId||MYID)?'<span class="pf-me">나</span>':''}${nickOf(p.id)?`<span class="pf-nick">'${nickOf(p.id)}'</span>`:''}</div>
       <div class="pf-sub">${2026-m.born}세 · ${p.bats==='L'?'좌타':'우타'} / ${m.throws==='L'?'좌투':'우투'}
         · ${main?POSNAMES[main]:'—'}</div>
       <div class="pf-stars"><span class="lbl">현재</span>${starHTML(ca)}</div>
@@ -5928,7 +5939,7 @@ function renderPlayer(){
   const sc=el('div','card');
   sc.appendChild(el('div','card-h','성격'));
   const tw=el('div','pf-traits');
-  (m.traits||[]).forEach(t=>{
+  shownTraits(p.id).forEach(t=>{
     const d=el('div','pf-tr');
     d.innerHTML=`<b>${t}</b><span>${TRAIT_INFO[t]||''}</span>`;
     tw.appendChild(d);
@@ -6014,7 +6025,7 @@ function renderSquad(){
         <div class="pc-val">${wonStr(val)}${valDelta(p.id,val)}</div>
       </div>
       <div class="pc-stars"><span class="lbl">현재</span>${starHTML(ca)}<span class="lbl">잠재</span>${starHTML(pa,true)}</div>
-      <div class="pc-traits">${m.traits.filter(t=>!['카풀','좌투','금주'].includes(t)).map(t=>`<span class="trait">${t}</span>`).join('')}</div>
+      <div class="pc-traits">${shownTraits(p.id).filter(t=>!['카풀','좌투','금주'].includes(t)).map(t=>`<span class="trait">${t}</span>`).join('')}</div>
       <div class="pc-bars">
         <div><span>컨디션</span><div class="mini"><i class="${condCls(ST.cond[p.id]||70)}" style="width:${ST.cond[p.id]||70}%"></i></div><b>${condLabel(ST.cond[p.id]||70)}</b></div>
         <div><span>사기</span><div class="mini"><i class="${(ST.morale[p.id]||70)>=70?'ok':(ST.morale[p.id]||70)>=50?'mid':'bad'}" style="width:${ST.morale[p.id]||70}%"></i></div><b>${moraleLabel(ST.morale[p.id]||70)}</b></div>
@@ -8643,7 +8654,7 @@ function renderMore(){
 
   const tr=el('div','card');
   tr.appendChild(el('div','card-h','특성 설명'));
-  Object.keys(TRAIT_INFO).forEach(k=>{
+  Object.keys(TRAIT_INFO).filter(k=>HIDDEN_TRAITS.indexOf(k)<0).forEach(k=>{
     const row=el('div','trait-row');
     row.innerHTML=`<span class="trait">${k}</span><span class="td">${TRAIT_INFO[k]}</span>`;
     tr.appendChild(row);
