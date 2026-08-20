@@ -470,6 +470,19 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .po-log{font-size:11px;color:var(--dim);padding:3px 0;border-bottom:1px solid var(--line)}
 .po-next{margin-top:8px;font-size:13px;font-weight:700;color:var(--gold)}
 .po-fin{margin-top:8px;font-size:16px;font-weight:800;color:var(--gold)}
+.ftag{font-size:12px;margin-left:4px}
+.hall-pick{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+.hall-p{background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+  border-radius:14px;padding:5px 10px;font-size:11px;font-family:inherit;cursor:pointer}
+.hall-p.on{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.12)}
+.hall-p em{font-style:normal;margin-left:4px;color:var(--gold);font-weight:700}
+.tro-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:7px;padding:7px 9px}
+.tro{background:linear-gradient(160deg,#1b2d47,#101c2e);border:1px solid #24374f;
+  border-radius:7px;padding:9px 5px;text-align:center}
+.tro-i{font-size:24px;line-height:1.1}
+.tro-l{font-size:11px;font-weight:700;color:#f0d9c6;margin-top:3px}
+.tro-v{font-size:10px;color:#8194ad;margin-top:1px}
+.tro-w{font-size:9px;color:#5f7791;margin-top:3px}
 .ot-nm{flex:1 1 auto;min-width:0}
 .ot-n1{font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.15;
   display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -819,7 +832,7 @@ const WWZW = [
    real:{g:12,pa:37,ab:33,h:17,d2:0,d3:3,hr:1,bb:4,hbp:0,k:7,sb:11,cs:0,rbi:15,r:17},
    note:'팀 최다 안타·타점·득점. 실책 8개'},
   {id:'lg',name:'이건',bats:'R',con:80,pow:48,eye:44,spd:70,def:55,arm:45,
-   pos:['CF','C','LF'],pitch:{stf:28,ctl:18,sta:38},
+   pos:['CF','LF','C'],pitch:{stf:28,ctl:18,sta:38},
    real:{g:13,pa:37,ab:29,h:15,d2:2,d3:2,hr:0,bb:2,hbp:6,k:1,sb:13,cs:1,rbi:3,r:17},
    note:'전 경기 출장. 37타석 삼진 1개'},
   {id:'kig',name:'김인규',bats:'R',con:63,pow:64,eye:30,spd:24,def:50,arm:62,
@@ -864,9 +877,9 @@ const WWZW = [
    real:{g:5,pa:12,ab:10,h:1,d2:0,d3:0,hr:0,bb:2,hbp:0,k:6,sb:1,cs:0,rbi:0,r:3},
    note:'리틀야구단 출신. 수비 지도 자원'},
   {id:'lmh',name:'이민혁',bats:'R',con:12,pow:16,eye:14,spd:25,def:35,arm:45,
-   pos:['C','LF','1B'],pitch:null,
+   pos:['LF','1B','C'],pitch:null,
    real:{g:5,pa:12,ab:12,h:0,d2:0,d3:0,hr:0,bb:0,hbp:0,k:11,sb:0,cs:0,rbi:0,r:0},
-   note:'12타석 삼진 11개'},
+   note:'12타석 삼진 11개. 포수 출장은 1이닝'},
 ];
 
 /* ---------- 23팀 실측 데이터 ----------
@@ -1320,14 +1333,14 @@ const META = {
   swm:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:0.54,loyal:88,pot:6,
     traits:['리더','에이스','성실','유틸'],friends:['lg','jms','ujh'],rival:null,
     coach:{all:70},
-    pos:PR({P:70,'1B':62,C:58,'2B':0,'3B':0,SS:0,LF:0,CF:0,RF:0}),
+    pos:PR({P:70,'1B':62,C:61,'2B':0,'3B':0,SS:0,LF:0,CF:0,RF:0}),
     desc:'투타 겸업 에이스. 포수·내야 어디든 선다.'},
 
   lg:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:1.0,loyal:92,pot:4,
     traits:['리더','감독','철강','장비담당'],friends:['swm','jms','ujh'],rival:null,
     coach:{out:72},
-    pos:PR({CF:75,LF:68,RF:68,P:40,'2B':42,'3B':42,SS:38,'1B':0,C:0}),
-    desc:'감독 겸 중견수. 포수 장비를 항상 이 사람이 챙긴다.'},
+    pos:PR({CF:75,LF:68,RF:68,P:40,'2B':42,'3B':42,SS:38,C:26,'1B':0}),
+    desc:'감독 겸 중견수. 포수 장비를 항상 이 사람이 챙긴다. 급하면 네 번째 포수로 앉는다.'},
 
   jms:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:0.62,loyal:85,pot:4,
     traits:['성실','균형타구'],friends:['lg','swm','ujh'],rival:null,coach:{},
@@ -1337,7 +1350,7 @@ const META = {
   yjh:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:3,attend:0.54,loyal:74,pot:3,
     traits:['백업포수','외야미숙','포수부담'],friends:['ujh','kig'],rival:null,coach:{},
     pos:PR({'1B':50,'3B':46,LF:36,RF:36,C:44,'2B':0,SS:0,CF:0,P:0}),
-    desc:'1루·백업 포수. 포수가 빠지면 장비를 챙겨 입는다.'},
+    desc:'1루·세 번째 포수. 앞의 둘이 빠지면 장비를 챙겨 입는다.'},
 
   ujh:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:0.46,loyal:80,pot:3,
     traits:['과묵','수비약점'],friends:['yjh'],rival:null,coach:{},
@@ -1351,9 +1364,9 @@ const META = {
     desc:'리틀야구단 출신. 내야 수비 지도를 맡는다. 술은 안 마신다.'},
 
   lmh:{born:1999,speech:'ban',throws:'R',car:false,school:'군포고',drink:2,attend:0.38,loyal:84,pot:4,
-    traits:['제3포수','노력파'],friends:['ujh','khj'],rival:null,coach:{},
-    pos:PR({C:38,LF:20,RF:20,'1B':18,'2B':0,'3B':0,SS:0,CF:0,P:0}),
-    desc:'제3포수 자원. 타격은 미완이지만 성실하다.'},
+    traits:['노력파'],friends:['ujh','khj'],rival:null,coach:{},
+    pos:PR({C:12,LF:20,RF:20,'1B':18,'2B':0,'3B':0,SS:0,CF:0,P:0}),
+    desc:'포수는 딱 1이닝 앉아본 게 전부다. 타격은 미완이지만 성실하다.'},
 
   ksh:{born:2000,speech:'jon',throws:'R',car:true,school:'흥진고',drink:2,attend:0.92,loyal:82,pot:8,
     traits:['주루형','카풀'],friends:['kjh','ksw','ksn'],rival:null,coach:{},
@@ -1451,7 +1464,6 @@ const TRAIT_INFO = {
   '코치':'훈련 효과를 높인다',
   '리틀출신':'정식 유소년 경력',
   '헌신':'팀을 우선한다',
-  '제3포수':'포수 뎁스',
   '노력파':'훈련 효과가 좋다',
   '홈보살':'3루 주자가 홈으로 뛰면 10% 확률로 잡아낸다',
   '농구':'경기 전 농구를 하고 오면 주루가 오른다',
@@ -1559,6 +1571,9 @@ function playerValue(p, meta, st){
     if(meta.pos['P']>=50) v*=1.16;
   }
   if(p.bats==='L') v*=1.08;
+  /* 상을 받으면 값이 붙는다. 한 번에 3%씩, 최대 30%. */
+  if(typeof ST!=='undefined'&&ST&&ST.awardBonus&&ST.awardBonus[p.id])
+    v *= 1 + Math.min(0.30, ST.awardBonus[p.id]*0.03);
   if(meta&&meta.traits){
     if(meta.traits.includes('유리몸'))v*=0.86;
     if(meta.traits.includes('리더'))v*=1.06;
@@ -2362,6 +2377,7 @@ function applyWeekEvents(ST,evts){
         break;
     }
   });
+  applyFormBuff(ST);          // 슬럼프·뜨거운 감각을 이번 주 버프에 얹는다
   return rained;
 }
 
@@ -2391,7 +2407,7 @@ function applyFriendship(ST){
    축구·벤치·하위타순·대패 같은 게 '불씨'로 조용히 쌓이다가,
    정작 마음에 안 드는 일이 또 생기는 날 한꺼번에 터진다.
    그래서 축구 이벤트는 불씨만 남기고, 터지는 판정은 경기가 끝난 뒤에 한다.       */
-const SPARK_LABEL={축구:'축구',벤치:'벤치',하위타순:'하위 타순',대패:'대패'};
+const SPARK_LABEL={축구:'축구',벤치:'벤치',하위타순:'하위 타순',대패:'대패',회비:'회비'};
 function addSpark(ST,pid,why,amt){
   if(!ST.spark)ST.spark={};
   const sp=ST.spark[pid]||(ST.spark[pid]={n:0,why:[]});
@@ -3377,19 +3393,7 @@ const DUES_LEAD=[
    ST.gear[id] = {lv:1~3, wear:0~100}                                     */
 const GEAR_MAX_LV = 3;
 function gearSlot(id){
-  if(ST.playoff===undefined)ST.playoff=null;
   if(!ST.gear)ST.gear={};
-  // 예전 세이브는 장비가 true/false 였다. 등급 구조로 옮긴다.
-  Object.keys(ST.gear).forEach(id=>{
-    const v=ST.gear[id];
-    if(!GEAR_ITEMS.some(g=>g.id===id)){ delete ST.gear[id]; return; }
-    if(v===true){ ST.gear[id]={lv:1,wear:0}; return; }
-    if(!v||typeof v!=='object'){ delete ST.gear[id]; return; }
-    if(v.lv==null)v.lv=1;
-    if(v.wear==null)v.wear=0;
-    v.lv=Math.max(0,Math.min(GEAR_MAX_LV,v.lv));
-    if(v.lv<=0)delete ST.gear[id];
-  });
   const v=ST.gear[id];
   if(v===true) return (ST.gear[id]={lv:1,wear:0});        // 예전 세이브 보정
   if(!v||typeof v!=='object') return null;
@@ -3459,17 +3463,33 @@ function gearWearTick(){
 }
 
 /* 회비 걷기 — 부족한 금액을 인원수로 나눠 걷는다 */
+/* 선수단 총 가치 → 회비 경감.
+   좋은 선수가 많으면 대회 초청·스폰서·용병 수입이 붙어서 회비를 덜 걷는다.
+   가치 400만원을 기준으로 최대 30%까지 깎인다.                        */
+function squadValue(){
+  return TBYID['wwzw'].players.reduce((a,p)=>
+    a + (isMerc(p.id)?0:playerValue(p,META[p.id],ST.bat[p.id])), 0);
+}
+function duesRelief(){
+  const v=squadValue();
+  return Math.max(0, Math.min(0.30, (v-150)/250*0.30));
+}
 function collectDues(need){
   const us=TBYID['wwzw'];
   const n=us.players.filter(p=>!isMerc(p.id)).length||1;
-  const per=Math.ceil(need/n);
+  const relief=duesRelief();
+  const cut=Math.round(need*relief);
+  const per=Math.ceil(Math.max(1,need-cut)/n);
   const total=per*n;
   ST.budget+=total;
   ST.duesCount=(ST.duesCount||0)+1;
   const msgs=[{who:'lg',type:'notice',
-    text:`회비 ${per}만원씩 걷습니다 (${n}명 · ${total}만원)\n${pickOne(DUES_LEAD)}`}];
-  // 다들 투덜대지만 결국 낸다. 사기는 조금씩 깎인다.
-  const drop = 3 + Math.min(6, (ST.duesCount||1)-1)*2;
+    text:`회비 ${per}만원씩 걷습니다 (${n}명 · ${total}만원)`
+      +(cut>0?`\n선수단 가치가 높아 ${cut}만원은 초청·스폰서로 메웠다 (-${(relief*100).toFixed(0)}%)`:'')
+      +`\n${pickOne(DUES_LEAD)}`}];
+  // 다들 투덜대지만 결국 낸다. 자주 걷을수록, 많이 걷을수록 사기가 깎인다.
+  let drop = 3 + Math.min(6, (ST.duesCount||1)-1)*2;
+  drop = Math.max(1, Math.round(drop*(1-relief)));
   const spk=speakers(ST, null, 3+((Math.random()*2)|0), Math.random);
   spk.forEach((p,i)=>{
     const pool = i===0?DUES_ANGRY:(Math.random()<0.5?DUES_ANGRY:DUES_OK);
@@ -3480,12 +3500,232 @@ function collectDues(need){
     if(isMerc(p.id))return;
     ST.morale[p.id]=Math.max(10,(ST.morale[p.id]||70)-drop);
     if(ST.bond)ST.bond[p.id]=Math.max(0,(ST.bond[p.id]!=null?ST.bond[p.id]:50)-2);
+    // 세 번째부터는 돈 얘기가 불씨로 쌓인다
+    if((ST.duesCount||0)>=3) addSpark(ST,p.id,'회비',1);
   });
-  msgs.push({who:'lg',type:'notice',text:`전원 사기 -${drop} · 걷은 돈 ${total}만원`});
-  return {per,n,total,drop,msgs};
+  msgs.push({who:'lg',type:'notice',
+    text:`전원 사기 -${drop} · 걷은 돈 ${total}만원`
+      +((ST.duesCount||0)>=3?'\n또 걷었다. 슬슬 눈치가 보인다':'')});
+  return {per,n,total,drop,msgs,cut};
+}
+
+/* ================= 폼 — 슬럼프와 뜨거운 감각 =================
+   몇 타석 연속 못 치면 눈이 풀리고(👀), 연속으로 맞히면 방망이가 뜨겁다(🔥).
+   경기 기록에서 누적으로 세기 때문에 경기를 건너뛰어도 이어진다.        */
+const FORM_HOT='🔥', FORM_COLD='👀';
+const HOT_HITS=5;      // 최근 안타 5개가 이어지면 뜨겁다
+const COLD_AB=8;       // 무안타 타수 8개가 이어지면 슬럼프
+const HOT_APP=2;       // 투수는 두 번 연속 잘 던지면
+const COLD_APP=2;      // 두 번 연속 무너지면
+
+function formSlot(pid){
+  if(!ST.form)ST.form={};
+  if(!ST.form[pid])ST.form[pid]={hot:0,cold:0,phot:0,pcold:0};
+  return ST.form[pid];
+}
+/* '' | '🔥' | '👀' */
+function formTag(pid){
+  const f=(ST&&ST.form)?ST.form[pid]:null; if(!f)return '';
+  if(f.hot>=HOT_HITS||f.phot>=HOT_APP)return FORM_HOT;
+  if(f.cold>=COLD_AB||f.pcold>=COLD_APP)return FORM_COLD;
+  return '';
+}
+function formLabel(pid){
+  const t=formTag(pid);
+  if(t===FORM_HOT)return '감각이 올라와 있다';
+  if(t===FORM_COLD)return '슬럼프다';
+  return '';
+}
+/* 타격 배수 */
+function formBatMul(pid){
+  const f=(ST&&ST.form)?ST.form[pid]:null; if(!f)return 1;
+  if(f.hot>=HOT_HITS)return 1.08;
+  if(f.cold>=COLD_AB)return 0.92;
+  return 1;
+}
+/* 투구 배수 */
+function formPitMul(pid){
+  const f=(ST&&ST.form)?ST.form[pid]:null; if(!f)return 1;
+  if(f.phot>=HOT_APP)return 1.07;
+  if(f.pcold>=COLD_APP)return 0.93;
+  return 1;
+}
+/* 경기가 끝나면 그날 성적으로 폼을 갱신한다 */
+function updateForm(ST, res, uSlots){
+  if(!ST.form)ST.form={};
+  const msgs=[];
+  const before={};
+  TBYID['wwzw'].players.forEach(p=>{ before[p.id]=formTag(p.id); });
+
+  uSlots.forEach(sl=>{
+    const b=res.box&&res.box[sl.id]; if(!b||!b.ab)return;
+    const f=formSlot(sl.id);
+    if(b.h>0){ f.cold=0; f.hot+=b.h; }
+    else { f.hot=0; f.cold+=b.ab; }
+  });
+  (ST.gameRotation||[]).forEach(pid=>{
+    const l=res.pbox&&res.pbox[pid]; if(!l||l.outs<3)return;
+    const f=formSlot(pid);
+    const free=(l.bb||0)+(l.hbp||0);
+    if(l.er<=1&&free<=2){ f.pcold=0; f.phot++; }
+    else if(l.er>=3||free>=4){ f.phot=0; f.pcold++; }
+    else { f.phot=0; f.pcold=0; }
+  });
+
+  /* 상태가 바뀐 사람만 단톡에 알린다 */
+  TBYID['wwzw'].players.forEach(p=>{
+    const now=formTag(p.id);
+    if(now===before[p.id])return;
+    if(now===FORM_HOT) msgs.push({who:p.id,type:'notice',
+      text:`${FORM_HOT} ${p.name} — 감각이 올라왔다`});
+    else if(now===FORM_COLD) msgs.push({who:p.id,type:'notice',
+      text:`${FORM_COLD} ${p.name} — 슬럼프다`});
+    else if(before[p.id]) msgs.push({who:p.id,type:'notice',
+      text:`${p.name} — 폼이 평소로 돌아왔다`});
+  });
+  return msgs;
+}
+/* 주간 버프에 폼을 얹는다. ST.buff 는 매주 초기화되므로 여기서 다시 붙인다. */
+function applyFormBuff(ST){
+  if(!ST.form)return;
+  TBYID['wwzw'].players.forEach(p=>{
+    const m=formBatMul(p.id); if(m===1)return;
+    const cur=ST.buff[p.id];
+    if(cur) cur.all=(cur.all||1)*m;
+    else ST.buff[p.id]={all:m,label:m>1?'뜨거운 감각':'슬럼프'};
+  });
 }
 
 /* ================= 시상식 ================= */
+/* ================= 5경기 시상 =================
+   5경기마다 구간 시상을 한다. 상을 받으면 사기가 오르고 몸값이 조금 붙는다.
+   받은 상은 전시장(트로피)에 그대로 쌓인다.                            */
+const MINI_LABELS={mvp:'구간 MVP',bat:'타자상',avg:'타율상',pit:'투수상',
+  mgr:'감독상',sb:'주루상'};
+const AWARD_CHEER=[
+  ['축하한다 진짜','축하드립니다 진짜'],
+  ['이건 받을 만했다','이건 받으실 만했습니다'],
+  ['다음 구간도 부탁한다','다음 구간도 부탁드립니다'],
+  ['오늘 저녁은 니가 사는 거다','오늘 저녁은 쏘시는 겁니다'],
+];
+const AWARD_OPP=[
+  ['우완좌완 요새 무섭네요 축하합니다','우완좌완 요새 무섭네요 축하합니다'],
+  ['기록 보고 놀랐습니다. 축하드려요','기록 보고 놀랐습니다. 축하드려요'],
+  ['다음에 붙을 때 각오하겠습니다 ㅋㅋ','다음에 붙을 때 각오하겠습니다 ㅋㅋ'],
+];
+/* 내가 받았을 때 고를 수 있는 대답 — 팀 사기가 달라진다 */
+const AWARD_REPLIES=[
+  {k:'team', label:'팀 덕분이다', d:'전원 사기 +5',
+   line:['나 혼자 한 거 아니다. 다들 덕분이다','저 혼자 한 거 아닙니다. 다들 덕분입니다'], mor:5, bond:2},
+  {k:'humble', label:'운이 좋았다', d:'전원 사기 +2',
+   line:['운이 좋았다. 다음에도 이러란 법 없다','운이 좋았습니다. 다음에도 이러란 법 없죠'], mor:2, bond:1},
+  {k:'brag', label:'내가 좀 하긴 하지', d:'본인 사기 +8 · 나머지 -3',
+   line:['뭐 내가 좀 하긴 하지','뭐 제가 좀 하긴 하죠'], mor:-3, bond:-2, self:8},
+];
+
+function blankSnap(){
+  const o={bat:{},pit:{}};
+  TBYID['wwzw'].players.forEach(p=>o.bat[p.id]={...(ST.bat[p.id]||blankBat())});
+  TBYID['wwzw'].pitchers.forEach(p=>o.pit[p.id]={...(ST.pit[p.id]||blankPit())});
+  return o;
+}
+function snapDiff(now, then, keys){
+  const o={}; keys.forEach(k=>o[k]=(now[k]||0)-((then&&then[k])||0)); return o;
+}
+/* 구간 성적을 뽑아 상을 정한다 */
+function runMiniAwards(ST){
+  const us=TBYID['wwzw'];
+  const snap=ST.awardSnap;
+  const B={}, P={};
+  const BK=['g','pa','ab','h','d2','d3','hr','bb','hbp','k','rbi','r','sb'];
+  const PK=['g','outs','h','r','er','bb','hbp','k','w'];
+  us.players.forEach(p=>{ if(!isMerc(p.id)) B[p.id]=snapDiff(ST.bat[p.id]||blankBat(),snap&&snap.bat[p.id],BK); });
+  us.pitchers.forEach(p=>{ P[p.id]=snapDiff(ST.pit[p.id]||blankPit(),snap&&snap.pit[p.id],PK); });
+
+  const won=[];
+  const give=(kind,pid,value)=>{ if(!pid||won.some(w=>w.pid===pid))return; won.push({kind,pid,value}); };
+  const best=(obj,filt,score)=>{
+    const ids=Object.keys(obj).filter(id=>filt(obj[id]));
+    if(!ids.length)return null;
+    return ids.sort((a,b)=>score(obj[b])-score(obj[a]))[0];
+  };
+  const opsOf=b=>{
+    const ab=b.ab||0, pa=b.pa||0; if(!pa)return 0;
+    const tb=(b.h||0)+(b.d2||0)+2*(b.d3||0)+3*(b.hr||0);
+    return (((b.h||0)+(b.bb||0)+(b.hbp||0))/pa) + (ab?tb/ab:0);
+  };
+  give('mvp', best(B,b=>b.pa>=5,opsOf), b=>b);
+  give('avg', best(B,b=>b.ab>=6,b=>b.h/b.ab), null);
+  give('bat', best(B,b=>b.h>=1,b=>(b.h||0)*1.0+(b.rbi||0)*0.8), null);
+  give('sb',  best(B,b=>(b.sb||0)>=2,b=>b.sb), null);
+  give('pit', best(P,l=>l.outs>=6,l=>-((l.er*7)/(l.outs/3))), null);
+  give('mgr', best(B,b=>b.pa>=4,b=>(b.rbi||0)+(b.r||0)), null);
+
+  /* 값 문구 채우기 */
+  won.forEach(w=>{
+    const b=B[w.pid], l=P[w.pid];
+    if(w.kind==='mvp') w.value=`OPS ${opsOf(b).toFixed(3)}`;
+    else if(w.kind==='avg') w.value=`타율 ${fmt3(b.h/b.ab)}`;
+    else if(w.kind==='bat') w.value=`${b.h}안타 ${b.rbi}타점`;
+    else if(w.kind==='sb') w.value=`${b.sb}도루`;
+    else if(w.kind==='pit') w.value=`ERA ${(l.outs?((l.er*7)/(l.outs/3)):0).toFixed(2)}`;
+    else if(w.kind==='mgr') w.value=`${b.rbi}타점 ${b.r}득점`;
+  });
+
+  const at=ST.schedule.filter(x=>x.played&&!x.po).length;
+  if(!Array.isArray(ST.hall))ST.hall=[];
+  if(!ST.awardBonus)ST.awardBonus={};
+  const msgs=[];
+  const meId=ST.playerId||MYID;
+
+  won.forEach(w=>{
+    const label=MINI_LABELS[w.kind]||'수상';
+    ST.hall.push({season:ST.seasonNo||1, year:ST.year||2026, at, kind:w.kind,
+      label, pid:w.pid, name:nameOf(w.pid), value:w.value, scope:'구간'});
+    ST.awardBonus[w.pid]=(ST.awardBonus[w.pid]||0)+1;
+    ST.morale[w.pid]=Math.min(100,(ST.morale[w.pid]||70)+7);
+    if(ST.bond&&w.pid!==meId)ST.bond[w.pid]=Math.min(100,(ST.bond[w.pid]||50)+1);
+    msgs.push({who:'lg',type:'notice',
+      text:`${at}경기 구간 시상 — ${label}\n${nameOf(w.pid)} · ${w.value}\n사기 +7 · 몸값 상승`});
+    /* 축하 — 이건이 하고, 이건이 받으면 송승민이 한다 */
+    const cheerer = (w.pid==='lg') ? 'swm' : 'lg';
+    if(us.players.some(x=>x.id===cheerer)){
+      const c=pickOne(AWARD_CHEER);
+      msgs.push({who:cheerer, text:sayTo(cheerer, w.pid, c[0], c[1]), mood:'happy'});
+    }
+    /* 아주 가끔 다른 팀에서도 축하가 온다 */
+    if(Math.random()<0.22){
+      const other=TEAMS.filter(t=>t.id!=='wwzw');
+      const t=pickOne(other);
+      const l2=pickOne(AWARD_OPP);
+      msgs.push({who:'lg',type:'notice',text:`${t.name}에서 단톡방에 연락이 왔다\n"${l2[0]}"`});
+    }
+  });
+
+  /* 내가 받았으면 대답을 골라야 한다 */
+  const mine=won.find(w=>w.pid===meId);
+  if(mine) ST.awardReply={label:MINI_LABELS[mine.kind]||'수상', value:mine.value};
+
+  ST.awardSnap=blankSnap();
+  return msgs;
+}
+/* 대답을 고르면 팀 분위기가 달라진다 */
+function answerAward(k){
+  const r=AWARD_REPLIES.find(x=>x.k===k); if(!r)return;
+  const us=TBYID['wwzw'], meId=ST.playerId||MYID;
+  ST.kakao=ST.kakao||[];
+  ST.kakao.push({who:meId, text:sayTo(meId,'lg',r.line[0],r.line[1]),
+    mood:r.k==='brag'?'flat':'happy'});
+  us.players.forEach(p=>{
+    if(p.id===meId){ if(r.self)ST.morale[p.id]=Math.min(100,(ST.morale[p.id]||70)+r.self); return; }
+    ST.morale[p.id]=Math.max(10,Math.min(100,(ST.morale[p.id]||70)+r.mor));
+    if(ST.bond)ST.bond[p.id]=Math.max(0,Math.min(100,(ST.bond[p.id]||50)+(r.bond||0)));
+  });
+  ST.kakao.push({who:'lg',type:'notice',text:`${r.d}`});
+  ST.awardReply=null;
+  saveGame(true);
+}
+
 function buildAwards(ST){
   const us=TBYID['wwzw'];
   const A=[];
@@ -3986,6 +4226,7 @@ function LiveGame(cfg){
   this.park = cfg.park || {hr:1,d2:1,d3:1,err:1,babip:1};
   this.gearPenalty = cfg.gearPenalty||0;
   this.buff = cfg.buff||{};
+  this.form = cfg.form||{};          // 투수 폼 배수 {pid:0.93~1.07}
   this.dpCount=0; this.assists=0; this.wp=0;
   this.hot = !!cfg.hot;
   this.timeouts = 5;      // 공격 작전 지시 가능 횟수
@@ -4047,11 +4288,17 @@ LiveGame.prototype.curPitcher = function(s){
   const p = s.team.pitchers.find(x=>x.id===pid) || s.team.pitchers[0];
   if(!p) return p;
   const mm = (typeof META!=='undefined') ? META[p.id] : null;
+  let out=p;
   if(s.isUser && mm && mm.traits.includes('더위약함') && this.hot){
     const outs = (this.pbox[p.id]||{}).outs||0;
-    if(outs > 6) return {...p, stf: Math.round(p.stf*0.62), ctl: Math.round(p.ctl*0.78)};
+    if(outs > 6) out = {...out, stf: Math.round(out.stf*0.62), ctl: Math.round(out.ctl*0.78)};
   }
-  return p;
+  // 폼 — 연속으로 두들겨 맞으면 공이 안 들어가고, 잘 던지면 손끝이 산다
+  if(s.isUser && this.form && this.form[p.id]!=null && this.form[p.id]!==1){
+    const fm=this.form[p.id];
+    out = {...out, stf: Math.round(out.stf*fm), ctl: Math.round(out.ctl*fm)};
+  }
+  return out;
 };
 LiveGame.prototype.batter = function(){
   const s=this.off(); const slot=s.slots[s.order%9];
@@ -4850,7 +5097,7 @@ function newSeason(){
     playerId:MYID, year:2026, seasonNo:1, discharged:false, justDischarged:false,
     useDH:true, park:'benamul', gearLevel:0, feud:null, pendingAbsent:{},
     unhappy:{}, spark:{}, career:{}, teamCareer:null, milestones:[], firsts:{}, weather:'clear',
-    playoff:null,
+    playoff:null, form:{}, hall:[], awardBonus:{}, awardSnap:null, awardReply:null,
     playSec:(typeof ST!=='undefined'&&ST&&ST.playSec)?ST.playSec:0,
     promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
@@ -5249,6 +5496,22 @@ function renderHome(){
   }
   c.appendChild(mood);
 
+  // 내가 상을 받았다 — 뭐라고 대답할지 고른다
+  if(ST.awardReply){
+    const ar=el('div','card po-card');
+    ar.appendChild(el('div','card-h','수상'));
+    ar.appendChild(el('p','muted',''));
+    ar.lastChild.innerHTML=`단톡방이 시끄럽다. <b>${nameOf(ST.playerId||MYID)}</b>이(가) `+
+      `<b>${ST.awardReply.label}</b>을(를) 받았다. ${ST.awardReply.value||''}<br>뭐라고 할까.`;
+    AWARD_REPLIES.forEach(r=>{
+      const b=el('button','sendopt');
+      b.innerHTML=`<b>${r.label}</b><span>${r.d}</span>`;
+      b.onclick=()=>{ answerAward(r.k); go('kakao'); };
+      ar.appendChild(b);
+    });
+    c.appendChild(ar);
+  }
+
   // 플레이오프
   if(ST.playoff){
     const po=ST.playoff;
@@ -5273,6 +5536,17 @@ function renderHome(){
     pc2.appendChild(el('p','muted','우승 50만원 · 준우승 30만원 · 공동 3위 10만원. 무승부는 정규시즌 순위가 높은 팀이 올라간다.'));
     c.appendChild(pc2);
   }
+
+  // 전시장
+  const meId0=ST.playerId||MYID;
+  const myHall=(ST.hall||[]).filter(h=>h.pid===meId0).length;
+  const hc=el('div','card');
+  hc.innerHTML=`<div class="card-h">전시장</div>
+    <p class="muted"><b>${nameOf(meId0)}</b> 수상 <b>${myHall}</b>개 · 팀 타이틀 <b>${(ST.hall||[]).filter(h=>h.scope==='팀').length}</b>개</p>`;
+  const hb=el('button','btn','트로피 보러 가기');
+  hb.onclick=()=>{hallWho=meId0;go('hall');};
+  hc.appendChild(hb);
+  c.appendChild(hc);
 
   // 플레이타임
   const ptc=el('div','card');
@@ -5558,7 +5832,28 @@ function renderHome(){
   }
 
   if(ST.seasonOver){
-    if(!ST.awards) ST.awards=buildAwards(ST);
+    if(!ST.awards){
+      ST.awards=buildAwards(ST);
+      /* 시즌 시상과 팀 타이틀을 전시장에 남긴다 */
+      if(!Array.isArray(ST.hall))ST.hall=[];
+      if(!ST.awardBonus)ST.awardBonus={};
+      const byName={}; TBYID['wwzw'].players.forEach(p=>byName[p.name]=p.id);
+      ST.awards.forEach(a=>{
+        const pid=byName[a.name]; if(!pid)return;
+        ST.hall.push({season:ST.seasonNo||1,year:ST.year||2026,at:null,kind:'season',
+          label:a.label,pid,name:a.name,value:a.value,scope:'시즌'});
+        ST.awardBonus[pid]=(ST.awardBonus[pid]||0)+1;
+      });
+      const po=ST.playoff;
+      if(po&&po.place&&po.place!=='탈락'){
+        const kind = po.place==='우승'?'champ':(po.place==='준우승'?'runner':'third');
+        ST.hall.push({season:ST.seasonNo||1,year:ST.year||2026,kind,
+          label:`단원리그 C ${po.place}`,pid:null,value:`상금 ${po.prize}만원`,scope:'팀'});
+        /* 우승하면 회비 부담이 줄어 다음 시즌 분위기가 좋다 */
+        if(po.place==='우승')TBYID['wwzw'].players.forEach(p=>ST.morale[p.id]=100);
+      }
+      saveGame(true);
+    }
     const aw=el('div','card');
     aw.appendChild(el('div','card-h','시즌 시상식'));
     ST.awards.forEach(a=>{
@@ -5576,7 +5871,8 @@ function renderHome(){
     b.onclick=async()=>{
       const keep={career:ST.career,teamCareer:ST.teamCareer,milestones:ST.milestones,firsts:ST.firsts,
         seasonNo:(ST.seasonNo||1)+1,discharged:ST.discharged,playerId:ST.playerId,
-        ratings:{}, budget:ST.budget};
+        ratings:{}, budget:ST.budget,
+        hall:ST.hall||[], awardBonus:ST.awardBonus||{}, gear:ST.gear||{}, playSec:ST.playSec||0};
       TBYID['wwzw'].players.forEach(p=>keep.ratings[p.id]={con:p.con,pow:p.pow,eye:p.eye,spd:p.spd,def:p.def,arm:p.arm});
       TEAMS=buildAllTeams();TBYID={};TEAMS.forEach(t=>TBYID[t.id]=t);
       // 능력치 이월
@@ -5585,7 +5881,8 @@ function renderHome(){
       ST=newSeason();
       Object.assign(ST,{career:keep.career,teamCareer:keep.teamCareer,milestones:keep.milestones,
         firsts:keep.firsts,seasonNo:keep.seasonNo,discharged:keep.discharged,playerId:keep.playerId,
-        year:2026+keep.seasonNo-1, budget:Math.round(keep.budget*0.4+120)});
+        year:2026+keep.seasonNo-1, budget:Math.round(keep.budget*0.4+120),
+        hall:keep.hall, awardBonus:keep.awardBonus, gear:keep.gear, playSec:keep.playSec});
       ST.teamCareer.seasons=(ST.teamCareer.seasons||0)+1;
       normalizeState();
       ST.lineup=recommendLineup();ST.rotation=recommendRotation();
@@ -6103,6 +6400,89 @@ function personaLines(pid){
   return out;
 }
 
+/* ================= 전시장 =================
+   내가 고른 선수가 받은 상을 트로피로 늘어놓는다. 스크린샷 찍으라고 만든 화면이다. */
+const TROPHY_ICON={mvp:'🏆',bat:'🏏',avg:'🎯',pit:'⚾',mgr:'📋',sb:'💨',
+  season:'🏅',champ:'👑',runner:'🥈',third:'🥉'};
+let hallWho=null;
+function renderHall(){
+  const c=$('#view'); c.innerHTML='';
+  const us=TBYID['wwzw'];
+  const meId=ST.playerId||MYID;
+  const who=hallWho&&us.players.some(p=>p.id===hallWho)?hallWho:meId;
+  const hall=(ST.hall||[]).filter(h=>h.pid===who);
+  const teamTitles=(ST.hall||[]).filter(h=>h.scope==='팀');
+
+  const wrap=el('div','ot');
+  const top=el('div','ot-top');
+  top.innerHTML=`<div class="ot-pic">${avatarHTML(who)}</div>
+    <div class="ot-nm">
+      <div class="ot-n1">${nameOf(who)}<b>전시장</b></div>
+      <div class="ot-n2">${ST.year||2026}년 · ${ST.seasonNo||1}년차${who===meId?' · 내 선수':''}</div>
+      <div class="ot-ov">
+        <div class="ot-ovi"><span>수상</span><b>${hall.length}</b></div>
+        <div class="ot-ovi"><span>팀 타이틀</span><b>${teamTitles.length}</b></div>
+        <div class="ot-ovi"><span>몸값</span><b>${(function(){
+          const p=us.players.find(x=>x.id===who);
+          return p?wonStr(playerValue(p,META[who],ST.bat[who])):'-';})()}</b></div>
+      </div>
+    </div>`;
+  wrap.appendChild(top);
+
+  /* 선수 고르기 */
+  const pick=el('div','hall-pick');
+  us.players.forEach(p=>{
+    const n=(ST.hall||[]).filter(h=>h.pid===p.id).length;
+    const b=el('button','hall-p'+(p.id===who?' on':''));
+    b.innerHTML=`${p.name}${n?`<em>${n}</em>`:''}`;
+    b.onclick=()=>{hallWho=p.id;renderHall();};
+    pick.appendChild(b);
+  });
+  wrap.appendChild(pick);
+
+  const grid=el('div','ot-grid');
+  const add=h=>{const d=document.createElement('div');d.innerHTML=h;grid.appendChild(d.firstElementChild);};
+
+  if(hall.length){
+    let inner='<div class="tro-grid">';
+    hall.slice().reverse().forEach(h=>{
+      inner+=`<div class="tro">
+        <div class="tro-i">${TROPHY_ICON[h.kind]||'🏆'}</div>
+        <div class="tro-l">${h.label}</div>
+        <div class="tro-v">${h.value||''}</div>
+        <div class="tro-w">${h.year||2026}${h.scope==='구간'?` · ${h.at}경기 구간`:' · 시즌'}</div>
+      </div>`;
+    });
+    inner+='</div>';
+    add(otSec('트로피', inner, `${hall.length}개`));
+  } else {
+    add(otSec('트로피','<p class="ot-note">아직 받은 상이 없다. 5경기마다 구간 시상이 있고, 시즌이 끝나면 시상식이 있다.</p>'));
+  }
+
+  if(teamTitles.length){
+    let t='';
+    teamTitles.slice().reverse().forEach(h=>{
+      t+=`<div class="ot-r"><span>${h.year}</span><b>${TROPHY_ICON[h.kind]||'🏆'} ${h.label}${h.value?` · ${h.value}`:''}</b></div>`;
+    });
+    add(otSec('팀 타이틀', t));
+  }
+
+  /* 통산 */
+  const cr=ST.career&&ST.career[who];
+  if(cr){
+    add(otSec('통산 기록',
+      `<div class="ot-tbl"><table><thead><tr><th>G</th><th>PA</th><th>H</th><th>HR</th><th>RBI</th><th>SB</th></tr></thead>
+       <tbody><tr><td>${cr.g||0}</td><td>${cr.pa||0}</td><td>${cr.h||0}</td><td>${cr.hr||0}</td><td>${cr.rbi||0}</td><td>${cr.sb||0}</td></tr></tbody></table></div>`));
+  }
+  wrap.appendChild(grid);
+  c.appendChild(wrap);
+
+  const act=el('div','btn-row');
+  const pb=el('button','btn','선수 프로필'); pb.onclick=()=>openPlayer(who);
+  const bk=el('button','btn','홈으로'); bk.onclick=()=>go('home');
+  act.appendChild(pb); act.appendChild(bk); c.appendChild(act);
+}
+
 let profileId=null;
 function openPlayer(pid){ profileId=pid; go('player'); }
 
@@ -6162,7 +6542,7 @@ function renderPlayer(){
   const top=el('div','ot-top');
   top.innerHTML=`<div class="ot-pic">${avatarHTML(p.id)}</div>
     <div class="ot-nm">
-      <div class="ot-n1">${p.name}<b>${main?POSNAMES[main]:'DH'}</b></div>
+      <div class="ot-n1">${p.name}${formTag(p.id)?`<span class="ftag">${formTag(p.id)}</span>`:''}<b>${main?POSNAMES[main]:'DH'}</b></div>
       <div class="ot-n2">${nickOf(p.id)?`'${nickOf(p.id)}' · `:''}${2026-m.born}세 · 타/투 ${p.bats==='L'?'좌':'우'}/${m.throws==='L'?'좌':'우'}</div>
       <div class="ot-ov">
         <div class="ot-ovi"><span>전체</span><b>${ca.toFixed(0)}</b></div>
@@ -6201,6 +6581,7 @@ function renderPlayer(){
      <div class="ot-mini"><i class="${condCls(ST.cond[p.id]||70)}" style="width:${ST.cond[p.id]||70}%"></i></div>
      <div class="ot-r"><span>사기</span><b>${moraleLabel(ST.morale[p.id]||70)}</b></div>
      <div class="ot-mini"><i class="${(ST.morale[p.id]||70)>=70?'ok':(ST.morale[p.id]||70)>=50?'mid':'bad'}" style="width:${ST.morale[p.id]||70}%"></i></div>
+     ${formTag(p.id)?otRow('폼', `${formTag(p.id)} ${formLabel(p.id)}`, true):''}
      ${otRow('불만', unhappyLabel(un), un>=2)}
      ${sp.n?otRow('불만 조짐', `${sparkLabel(sp)} · ${sp.n}/${sparkFuse(p.id)}`):''}
      ${ST.promise&&ST.promise[p.id]?otRow('약속', promiseLabel(ST.promise[p.id]), true):''}`));
@@ -6319,7 +6700,7 @@ function renderSquad(){
     card.onclick=(ev)=>{ if(ev.target.closest('button'))return; openPlayer(p.id); };
     card.innerHTML=`
       <div class="pc-top">
-        <div class="pc-id"><span class="pc-name">${p.name}</span>
+        <div class="pc-id"><span class="pc-name">${p.name}</span>${formTag(p.id)?`<span class="ftag" title="${formLabel(p.id)}">${formTag(p.id)}</span>`:''}
           <span class="pc-age">${2026-m.born}세</span>
           ${p.bats==='L'?'<span class="lh">좌</span>':''}
           ${injv?`<span class="tagx">${injv.name} ${injv.games}경기</span>`:''}
@@ -7239,6 +7620,7 @@ function makeLive(){
     homeCond: next.homeGame?cond:{},
     awayCond: next.homeGame?{}:cond,
     park, gearPenalty, buff: ST.buff||{}, hot: ST.weather==='hot',
+    form: (function(){const o={};TBYID['wwzw'].pitchers.forEach(x=>{const m=formPitMul(x.id);if(m!==1)o[x.id]=m;});return o;})(),
     myId: ST.playerId||MYID,          // 내 선수 연출용
     drunkIds: (ST.drunkIds||[]).slice(),
   });
@@ -7660,7 +8042,9 @@ function commitGame(res,usSide,thSide,uSlots){
   const u=ST.stand['wwzw'], t=ST.stand[sch.opp];
   u.g++;t.g++;u.rf+=usSide.runs;u.ra+=thSide.runs;t.rf+=thSide.runs;t.ra+=usSide.runs;
   if(tie){u.t++;t.t++;}else if(won){u.w++;t.l++;}else{u.l++;t.w++;}
-  ST.budget+=won?9:(tie?6:4);
+  /* 경기 수익 — 이기면 그날 회비가 덜 나간다.
+     승리 수당 개념으로 운영비에 남는 돈이 커진다. */
+  ST.budget += sch.po ? (won?18:8) : (won?14:(tie?8:4));
 
   ST.lastFreePass = gRot.reduce((a,pid)=>a+((res.pbox[pid]&&res.pbox[pid].bb)||0),0)
     +usSide.sbAllowed+(res.wpCount||0);
@@ -7691,6 +8075,12 @@ function commitGame(res,usSide,thSide,uSlots){
   const mn=releaseMercs(false);       // 용병은 그날로 끝이다
   if(mn)ST.kakaoPost.push({who:'lg',type:'notice',text:`용병 ${mn}명 오늘까지. 다음 주엔 사람 좀 채우자`});
   gearWearTick().forEach(m=>ST.kakaoPost.push(m));   // 장비는 쓸수록 닳는다
+  updateForm(ST,res,uSlots).forEach(m=>ST.kakaoPost.push(m));   // 슬럼프·뜨거운 감각
+  // 정규시즌 5경기마다 구간 시상
+  if(!sch.po){
+    const gp=ST.schedule.filter(x=>x.played&&!x.po).length;
+    if(gp>0 && gp%5===0) runMiniAwards(ST).forEach(m=>ST.kakaoPost.push(m));
+  }
   ST.round++; ST.weekDone=false; ST.events=[];
   if(sch.po){
     advancePlayoff(won,tie,usSide.runs,thSide.runs).forEach(m=>ST.kakaoPost.push(m));
@@ -9027,7 +9417,7 @@ function renderMore(){
 const VIEWS={home:renderHome,squad:renderSquad,lineup:renderLineup,kakao:renderKakao,
   game:renderGame,train:renderTrain,scout:renderScout,stand:renderStand,stats:renderStats,
   records:renderRecords,pick:renderPick,more:renderMore,meet:renderMeet,recruit:renderRecruit,
-  tutorial:renderTutorial,player:renderPlayer};
+  tutorial:renderTutorial,player:renderPlayer,hall:renderHall};
 function go(v){
   clearInterval(playTimer);
   curView=v;
@@ -9118,7 +9508,25 @@ function normalizeState(){
   if(ST.bossTalkAt==null)ST.bossTalkAt=-99;
   if(!ST.valuePrev)ST.valuePrev={};
   if(!Array.isArray(ST.drunkIds))ST.drunkIds=[];
+  // 장비 — 예전 세이브는 true/false 였다. 등급 구조로 옮긴다.
   if(!ST.gear)ST.gear={};
+  Object.keys(ST.gear).forEach(id=>{
+    const v=ST.gear[id];
+    if(!GEAR_ITEMS.some(g=>g.id===id)){ delete ST.gear[id]; return; }
+    if(v===true){ ST.gear[id]={lv:1,wear:0}; return; }
+    if(!v||typeof v!=='object'){ delete ST.gear[id]; return; }
+    if(v.lv==null)v.lv=1;
+    if(v.wear==null)v.wear=0;
+    v.lv=Math.max(0,Math.min(GEAR_MAX_LV,v.lv));
+    if(v.lv<=0)delete ST.gear[id];
+  });
+  if(ST.playoff===undefined)ST.playoff=null;
+  if(!ST.form)ST.form={};
+  Object.keys(ST.form).forEach(id=>{ if(!us.players.some(p=>p.id===id))delete ST.form[id]; });
+  if(!Array.isArray(ST.hall))ST.hall=[];
+  if(!ST.awardBonus)ST.awardBonus={};
+  if(ST.awardSnap===undefined)ST.awardSnap=null;
+  if(ST.awardReply===undefined)ST.awardReply=null;
   if(ST.duesCount==null)ST.duesCount=0;
   if(ST.gearMeeting===undefined)ST.gearMeeting=null;
   if(ST.feeDue==null)ST.feeDue=false;
