@@ -433,54 +433,84 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .savestat.bad{color:#ffb4a8;border-color:#7a3b34}
 .pt-big{font-size:26px;font-weight:800;letter-spacing:-.01em;color:var(--gold);margin:2px 0 6px}
 .tapcard{cursor:pointer}
-.pf-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
-.pf-photo-wrap{width:108px;flex:0 0 108px;border-radius:10px;overflow:hidden;
-  border:1px solid var(--line);background:#1a2029;aspect-ratio:3/4}
+
+/* ---------- 선수 프로필 (OOTP 풍) ----------
+   팀 유니폼 색을 그대로 가져왔다. 네이비 판때기에 등번호 주황.        */
+.ot{--nv0:#08101d;--nv1:#0f1b2d;--nv2:#15243a;--nvl:#23374f;
+    --or:#e8762c;--or2:#ff9a4d;--tx:#e2eaf5;--dm:#8194ad;
+    font-size:12px;color:var(--tx)}
+.ot-top{display:flex;gap:11px;padding:11px;margin-bottom:9px;
+  background:linear-gradient(135deg,#16273f 0%,#0d1728 62%,#0a1220 100%);
+  border:1px solid var(--nvl);border-left:3px solid var(--or);border-radius:6px}
+.ot-pic{width:88px;flex:0 0 88px;aspect-ratio:3/4;border:1px solid var(--nvl);
+  border-radius:4px;overflow:hidden;background:#101a29}
 .pf-photo,.pf-clay{display:block;width:100%;height:100%;object-fit:cover}
-.pf-id{flex:1 1 170px;min-width:0}
-.pf-name{font-size:21px;font-weight:800;letter-spacing:-.02em;display:flex;
-  align-items:baseline;gap:7px;flex-wrap:wrap}
-.pf-nick{font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0}
-.pf-sub{font-size:12px;color:var(--dim);margin:3px 0 7px}
-.pf-stars{display:flex;align-items:center;gap:6px;margin:1px 0}
-.pf-stars .lbl{font-size:10px;color:var(--dim);width:26px}
-.pf-val{margin-top:6px;font-size:13px;font-weight:700;color:var(--gold)}
-.pf-nophoto{flex:1 0 100%;font-size:11px;color:var(--dim);margin-top:8px;
-  border-top:1px solid var(--line);padding-top:8px}
-.pf-bar{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px}
-.pf-bar>span{width:42px;color:var(--dim);flex:0 0 42px}
-.pf-bar>b{width:30px;text-align:right;font-variant-numeric:tabular-nums}
-.pf-bar .mini{flex:1}
-.pf-sec{font-size:10px;letter-spacing:.1em;color:var(--gold);margin:12px 0 4px;font-weight:700}
-.pf-kv{display:flex;justify-content:space-between;gap:10px;font-size:12px;
-  padding:6px 0;border-bottom:1px solid var(--line)}
-.pf-kv>span{color:var(--dim);flex:0 0 auto}
-.pf-kv>b{text-align:right;font-weight:600}
-.pf-kv:last-child{border-bottom:0}
-.pf-pos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.pf-p{border:1px solid var(--line);border-radius:8px;padding:7px 6px;text-align:center;
-  background:var(--panel2)}
-.pf-p b{display:block;font-size:12px;font-weight:700}
-.pf-p span{display:block;font-size:10px;color:var(--dim);margin-top:1px}
-.pf-p i{display:block;font-size:11px;font-style:normal;margin-top:2px;
-  font-variant-numeric:tabular-nums;color:var(--dim)}
-.pf-p i em{font-style:normal;color:var(--turf)}
-.pf-p.best{border-color:var(--gold);background:rgba(201,162,39,.12)}
-.pf-p.best b{color:var(--gold)}
-.pf-p.good{border-color:#2f7a58;background:rgba(47,122,88,.12)}
-.pf-p.ok{border-color:#3d5a72}
-.pf-p.train{border-style:dashed;opacity:.66}
-.pf-p.train span{color:var(--blue)}
-.pf-p.weak{opacity:.72}
-.pf-p.no{opacity:.35}
-.pf-adv{border-left:2px solid var(--gold);padding:2px 0 2px 9px;margin:9px 0}
-.pf-adv b{display:block;font-size:13px}
-.pf-adv span{display:block;font-size:11.5px;color:var(--dim);line-height:1.5;margin-top:2px}
-.pf-traits{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
-.pf-tr{display:flex;gap:8px;align-items:baseline;font-size:11.5px}
-.pf-tr b{flex:0 0 auto;background:var(--panel2);border:1px solid var(--line);
-  border-radius:5px;padding:2px 7px;font-size:11px;color:var(--gold)}
-.pf-tr span{color:var(--dim);line-height:1.5}
+.ot-nm{flex:1 1 auto;min-width:0}
+.ot-n1{font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.15;
+  display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ot-n1 b{font-size:12px;font-weight:800;color:var(--or2);
+  border:1px solid rgba(232,118,44,.45);background:rgba(232,118,44,.12);
+  border-radius:3px;padding:1px 6px;letter-spacing:0}
+.ot-n2{font-size:11px;color:var(--dm);margin-top:3px}
+.ot-ov{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap}
+.ot-ovi{display:flex;flex-direction:column;line-height:1.15}
+.ot-ovi span{font-size:9.5px;color:var(--dm);letter-spacing:.06em}
+.ot-ovi b{font-size:17px;font-weight:800;color:var(--or2);font-variant-numeric:tabular-nums}
+.ot-ovi b.dim{color:#7fa6cc}
+.ot-st{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap}
+.ot-alert{background:rgba(196,68,60,.14);border:1px solid #7a3b34;border-left:3px solid #c4443c;
+  border-radius:5px;padding:7px 9px;font-size:11.5px;color:#ffb4a8;margin-bottom:9px}
+.ot-grid{display:grid;grid-template-columns:1fr;gap:9px}
+@media(min-width:680px){.ot-grid{grid-template-columns:1fr 1fr}}
+.ot-sec{border:1px solid var(--nvl);border-radius:5px;overflow:hidden;background:var(--nv1)}
+.ot-h{background:linear-gradient(90deg,#1b2d47,#122036);border-bottom:1px solid var(--nvl);
+  border-left:3px solid var(--or);padding:6px 9px;font-size:11px;font-weight:800;
+  letter-spacing:.05em;color:#f0d9c6;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ot-h span{font-size:9.5px;font-weight:600;color:var(--dm);letter-spacing:0}
+.ot-b{padding:5px 0}
+.ot-r{display:flex;justify-content:space-between;gap:10px;padding:4px 9px;
+  font-size:11.5px;line-height:1.45}
+.ot-r:nth-child(odd){background:rgba(255,255,255,.022)}
+.ot-r>span{color:var(--dm);flex:0 0 auto}
+.ot-r>b{font-weight:600;text-align:right}
+.ot-r>b.hot{color:var(--or2)}
+.ot-mini{height:5px;background:#0a1220;border-radius:3px;overflow:hidden;margin:1px 9px 5px}
+.ot-mini>i{display:block;height:100%}
+.ot-mini>i.ok{background:#3f9e63}.ot-mini>i.mid{background:#d8a72a}
+.ot-mini>i.low{background:#dc8b3a}.ot-mini>i.bad{background:#c4443c}
+.ot-rt{padding:3px 9px 5px}
+.ot-rt-l{font-size:11px;color:var(--dm);margin-bottom:2px;display:flex;justify-content:space-between;gap:8px}
+.ot-rt-l em{font-style:normal;font-size:10px;color:#5f7791}
+.ot-rt-b{display:flex;align-items:center;gap:7px}
+.ot-num{flex:0 0 58px;text-align:center;font-size:10.5px;font-weight:700;
+  font-variant-numeric:tabular-nums;border-radius:3px;padding:2px 0;color:#08101d}
+.ot-num.t4{background:#4aa3e0}.ot-num.t3{background:#3f9e63}
+.ot-num.t2{background:#d8a72a}.ot-num.t1{background:#c4443c}
+.ot-num.t0{background:#2b3a4e;color:var(--dm);font-size:9.5px}
+.ot-bar{position:relative;flex:1 1 auto;height:11px;background:#0a1220;
+  border:1px solid #1b2b40;border-radius:2px;overflow:hidden}
+.ot-bar>u,.ot-bar>i{position:absolute;left:0;top:0;bottom:0;display:block;text-decoration:none}
+.ot-bar>u{background:rgba(255,255,255,.11)}
+.ot-bar>i.t4{background:#4aa3e0}.ot-bar>i.t3{background:#3f9e63}
+.ot-bar>i.t2{background:#d8a72a}.ot-bar>i.t1{background:#c4443c}
+.ot-bar>i.t0{background:#2b3a4e}
+.ot-note{font-size:10.5px;color:var(--dm);line-height:1.55;padding:4px 9px 6px;margin:0}
+.ot-adv{padding:6px 9px;border-left:2px solid var(--or);margin:6px 9px 8px;background:rgba(232,118,44,.05)}
+.ot-adv b{display:block;font-size:12px;color:var(--or2)}
+.ot-adv span{display:block;font-size:11px;color:var(--dm);line-height:1.5;margin-top:2px}
+.ot-tr{display:flex;gap:8px;align-items:baseline;padding:4px 9px;font-size:11px}
+.ot-tr:nth-child(odd){background:rgba(255,255,255,.022)}
+.ot-tr b{flex:0 0 auto;color:var(--or2);border:1px solid rgba(232,118,44,.35);
+  background:rgba(232,118,44,.10);border-radius:3px;padding:1px 6px;font-size:10.5px}
+.ot-tr span{color:var(--dm);line-height:1.5}
+.ot-tbl{overflow-x:auto;padding:0 0 4px;-webkit-overflow-scrolling:touch}
+.ot-tbl table{border-collapse:collapse;width:100%;font-size:11px;
+  font-variant-numeric:tabular-nums;min-width:max-content}
+.ot-tbl th{background:#14243a;color:var(--dm);font-weight:700;font-size:9.5px;
+  padding:4px 8px;border-bottom:1px solid var(--nvl);text-align:right;white-space:nowrap}
+.ot-tbl td{padding:5px 8px;text-align:right;white-space:nowrap;color:var(--tx)}
+.ot-tbl th:first-child,.ot-tbl td:first-child{text-align:left}
+.ot-tbl tbody tr:nth-child(odd){background:rgba(255,255,255,.022)}
 .pt-role{font-size:10px;color:var(--blue);margin-top:2px}
 .pt-row.bad .pt-role{color:#c98a80}
 .pt-ctl .rm{color:#c98a80}
@@ -5835,145 +5865,180 @@ function personaLines(pid){
 
 let profileId=null;
 function openPlayer(pid){ profileId=pid; go('player'); }
+
+/* 능력치 막대 색 — OOTP 처럼 구간별로 색이 다르다 */
+function otTier(v){ return v>=65?'t4':v>=50?'t3':v>=35?'t2':'t1'; }
+/* 0.667 이닝 → '0.2' (야구식 표기) */
+function ipDot(ip){
+  const w=Math.floor(ip+1e-6), f=Math.round((ip-w)*3);
+  return f?`${w}.${f}`:`${w}`;
+}
+/* 남은 성장 여지를 여섯 능력치에 고르게 나눴을 때 각자 올라가는 값.
+   calcCA 의 가중치 합이 정확히 5.0 이라, 여섯 개를 똑같이 n 씩 올리면
+   CA 도 정확히 n 오른다. 그래서 잠재 = 현재 + (잠재CA - 현재CA) 다.
+   지어낸 숫자가 아니라 성장 공식에서 그대로 떨어지는 값이다.        */
+const CA_W={con:1.3,pow:1.1,eye:0.8,spd:0.7,def:0.7,arm:0.4};
+function otPotential(pid,key,cur){
+  const room=effPA(pid)-effCA(pid);
+  if(room<=0||!CA_W[key])return cur;
+  return Math.min(80, cur+room);
+}
+function otBar(label,cur,pot){
+  const c=Math.max(0,Math.min(80,cur)), pp=Math.max(c,Math.min(80,pot==null?c:pot));
+  const num = (pot!=null&&Math.round(pp)>Math.round(c))
+    ? `${Math.round(c)} / ${Math.round(pp)}` : `${Math.round(c)}`;
+  return `<div class="ot-rt"><div class="ot-rt-l">${label}</div>
+    <div class="ot-rt-b"><span class="ot-num ${otTier(c)}">${num}</span>
+      <div class="ot-bar"><u style="width:${pp/80*100}%"></u>
+        <i class="${otTier(c)}" style="width:${c/80*100}%"></i></div></div></div>`;
+}
+function otRow(k,v,hot){
+  return `<div class="ot-r"><span>${k}</span><b${hot?' class="hot"':''}>${v}</b></div>`;
+}
+function otSec(title,inner,right){
+  return `<div class="ot-sec"><div class="ot-h">${title}${right?`<span>${right}</span>`:''}</div>
+    <div class="ot-b">${inner}</div></div>`;
+}
+
 function renderPlayer(){
   const c=$('#view'); c.innerHTML='';
   const us=TBYID['wwzw'];
   const p=us.players.find(x=>x.id===profileId);
   if(!p){ c.appendChild(el('div','card','선수를 찾을 수 없다.'));
     const bk=el('button','btn','선수단으로'); bk.onclick=()=>go('squad'); c.appendChild(bk); return; }
-  const m=META[p.id]||{born:1999,traits:[],desc:'',pos:{}};
+  const m=META[p.id]||{born:1999,traits:[],desc:'',pos:{},attend:.85,drink:1,car:false,school:'-'};
   const ca=effCA(p.id), pa=effPA(p.id);
   const lgw=leagueWoba();
   const b=ST.bat[p.id]||blankBat();
   const pit=us.pitchers.find(x=>x.id===p.id);
   const pl=ST.pit&&ST.pit[p.id];
-  const main=PF_ORDER.filter(k=>posFit(p.id,k)>0)
-    .sort((x,y)=>posFit(p.id,y)-posFit(p.id,x))[0];
+  const isPitcher = !!p.pitch || (m.pos && m.pos.P>0);
+  const main=PF_ORDER.filter(k=>posFit(p.id,k)>0).sort((x,y)=>posFit(p.id,y)-posFit(p.id,x))[0];
+  const meId=ST.playerId||MYID;
 
-  /* 머리 — 사진 · 이름 · 별 */
-  const head=el('div','card pf-head');
-  head.innerHTML=`
-    <div class="pf-photo-wrap">${avatarHTML(p.id)}</div>
-    <div class="pf-id">
-      <div class="pf-name">${p.name}${nickOf(p.id)?`<span class="pf-nick">'${nickOf(p.id)}'</span>`:''}</div>
-      <div class="pf-sub">${2026-m.born}세 · ${p.bats==='L'?'좌타':'우타'} / ${m.throws==='L'?'좌투':'우투'}
-        · ${main?POSNAMES[main]:'—'}</div>
-      <div class="pf-stars"><span class="lbl">현재</span>${starHTML(ca)}</div>
-      <div class="pf-stars"><span class="lbl">잠재</span>${starHTML(pa,true)}</div>
-      <div class="pf-val">${wonStr(playerValue(p,m,ST.bat[p.id]))}</div>
+  const wrap=el('div','ot');
+
+  /* ---- 머리띠 ---- */
+  const top=el('div','ot-top');
+  top.innerHTML=`<div class="ot-pic">${avatarHTML(p.id)}</div>
+    <div class="ot-nm">
+      <div class="ot-n1">${p.name}<b>${main?POSNAMES[main]:'DH'}</b></div>
+      <div class="ot-n2">${nickOf(p.id)?`'${nickOf(p.id)}' · `:''}${2026-m.born}세 · 타/투 ${p.bats==='L'?'좌':'우'}/${m.throws==='L'?'좌':'우'}</div>
+      <div class="ot-ov">
+        <div class="ot-ovi"><span>전체</span><b>${ca.toFixed(0)}</b></div>
+        <div class="ot-ovi"><span>포텐셜</span><b class="dim">${pa.toFixed(0)}</b></div>
+        <div class="ot-ovi"><span>몸값</span><b>${wonStr(playerValue(p,m,ST.bat[p.id]))}</b></div>
+      </div>
+      <div class="ot-st">${starHTML(ca)}${starHTML(pa,true)}</div>
     </div>`;
-  c.appendChild(head);
-  if(!PHOTOS[p.id]) head.appendChild(el('div','pf-nophoto','사진 미등록 — 단톡방에 한 장 올려라'));
+  wrap.appendChild(top);
 
-  /* 상태 */
   const injv=ST.injury[p.id];
-  if(injv) c.appendChild(el('div','warn',`${injv.name} · ${injv.games}경기 결장`));
+  if(injv) wrap.appendChild(el('div','ot-alert',`${injv.name} · ${injv.games}경기 결장`));
+
+  const grid=el('div','ot-grid');
+  const add=html=>{ const d=document.createElement('div'); d.innerHTML=html; grid.appendChild(d.firstElementChild); };
+
+  /* ---- 개인 세부 사항 ---- */
+  let detail='';
+  detail+=otRow('나이',`${2026-m.born}세`);
+  detail+=otRow('포지션', main?`${POSNAMES[main]} (${Math.round(posFit(p.id,main))})`:'지명타자');
+  detail+=otRow('타 / 투', `${p.bats==='L'?'좌':'우'} / ${m.throws==='L'?'좌':'우'}`);
+  detail+=otRow('출신교', m.school||'-');
+  detail+=otRow('출석', `${Math.round((m.attend!=null?m.attend:.85)*100)}%`
+    +(m.attend<0.6?' · 자주 빠진다':m.attend>=0.85?' · 웬만하면 나온다':''));
+  detail+=otRow('회식', DRINK_LABEL[Math.min(3,m.drink||0)]);
+  detail+=otRow('이동', m.car?'차가 있다':'차가 없다');
+  detail+=otRow('나와의 관계', p.id===meId?'나':`${bondLabel(bondOf(p.id))} (${Math.round(bondOf(p.id))})`,
+    p.id===meId);
+  add(otSec('개인 세부 사항', detail));
+
+  /* ---- 상태 ---- */
   const un=(ST.unhappy&&ST.unhappy[p.id])?ST.unhappy[p.id].level:0;
   const sp=sparkOf(ST,p.id);
-  const stt=el('div','card');
-  stt.innerHTML=`<div class="card-h">상태</div>
-    <div class="pf-bar"><span>컨디션</span><div class="mini"><i class="${condCls(ST.cond[p.id]||70)}" style="width:${ST.cond[p.id]||70}%"></i></div><b>${condLabel(ST.cond[p.id]||70)}</b></div>
-    <div class="pf-bar"><span>사기</span><div class="mini"><i class="${(ST.morale[p.id]||70)>=70?'ok':(ST.morale[p.id]||70)>=50?'mid':'bad'}" style="width:${ST.morale[p.id]||70}%"></i></div><b>${moraleLabel(ST.morale[p.id]||70)}</b></div>
-    <div class="pf-kv"><span>불만</span><b>${unhappyLabel(un)}${sp.n?` · 불씨 ${sp.n}/${sparkFuse(p.id)} (${sparkLabel(sp)})`:''}</b></div>`;
-  c.appendChild(stt);
+  add(otSec('상태',
+    `<div class="ot-r"><span>컨디션</span><b>${condLabel(ST.cond[p.id]||70)}</b></div>
+     <div class="ot-mini"><i class="${condCls(ST.cond[p.id]||70)}" style="width:${ST.cond[p.id]||70}%"></i></div>
+     <div class="ot-r"><span>사기</span><b>${moraleLabel(ST.morale[p.id]||70)}</b></div>
+     <div class="ot-mini"><i class="${(ST.morale[p.id]||70)>=70?'ok':(ST.morale[p.id]||70)>=50?'mid':'bad'}" style="width:${ST.morale[p.id]||70}%"></i></div>
+     ${otRow('불만', unhappyLabel(un), un>=2)}
+     ${sp.n?otRow('불만 조짐', `${sparkLabel(sp)} · ${sp.n}/${sparkFuse(p.id)}`):''}
+     ${ST.promise&&ST.promise[p.id]?otRow('약속', promiseLabel(ST.promise[p.id]), true):''}`));
 
-  /* 능력치 */
-  const ab=el('div','card');
-  ab.appendChild(el('div','card-h','능력치'));
-  const row=(n,v,max)=>{
-    const pct=Math.max(2,Math.min(100,v/(max||80)*100));
-    const cls=v>=60?'ok':v>=40?'mid':'bad';
-    const d=el('div','pf-bar');
-    d.innerHTML=`<span>${n}</span><div class="mini"><i class="${cls}" style="width:${pct}%"></i></div><b>${Math.round(v)}</b>`;
-    return d;
-  };
-  [['컨택',p.con],['파워',p.pow],['선구',p.eye],['주루',p.spd],['수비',p.def],['어깨',p.arm]]
-    .forEach(([n,v])=>ab.appendChild(row(n,v)));
-  /* 투수 능력치는 실제로 마운드에 올라본 선수만 보여준다.
-     한 번도 안 던진 선수의 구위·제구는 어깨와 포지션 등급으로 만든 추정값이라
-     '기록 기반'이라고 내놓을 수 있는 숫자가 아니다. */
-  const realPitcher = !!p.pitch || (m.pos && m.pos.P > 0);
-  if(pit && realPitcher){
-    ab.appendChild(el('div','pf-sec','투수'));
-    [['구위',pit.stf],['제구',pit.ctl],['체력',pit.sta]].forEach(([n,v])=>ab.appendChild(row(n,v)));
-    ab.appendChild(el('p','muted', p.pitch
+  /* ---- 기본 배팅 레이팅 ---- */
+  let bat='';
+  [['컨택','con'],['파워','pow'],['선구','eye'],['주루','spd'],['수비','def'],['어깨','arm']]
+    .forEach(([n,k])=>{ bat+=otBar(n, p[k], otPotential(p.id,k,p[k])); });
+  add(otSec('기본 배팅 레이팅', bat, '현재 / 잠재'));
+
+  /* ---- 기본 피칭 레이팅 ---- */
+  if(pit && isPitcher){
+    let pb='';
+    pb+=otBar('구위', pit.stf, null);
+    pb+=otBar('제구', pit.ctl, (pa-ca>0)?Math.min(80,pit.ctl+22):null);
+    pb+=otBar('체력', pit.sta, null);
+    pb+=`<p class="ot-note">${p.pitch
       ? '실제 등판 기록(이닝·사사구·탈삼진·자책)에서 산출한 값이다.'
-      : '등판 기록이 없어 어깨와 포지션 등급으로 추정한 값이다.'));
+      : '등판 기록이 없어 어깨와 포지션 등급으로 추정한 값이다.'}</p>`;
+    add(otSec('기본 피칭 레이팅', pb, '현재 / 잠재'));
   } else if(pit){
-    ab.appendChild(el('div','pf-sec','투수'));
-    ab.appendChild(el('p','muted','마운드에 올라본 적이 없다. 사람이 없으면 던지긴 하겠지만 기대할 숫자는 아니다.'));
+    add(otSec('기본 피칭 레이팅',
+      '<p class="ot-note">마운드에 올라본 적이 없다. 사람이 없으면 던지긴 하겠지만 기대할 숫자는 아니다.</p>'));
   }
-  c.appendChild(ab);
 
-  /* 가능 포지션 */
-  const pc=el('div','card');
-  pc.appendChild(el('div','card-h','가능 포지션'));
-  const grid=el('div','pf-pos');
+  /* ---- 포지션 평점 ---- */
+  let pos='';
   PF_ORDER.forEach(k=>{
-    const fit=posFit(p.id,k), cap=posTrainCap(p.id,k), g=posGrade(fit,cap), tr=posTrained(p.id,k);
-    const d=el('div','pf-p '+g.c);
-    d.innerHTML=`<b>${POSNAMES[k]}</b><span>${g.t}</span><i>${fit>0?Math.round(fit):'-'}${tr>=1?` <em>+${Math.round(tr)}</em>`:''}</i>`;
-    grid.appendChild(d);
+    const fit=posFit(p.id,k), cap=posTrainCap(p.id,k), g=posGrade(fit,cap);
+    const pt = fit<=0?'t0':fit>=55?'t4':fit>=45?'t3':fit>=35?'t2':'t1';
+    pos+=`<div class="ot-rt"><div class="ot-rt-l">${POSNAMES[k]}<em>${g.t}</em></div>
+      <div class="ot-rt-b"><span class="ot-num ${pt}">${fit>0?Math.round(fit):'-'}</span>
+        <div class="ot-bar"><u style="width:${Math.max(0,cap)/70*100}%"></u>
+          <i class="${pt}" style="width:${Math.max(0,fit)/70*100}%"></i></div></div></div>`;
   });
-  pc.appendChild(grid);
-  pc.appendChild(el('p','muted',
-    '지타는 누구나 설 수 있다. 훈련으로 올린 값은 초록으로 따로 표시된다. '+
-    "'훈련 필요'는 지금은 못 서지만 포지션 적응 훈련으로 열 수 있는 자리다. "+
-    '좌투수는 포수·2루·3루·유격을 훈련으로도 열 수 없다.'));
-  c.appendChild(pc);
+  pos+='<p class="ot-note">진한 칸이 지금 값, 흐린 칸이 포지션 적응 훈련으로 올릴 수 있는 한계다. 좌투수는 포수·2루·3루·유격이 아예 막혀 있다.</p>';
+  add(otSec('포지션 평점', pos, '현재 / 훈련 한계'));
 
-  /* 훈련 방향 */
-  const tc=el('div','card');
-  tc.appendChild(el('div','card-h','훈련 방향'));
-  trainAdvice(p).forEach(a=>{
-    const d=el('div','pf-adv');
-    d.innerHTML=`<b>${a.h}</b><span>${a.d}</span>`;
-    tc.appendChild(d);
-  });
-  c.appendChild(tc);
+  /* ---- 훈련 방향 ---- */
+  let adv='';
+  trainAdvice(p).forEach(a=>{ adv+=`<div class="ot-adv"><b>${a.h}</b><span>${a.d}</span></div>`; });
+  add(otSec('훈련 방향', adv));
 
-  /* 성격 */
-  const sc=el('div','card');
-  sc.appendChild(el('div','card-h','성격'));
-  const tw=el('div','pf-traits');
-  shownTraits(p.id).forEach(t=>{
-    const d=el('div','pf-tr');
-    d.innerHTML=`<b>${t}</b><span>${TRAIT_INFO[t]||''}</span>`;
-    tw.appendChild(d);
-  });
-  sc.appendChild(tw);
-  personaLines(p.id).forEach(([k,v])=>{
-    const d=el('div','pf-kv'); d.innerHTML=`<span>${k}</span><b>${v}</b>`; sc.appendChild(d);
-  });
-  if(m.desc) sc.appendChild(el('p','muted',m.desc));
-  c.appendChild(sc);
+  /* ---- 성격 ---- */
+  let per='';
+  shownTraits(p.id).forEach(t=>{ per+=`<div class="ot-tr"><b>${t}</b><span>${TRAIT_INFO[t]||''}</span></div>`; });
+  if(m.desc) per+=`<p class="ot-note">${m.desc}</p>`;
+  add(otSec('성격', per));
 
-  /* 성적 */
-  const rc=el('div','card');
-  rc.appendChild(el('div','card-h','올 시즌 기록'));
+  /* ---- 올 시즌 기록 ---- */
+  let rec='';
   if(b.pa){
-    rc.appendChild(el('div','pf-kv')).innerHTML=
-      `<span>타격</span><b>${b.g}경기 ${fmt3(avg(b))} · OPS ${ops(b).toFixed(3)}</b>`;
-    rc.appendChild(el('div','pf-kv')).innerHTML=
-      `<span>세부</span><b>${b.h}안타 ${b.hr}홈런 ${b.rbi}타점 ${b.sb}도루 · wRC+ ${wrcPlus(b,lgw)} · WAR ${warOf(p.id,b,lgw).toFixed(2)}</b>`;
-  } else rc.appendChild(el('p','muted','타석 기록이 없다.'));
+    rec+=`<div class="ot-tbl"><table><thead><tr><th>G</th><th>PA</th><th>H</th><th>2B</th><th>HR</th><th>RBI</th><th>SB</th><th>AVG</th><th>OPS</th><th>wRC+</th><th>WAR</th></tr></thead>
+      <tbody><tr><td>${b.g}</td><td>${b.pa}</td><td>${b.h}</td><td>${b.d2}</td><td>${b.hr}</td><td>${b.rbi}</td><td>${b.sb}</td>
+      <td>${fmt3(avg(b))}</td><td>${ops(b).toFixed(3)}</td><td>${wrcPlus(b,lgw)}</td><td>${warOf(p.id,b,lgw).toFixed(2)}</td></tr></tbody></table></div>`;
+  } else rec+='<p class="ot-note">올해 지금까지 타석 기록 없음.</p>';
   if(pl&&pl.outs){
-    rc.appendChild(el('div','pf-kv')).innerHTML=
-      `<span>투구</span><b>${ipStr(pl)}이닝 ERA ${era(pl).toFixed(2)} · ${pl.k}탈삼진 ${pl.bb+pl.hbp}사사구</b>`;
+    rec+=`<div class="ot-tbl"><table><thead><tr><th>G</th><th>IP</th><th>H</th><th>ER</th><th>BB</th><th>K</th><th>ERA</th></tr></thead>
+      <tbody><tr><td>${pl.g}</td><td>${ipStr(pl)}</td><td>${pl.h}</td><td>${pl.er}</td><td>${pl.bb+pl.hbp}</td><td>${pl.k}</td><td>${era(pl).toFixed(2)}</td></tr></tbody></table></div>`;
   }
-  c.appendChild(rc);
+  add(otSec('올 시즌 기록', rec));
 
-  /* 실제 2026 기록 — 이 게임의 출처다 */
+  /* ---- 산출 근거 ---- */
   if(p.real){
     const r=p.real;
-    const real=el('div','card');
-    real.innerHTML=`<div class="card-h">능력치 산출 근거 · 실제 2026 기록</div>
-      <p class="muted">${r.g}경기 ${r.pa}타석 ${r.ab}타수 ${r.h}안타 (2루타 ${r.d2} · 3루타 ${r.d3} · 홈런 ${r.hr})<br>
-      볼넷 ${r.bb} · 사구 ${r.hbp} · 삼진 ${r.k} · 도루 ${r.sb} · 타점 ${r.rbi} · 득점 ${r.r}
-      ${p.realPit?`<br>투구 ${p.realPit.g}경기 ${p.realPit.ip}이닝 ERA ${p.realPit.era} · ${p.realPit.k}탈삼진 ${p.realPit.bb}사사구`:''}</p>
-      <p class="muted">${p.note||''}</p>`;
-    c.appendChild(real);
+    let src=`<div class="ot-tbl"><table><thead><tr><th>G</th><th>PA</th><th>AB</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>BB</th><th>HBP</th><th>K</th><th>SB</th><th>RBI</th><th>R</th></tr></thead>
+      <tbody><tr><td>${r.g}</td><td>${r.pa}</td><td>${r.ab}</td><td>${r.h}</td><td>${r.d2}</td><td>${r.d3}</td><td>${r.hr}</td><td>${r.bb}</td><td>${r.hbp}</td><td>${r.k}</td><td>${r.sb}</td><td>${r.rbi}</td><td>${r.r}</td></tr></tbody></table></div>`;
+    if(p.realPit){
+      const q=p.realPit;
+      src+=`<div class="ot-tbl"><table><thead><tr><th>G</th><th>IP</th><th>H</th><th>ER</th><th>BB</th><th>K</th><th>ERA</th></tr></thead>
+        <tbody><tr><td>${q.g}</td><td>${ipDot(q.ip)}</td><td>${q.h}</td><td>${q.er}</td><td>${q.bb}</td><td>${q.k}</td><td>${q.era.toFixed(2)}</td></tr></tbody></table></div>`;
+    }
+    if(p.note) src+=`<p class="ot-note">${p.note}</p>`;
+    add(otSec('능력치 산출 근거 · 실제 2026 기록', src));
   }
+
+  wrap.appendChild(grid);
+  c.appendChild(wrap);
 
   const act=el('div','btn-row');
   if(!isMerc(p.id)){
