@@ -1379,11 +1379,36 @@ function starHTML(v, dim){
 }
 
 /* 포지션 적합도 (0~80). 0이면 불가 */
-function posFit(pid, pos){
+/* 타고난 포지션 적합도 (훈련 전) */
+function basePosFit(pid, pos){
   const m=META[pid];
   if(!m||!m.pos) return pos==='DH'?50:35;
   const v=m.pos[pos];
   return v===undefined?30:v;
+}
+/* 좌투수는 포수·2루·3루·유격을 볼 수 없다. 훈련으로도 안 된다.
+   (송구 방향 때문에 물리적으로 불가능하다)                          */
+const LEFTY_BLOCKED = ['C','2B','3B','SS'];
+function posTrainCap(pid, pos){
+  const m=META[pid];
+  if(m && m.throws==='L' && LEFTY_BLOCKED.indexOf(pos)>=0) return 0;
+  const base=basePosFit(pid,pos);
+  // 원래 서던 자리는 최대 +25, 아예 안 서던 자리는 30이 한계다.
+  // 훈련해도 "익숙하지 않다" 수준을 벗어나지 못한다 — FM 의 포지션 적응과 같다.
+  return base>0 ? Math.min(70, base+25) : 30;
+}
+/* 실제 적용되는 적합도 = 타고난 값 + 훈련으로 올린 값 */
+function posFit(pid, pos){
+  const base=basePosFit(pid,pos);
+  const cap=posTrainCap(pid,pos);
+  if(cap<=0) return 0;
+  const add=(typeof ST!=='undefined'&&ST&&ST.posTrain&&ST.posTrain[pid])?(ST.posTrain[pid][pos]||0):0;
+  if(!add) return base;
+  return Math.min(cap, base+add);
+}
+/* 훈련으로 얼마나 올렸는지 (UI 표시용) */
+function posTrained(pid,pos){
+  return (typeof ST!=='undefined'&&ST&&ST.posTrain&&ST.posTrain[pid])?(ST.posTrain[pid][pos]||0):0;
 }
 function canPlay(pid, pos){ return pos==='DH' || posFit(pid,pos)>0; }
 
@@ -3979,6 +4004,8 @@ function newSeason(){
     promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
     mercs:[],                                              // 이번 경기 용병
+    posTrain:{}, trainPos:null, trainStreak:0,             // 포지션 적응 훈련
+    trainRain:false, trainPush:false,
     bond:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=50);return o;})(),
     drinkInvite:null, poach:null,                          // 우정·술약속·영입제안
     lastLineup:null, oppEvent:null, mystery:null, canParty:false, teamBuff:null,
@@ -4253,6 +4280,9 @@ function runWeek(){
   ST.oppEvent = (anId&&isAvailable(anId.id)&&anUn<3&&!ST.scoutBlocked)
     ? rollOppEvent(ST,rng,TBYID[ST.schedule[ST.round].opp]) : null;
   ST.park=(ST.schedule[ST.round]||{}).park||'benamul';
+  // 주중 훈련일 날씨는 경기날과 별개로 굴린다
+  ST.trainRain = rng()<0.24;
+  ST.trainPush = false;
   return rained;
 }
 
@@ -4824,6 +4854,12 @@ function renderSquad(){
     // 진행 중인 약속을 카드에 바로 보여준다
     const pr=ST.promise&&ST.promise[p.id];
     if(pr) card.appendChild(el('div','pc-prom','약속: '+promiseLabel(pr)));
+    // 훈련으로 적응한 포지션이 있으면 알려준다
+    const trained=Object.keys((ST.posTrain&&ST.posTrain[p.id])||{})
+      .filter(k=>posTrained(p.id,k)>=1);
+    if(trained.length)
+      card.appendChild(el('div','pc-prom','포지션 적응: '+
+        trained.map(k=>`${POSNAMES[k]} ${Math.round(posFit(p.id,k))}`).join(' · ')));
     if(isMerc(p.id)){
       // 용병은 오늘 하루짜리다. 면담도 훈련도 없다.
       card.appendChild(el('div','pc-prom',`오늘 경기 한정 용병 · ${mercDef(p.id).fee}만원`));
@@ -5136,7 +5172,8 @@ function openPosPicker(idx){
     const fit=fitV>=45;
     const row=el('button','pick-row'+(ST.lineup[idx].pos===pos?' cur':'')+(taken[pos]?' used':''));
     row.innerHTML=`<div class="pk-l"><div class="pk-name">${POSNAMES[pos]}</div>
-      <div class="pk-note">${fitV<=0?'불가 (좌투)':fit?'주 포지션':'익숙하지 않다 — 수비 하락'}</div></div>
+      <div class="pk-note">${fitV<=0?'불가 (좌투)':fit?'주 포지션':'익숙하지 않다 — 수비 하락'}`+
+      `${posTrained(ST.lineup[idx].id,pos)>=1?` · 훈련 +${Math.round(posTrained(ST.lineup[idx].id,pos))}`:''}</div></div>
       <div class="pk-r"><div class="pk-stat">${taken[pos]?'중복':(fitV>0?fitV:'—')}</div></div>`;
     if(fitV<=0) row.classList.add('bad');
     row.onclick=()=>{
@@ -5986,16 +6023,29 @@ const TRAININGS=[
   {k:'eye',n:'선구안 훈련',d:'존 설정과 볼 판단',eff:'선구 성장'},
   {k:'pitch',n:'투구 훈련',d:'퀵모션과 제구 위주',eff:'투수 제구 성장'},
   {k:'hard',n:'강도 높은 전체 훈련',d:'전 부문을 몰아친다',eff:'성장 큼 · 부상 위험'},
+  {k:'pos', n:'포지션 적응 훈련',d:'집중 대상을 새 자리에 세워본다',eff:'선택한 포지션 적합도 상승'},
 ];
 /* ---------- 훈련 참석 ----------
    실제로 평일 훈련에 매주 나오는 사람은 정해져 있다.
    나머지는 출석 성향(attend)을 기준으로 매주 새로 뽑는다.
    경기보다 훈련 출석이 낮은 게 사회인야구 현실이라 0.55를 곱한다.        */
-const TRAIN_REGULARS=['ksh','kjh','kig','khg','lg','swm','khj'];   // 항상 온다
-const TRAIN_SOMETIMES={yjh:0.45, ujh:0.40};                        // 가끔 온다
+/* 사회인야구는 훈련을 경기보다 훨씬 덜 나온다.
+   상시조라고 해도 매주 100% 나오지는 않는다.                        */
+const TRAIN_REGULARS=['ksh','kjh','kig','khg','lg','swm','khj'];   // 그나마 자주 온다
+const TRAIN_REG_P = 0.82;                                          // 상시조 기본 참석률
+const TRAIN_SOMETIMES={yjh:0.30, ujh:0.26};                        // 가끔 온다
+const TRAIN_OTHER_MUL = 0.34;                                      // 나머지는 경기 출석의 34%
+/* 연속으로 훈련을 잡으면 점점 안 나온다 */
+function trainFatigue(){
+  const st=ST.trainStreak||0;
+  return st<=1?1:(st===2?0.82:(st===3?0.66:0.52));
+}
 const hasOwn=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
 
-function trainAttendKey(){ return (ST.round||0)+'_'+(ST.weekSeq||0); }
+function trainAttendKey(){
+  return (ST.round||0)+'_'+(ST.weekSeq||0)+'_'+(ST.trainStreak||0)
+    +'_'+(ST.trainRain?1:0)+'_'+(ST.trainPush?1:0)+'_'+(ST.trainFocus||'none');
+}
 
 /* 이번 주 훈련 참석자 id 배열. 같은 주 안에서는 항상 같은 명단이 나온다. */
 function trainAttendList(){
@@ -6009,10 +6059,12 @@ function trainAttendList(){
     if(isMerc(p.id))return;                               // 용병은 그날 하루만 온다
     if(ST.injury&&ST.injury[p.id])return;                 // 부상자는 훈련에 못 나온다
     let prob;
-    if(TRAIN_REGULARS.indexOf(p.id)>=0) prob=1;
+    if(TRAIN_REGULARS.indexOf(p.id)>=0) prob=TRAIN_REG_P;
     else if(hasOwn(TRAIN_SOMETIMES,p.id)) prob=TRAIN_SOMETIMES[p.id];
-    else { const m=META[p.id]; prob=((m&&m.attend!=null)?m.attend:0.85)*0.55; }
+    else { const m=META[p.id]; prob=((m&&m.attend!=null)?m.attend:0.85)*TRAIN_OTHER_MUL; }
     if(ST.absent&&ST.absent[p.id]) prob*=0.3;             // 그 주 개인사정이면 훈련도 대개 빠진다
+    prob*=trainFatigue();                                 // 매주 부르면 점점 안 나온다
+    if(ST.trainRain) prob*=(ST.trainPush?0.45:0);         // 비 오는 날은 강행해도 절반 이하
     if(rng()<prob) list.push(p.id);
   });
   ST.trainAttend=list; ST.trainAttendKey=key;
@@ -6053,6 +6105,47 @@ function applyTraining(){
   if(f==='none'){
     us.players.forEach(p=>ST.cond[p.id]=Math.min(100,(ST.cond[p.id]||70)+6));
     ST.trainLog=['훈련 없이 쉬었다 — 전원 컨디션 +6'];
+    ST.trainStreak=0;                       // 쉬면 피로가 풀린다
+    return;
+  }
+  // 비 오는 날인데 강행 안 했으면 훈련이 취소된 것이다
+  if(ST.trainRain && !ST.trainPush){
+    us.players.forEach(p=>ST.cond[p.id]=Math.min(100,(ST.cond[p.id]||70)+4));
+    ST.trainLog=['비로 훈련 취소 — 전원 컨디션 +4'];
+    ST.trainStreak=0;
+    return;
+  }
+  ST.trainStreak=(ST.trainStreak||0)+1;     // 연속으로 부르면 다음 주 참석률이 떨어진다
+
+  /* ---- 포지션 적응 훈련 ---- 능력치 대신 포지션 적합도를 올린다 */
+  if(f==='pos'){
+    let tg=ST.trainTarget, tp=ST.trainPos;
+    if(tg&&!us.players.some(p=>p.id===tg))tg=null;
+    if(!tg||!tp){ ST.trainLog=['대상과 포지션을 정해야 훈련이 된다']; return; }
+    if(att.indexOf(tg)<0){ ST.trainLog=[`${nameOf(tg)}이(가) 훈련에 안 나왔다 — 포지션 훈련 무산`]; return; }
+    const cap=posTrainCap(tg,tp);
+    if(cap<=0){ ST.trainLog=[`${nameOf(tg)}은(는) ${POSNAMES[tp]}을(를) 볼 수 없다`]; return; }
+    if(!ST.posTrain)ST.posTrain={};
+    if(!ST.posTrain[tg])ST.posTrain[tg]={};
+    const before=posFit(tg,tp);
+    if(before>=cap){ ST.trainLog=[`${nameOf(tg)} ${POSNAMES[tp]} 적응 완료 (${before}) — 더는 안 오른다`]; return; }
+    const m=META[tg];
+    let gain=1.6;
+    if(m&&m.traits.includes('노력파'))gain*=1.3;
+    if(m&&m.traits.includes('미완성'))gain*=1.2;
+    if(m&&m.traits.includes('수비약점'))gain*=0.6;
+    if(m&&m.traits.includes('외야미숙')&&['LF','CF','RF'].indexOf(tp)>=0)gain*=0.5;
+    gain*=coachBonus(['C','1B','2B','3B','SS','P'].indexOf(tp)>=0?'inf':'out');
+    gain*=((ST.morale[tg]||70)/70)*(0.6+Math.random()*0.8);
+    ST.posTrain[tg][tp]=(ST.posTrain[tg][tp]||0)+gain;
+    const after=posFit(tg,tp);
+    gains.push(`${nameOf(tg)} ${POSNAMES[tp]} 적합도 ${Math.round(before)} → ${Math.round(after)} (한계 ${cap})`);
+    // 나온 사람들은 몸을 좀 쓴다
+    att.forEach(pid=>ST.cond[pid]=Math.max(25,(ST.cond[pid]||70)-4));
+    const skip=us.players.filter(p=>att.indexOf(p.id)<0&&!ST.injury[p.id]);
+    if(skip.length)gains.push(`불참 ${skip.length}명 — ${skip.map(p=>p.name).join(', ')}`);
+    finalizeTeam(us);
+    ST.trainLog=gains.slice(0,7);
     return;
   }
 
@@ -6128,7 +6221,17 @@ function renderTrain(){
 
   const card=el('div','card');
   card.appendChild(el('div','card-h','주간 훈련'));
-  card.appendChild(el('p','muted','한 명을 정해 집중적으로 키운다. 나온 사람만 큰다. 잠재 한도 안에서만 성장한다.'));
+  card.appendChild(el('p','muted',
+    '한 명을 정해 집중적으로 키운다. 나온 사람만 큰다. 잠재 한도 안에서만 성장한다.'));
+
+  /* 사회인야구는 훈련이 경기보다 참석이 나쁘다.
+     매주 부르면 점점 안 나오니 쉬어가는 주도 필요하다. */
+  const streak=ST.trainStreak||0;
+  if(streak>=2){
+    card.appendChild(el('div','warn',
+      `${streak}주 연속 훈련 중이다. 참석률이 ${Math.round((1-trainFatigue())*100)}% 떨어져 있다. `+
+      `'훈련 없음'으로 한 주 쉬면 초기화된다.`));
+  }
   const cn=[['inf','내야 수비'],['out','외야 수비'],['all','전체 수비'],['bat','타격']];
   const lines=cn.map(([k,label])=>{
     const n=coachNames(k);
@@ -6137,6 +6240,26 @@ function renderTrain(){
   card.appendChild(el('p','muted',lines.join('<br>')));
   card.lastChild.innerHTML=lines.join('<br>')+'<br><span class="dimx">코치도 훈련에 나와야 효과가 붙는다.</span>';
   c.appendChild(card);
+
+  // ---- 비 오는 날 ----
+  if(ST.trainRain && (ST.trainFocus||'none')!=='none'){
+    const rc=el('div','card');
+    rc.innerHTML=`<div class="card-h">훈련일에 비가 온다</div>
+      <p class="muted">그라운드가 젖었다. 강행하면 나올 사람이 절반 이하로 줄고 몸도 축난다.
+      취소하면 전원 컨디션 +4로 쉬고 넘어간다.</p>`;
+    const g=el('div','tac-grid');
+    [['push','그래도 모인다',`참석률 45% · 컨디션 소모 · 부상 위험`],
+     ['skip','이번 주는 쉰다','훈련 없음 · 전원 컨디션 +4']].forEach(([k,n,d2])=>{
+      const b=el('button','tac'+((k==='push')===!!ST.trainPush?' on':''));
+      b.innerHTML=`<b>${n}</b><span>${d2}</span>`;
+      b.onclick=()=>{ ST.trainPush=(k==='push'); ST.trainAttendKey=null;
+        saveGame(true); renderTrain();
+        toast(k==='push'?'비 와도 모인다':'이번 주 훈련 취소'); };
+      g.appendChild(b);
+    });
+    rc.appendChild(g);
+    c.appendChild(rc);
+  }
 
   // ---- 집중 훈련 대상 ----
   const fc=el('div','card');
@@ -6174,6 +6297,42 @@ function renderTrain(){
     $('#sheet').classList.add('open');
   };
   fc.appendChild(fb);
+
+  /* 포지션 적응 훈련이면 목표 자리도 골라야 한다 */
+  if(ST.trainFocus==='pos'){
+    const tp=ST.trainPos;
+    const pr=el('div','focus-row');
+    if(tgt&&tp){
+      const cap=posTrainCap(tgt,tp), now=posFit(tgt,tp), base=basePosFit(tgt,tp);
+      pr.innerHTML=`<div class="fo-l"><b>${POSNAMES[tp]} 적응</b>
+        <span>${cap<=0?'좌투라 이 자리는 불가능하다':`현재 ${Math.round(now)} (타고난 ${base}) · 한계 ${cap}`}</span></div>
+        <div class="fo-r">${cap>0?`+${Math.round(now-base)}`:'—'}</div>`;
+      if(cap<=0)pr.classList.add('miss');
+    } else pr.innerHTML=`<div class="fo-l"><b>포지션 미지정</b><span>어느 자리를 연습시킬지 골라라</span></div>`;
+    fc.appendChild(pr);
+    const pb=el('button','btn','연습시킬 포지션 고르기');
+    pb.onclick=()=>{
+      if(!tgt){toast('집중 훈련 대상을 먼저 골라라');return;}
+      const body=$('#sheet-body'); body.innerHTML='';
+      $('#sheet-title').textContent=`${nameOf(tgt)} 포지션 적응`;
+      body.appendChild(el('div','sheet-note',
+        '원래 서던 자리는 최대 +25까지, 아예 안 서던 자리는 30이 한계다. '+
+        '좌투는 포수·2루·3루·유격을 볼 수 없다.'));
+      ALLPOS.filter(x=>x!=='DH').concat(['P']).forEach(pos=>{
+        const cap=posTrainCap(tgt,pos), base=basePosFit(tgt,pos), now=posFit(tgt,pos);
+        const r=el('button','pick-row'+(cap<=0?' bad':'')+(pos===tp?' cur':''));
+        r.innerHTML=`<div class="pk-l"><div class="pk-name">${POSNAMES[pos]}</div>
+          <div class="pk-note">${cap<=0?'불가 (좌투)':
+            (now>=cap?`한계 도달 (${Math.round(now)})`:`현재 ${Math.round(now)} → 한계 ${cap}`)}</div></div>
+          <div class="pk-r"><div class="pk-stat">${cap>0?Math.round(now):'—'}</div></div>`;
+        if(cap>0)r.onclick=()=>{ ST.trainPos=pos; closeSheet(); saveGame(true); renderTrain();
+          toast(`${nameOf(tgt)} ${POSNAMES[pos]} 적응 훈련`); };
+        body.appendChild(r);
+      });
+      $('#sheet').classList.add('open');
+    };
+    fc.appendChild(pb);
+  }
   c.appendChild(fc);
 
   // ---- 이번 주 참석자 ----
@@ -6194,7 +6353,8 @@ function renderTrain(){
   TRAININGS.forEach(t=>{
     const b=el('button','trainb'+(ST.trainFocus===t.k?' on':''));
     b.innerHTML=`<b>${t.n}</b><span>${t.d}</span><i>${t.eff}</i>`;
-    b.onclick=()=>{ST.trainFocus=t.k;saveGame(true);renderTrain();toast(t.n+' 지정');};
+    b.onclick=()=>{ST.trainFocus=t.k;ST.trainAttendKey=null;saveGame(true);renderTrain();
+      toast(t.k==='pos'?'포지션 훈련 — 대상과 자리를 골라라':t.n+' 지정');};
     g.appendChild(b);
   });
   c.appendChild(g);
@@ -6849,6 +7009,12 @@ function normalizeState(){
   if(ST.trainTarget===undefined)ST.trainTarget=null;
   if(ST.trainTarget&&!us.players.some(p=>p.id===ST.trainTarget))ST.trainTarget=null;
   if(!Array.isArray(ST.trainAttend))ST.trainAttend=[];
+  if(!ST.posTrain)ST.posTrain={};
+  Object.keys(ST.posTrain).forEach(id=>{ if(!us.players.some(p=>p.id===id))delete ST.posTrain[id]; });
+  if(ST.trainPos===undefined)ST.trainPos=null;
+  if(ST.trainStreak==null)ST.trainStreak=0;
+  if(ST.trainRain==null)ST.trainRain=false;
+  if(ST.trainPush==null)ST.trainPush=false;
   if(ST.trainAttendKey===undefined)ST.trainAttendKey=null;
   if(!Array.isArray(ST.trainLog))ST.trainLog=[];
   if(!ST.caStart){ST.caStart={};us.players.forEach(p=>ST.caStart[p.id]=ST.ca[p.id]);}
