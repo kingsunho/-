@@ -5687,6 +5687,7 @@ function runWeek(){
   autoFixLineup();
   ST.kakao=[]; ST.kakaoPost=[]; ST.partyDone=false; ST.weekDone=true;
   ST.sentPre=false; ST.sentPost=false; ST.teamBuff=null; ST.canParty=false; ST.dropouts=[]; ST.lineupDirty=false;
+  ST.announced=false;      // 라인업을 단톡방에 올려야 경기로 넘어간다
   const anId=TBYID['wwzw'].players.find(p=>META[p.id]&&META[p.id].traits.includes('분석가'));
   const anUn=anId?((ST.unhappy&&ST.unhappy[anId.id])?ST.unhappy[anId.id].level:0):9;
   ST.oppEvent = (anId&&isAvailable(anId.id)&&anUn<3&&!ST.scoutBlocked)
@@ -6280,7 +6281,7 @@ function renderHome(){
       card.appendChild(b);
     } else {
       const b1=el('button','btn','라인업 · 카톡 발표'); b1.onclick=()=>go('lineup');
-      const announced0=!!(ST.kakao&&ST.kakao.length);
+      const announced0=!!ST.announced;
       const b2=el('button','btn primary',
         ST.lineupDirty?'라인업 다시 확정':(announced0?'경기 시작':'라인업 발표부터'));
       b2.onclick=()=>go(ST.lineupDirty?'lineup':(announced0?'game':'kakao'));
@@ -7147,7 +7148,7 @@ function renderLineup(){
   };
   const b2=el('button','btn','카톡 발표');
   b2.onclick=()=>{
-    ST.kakao=buildKakaoPre(ST);
+    ST.kakao=buildKakaoPre(ST); ST.announced=true;
     /* 발표 직후 빠지는 사람이 생기면 자동으로 메우지 않는다.
        감독이 직접 라인업을 다시 확정해야 경기로 넘어간다.
        (예전에는 몰래 채워 넣어서 화면과 실제가 어긋났다)             */
@@ -7165,6 +7166,7 @@ function renderLineup(){
       if(ids.some((x,i)=>ids.indexOf(x)!==i)){ toast('같은 사람이 두 번 들어가 있다'); return; }
       resolveStarterField();
       ST.lineupDirty=false;
+      ST.announced=true;          // 수정본을 올렸으니 발표한 것으로 친다
       ST.kakao=ST.kakao||[];
       ST.kakao.push({who:'lg',type:'notice',
         text:'라인업 수정\n\n'+ST.lineup.map((s2,i)=>{
@@ -7820,12 +7822,12 @@ function renderKakao(){
   /* 발표는 그 주에 딱 한 번이다.
      [버그 이력] 예전에는 phase 만 보고 버튼을 다시 띄웠다. 그래서 발표를 계속
      다시 눌러 반응이 마음에 들 때까지 굴릴 수 있었다. 발표된 뒤에는 안 띄운다. */
-  const announced = !!(ST.kakao && ST.kakao.length);
+  const announced = !!ST.announced;
   if(phase==='pre' && !announced && !played){
     const b=el('button','btn','라인업 발표');
     b.onclick=()=>{
-      if(ST.kakao&&ST.kakao.length)return;              // 두 번 눌러도 한 번만
-      ST.kakao=buildKakaoPre(ST); ST.sentPre=false; saveGame(true); renderKakao();
+      if(ST.announced)return;                          // 두 번 눌러도 한 번만
+      ST.kakao=buildKakaoPre(ST); ST.announced=true; ST.sentPre=false; saveGame(true); renderKakao();
     };
     head.appendChild(b);
   } else if(phase==='pre' && announced){
@@ -7913,7 +7915,7 @@ function renderGame(){
   const c=$('#view'); c.innerHTML='';
   if(ST.seasonOver){c.appendChild(el('div','card','시즌이 끝났다.'));return;}
   if(!ST.weekDone){c.appendChild(el('div','card','홈에서 이번 주를 먼저 시작해라.'));return;}
-  if(!(ST.kakao&&ST.kakao.length)){
+  if(!ST.announced){
     c.appendChild(el('div','card','단톡방에 라인업을 먼저 발표해야 한다.'));
     const kb=el('button','btn primary','단톡방으로'); kb.onclick=()=>go('kakao');
     c.appendChild(kb); return;
@@ -10085,6 +10087,8 @@ function normalizeState(){
   if(!ST.carpool)ST.carpool=null;
   if(!ST.dropouts)ST.dropouts=[];
   if(ST.lineupDirty==null)ST.lineupDirty=false;
+  if(ST.announced==null)
+    ST.announced=!!(ST.kakao&&ST.kakao.some(m=>m.type==='notice'&&/선발\s/.test(m.text||'')));
   if(ST.lessonBoost==null)ST.lessonBoost=false;
   if(ST.lessonTarget===undefined)ST.lessonTarget=null;
   if(ST.year==null)ST.year=2026;
