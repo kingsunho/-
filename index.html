@@ -166,6 +166,18 @@ button{font-family:inherit;cursor:pointer}
 /* 고진선 특수 이벤트 */
 .fl.gojin{color:#ffb4a8;font-weight:700;border-left:2px solid #7a3b34;padding-left:7px;
   background:rgba(122,59,52,.12)}
+.fl.fric{color:#ffd08a;font-weight:700;border-left:2px solid #7a5b28;padding-left:7px;
+  background:rgba(122,91,40,.12)}
+.fl.mgr{color:#a9c8ff;font-weight:700;border-left:2px solid #2f4a7a;padding-left:7px;
+  background:rgba(47,74,122,.14)}
+/* 튜토리얼 */
+.tut-body{font-size:13px;line-height:1.85;color:var(--ink);margin-top:4px}
+.tut-body b{color:var(--gold)}
+.tut-g{color:#7fd6a5;font-weight:800}
+.tut-r{color:#e0a08f;font-weight:800}
+.tut-dots{display:flex;gap:5px;justify-content:center;margin-top:14px}
+.tut-dots i{width:6px;height:6px;border-radius:50%;background:var(--line)}
+.tut-dots i.on{background:var(--gold);width:16px;border-radius:3px}
 
 .linescore{margin-top:11px;background:var(--panel);border:1px solid var(--line);
   border-radius:13px;padding:11px;overflow-x:auto}
@@ -1554,6 +1566,24 @@ function seasonDates(year){
     if(d>END) break;
     out.push(new Date(d));
   }
+
+  /* 기념일 주말에는 경기가 잡히도록 가장 가까운 일정을 당겨 붙인다.
+     김선우(장교)가 삼일절·현충일·광복절·국군의 날에 각성하는데,
+     그 날 경기가 아예 없으면 이벤트가 죽어버린다.                    */
+  HOLIDAYS.forEach(h=>{
+    const pp=h.md.split('-');
+    const hd=new Date(year, Number(pp[0])-1, Number(pp[1]));
+    const sun=new Date(hd);                       // 기념일에 가장 가까운 일요일
+    const off=sun.getDay();
+    if(off<=3) sun.setDate(sun.getDate()-off); else sun.setDate(sun.getDate()+(7-off));
+    if(sun<out[0]||sun>END) return;
+    // 이미 그 주에 경기가 있으면 놔둔다
+    if(out.some(x=>Math.abs(x-sun)<86400000)) return;
+    // 없으면 ±14일 안의 가장 가까운 일정을 그 일요일로 옮긴다
+    let bi=-1, bd=1e15;
+    out.forEach((x,i)=>{ const dd=Math.abs(x-sun); if(dd<bd&&dd<=14*86400000){bd=dd;bi=i;} });
+    if(bi>=0){ out[bi]=new Date(sun); out.sort((a,b)=>a-b); }
+  });
   return out;
 }
 /* 직전 경기와의 간격을 사람이 읽는 문장으로 */
@@ -1572,7 +1602,7 @@ function holidayFor(round, year){
   HOLIDAYS.forEach(function(h){
     const p=h.md.split('-');
     const hdate=new Date(y, Number(p[0])-1, Number(p[1]));
-    if(Math.abs(hdate-dt)<=3*86400000) hol=h.name;
+    if(Math.abs(hdate-dt)<=4*86400000) hol=h.name;
   });
   return {date:y+'-'+md, holiday:hol, month:dt.getMonth()+1,
     label:(dt.getMonth()+1)+'월 '+dt.getDate()+'일 (일)'};
@@ -1963,11 +1993,21 @@ function rollWeekEvents(ST, rng){
 
   /* 기념일 — 김선우 장교 */
   const cal=ST.calendar;
-  if(cal.holiday==='광복절'||cal.holiday==='현충일'||cal.holiday==='국군의 날'){
+  /* 김선우는 장교다. 나라 기념일이면 각을 잡고 나온다.
+     삼일절·현충일·광복절·국군의 날 전부 해당한다.                    */
+  if(cal.holiday==='삼일절'||cal.holiday==='광복절'
+     ||cal.holiday==='현충일'||cal.holiday==='국군의 날'){
     if(isAvailable('ksw')){
+      const KSW_LINE={
+        '삼일절':['김선우가 태극기를 챙겨 왔다. "오늘은 의미가 다릅니다."', 1.30],
+        '현충일':['김선우가 조용히 묵념부터 했다. "오늘은 진지하게 하겠습니다."', 1.26],
+        '광복절':['김선우가 각 잡고 나타났다. "오늘은 좀 다릅니다."', 1.32],
+        '국군의 날':['김선우가 군복 티셔츠를 입고 왔다. "오늘은 제 날입니다."', 1.36],
+      };
+      const L=KSW_LINE[cal.holiday]||['김선우가 각 잡고 나타났다.',1.30];
       evts.push({type:'holiday',pid:'ksw',title:`${cal.holiday} · 김선우 각성`,
-        body:'김선우가 각 잡고 나타났다. "오늘은 좀 다릅니다."',
-        effect:'김선우 파워 +30% · 팀 사기 상승'});
+        body:L[0], pow:L[1],
+        effect:`김선우 파워 +${Math.round((L[1]-1)*100)}% · 팀 사기 상승`});
     } else evts.push({type:'holiday',title:cal.holiday,body:`${cal.holiday}이다.`,effect:'—'});
   }
 
@@ -2144,6 +2184,7 @@ function rollWeekEvents(ST, rng){
 function applyWeekEvents(ST,evts){
   const us=TBYID['wwzw'];
   ST.absent={}; ST.fieldMod={err:1,cond:0}; ST.gearLevel=0; ST.mittMissing=false;
+  ST.drunkIds=[];      // 전날 마신 사람들 — 경기 중 사고 확률에 쓴다
   ST.buff={}; ST.transferReq=null; ST.drinkInvite=null; ST.poach=null;
   let rained=false;
   const wx=WEATHERS.find(w=>w.id===ST.weather)||WEATHERS[0];
@@ -2161,6 +2202,7 @@ function applyWeekEvents(ST,evts){
         us.players.forEach(p=>ST.cond[p.id]=Math.max(20,ST.cond[p.id]+wx.cond));
         break;
       case 'party': case 'drink':
+        (e.ids||[]).forEach(id=>{ if(ST.drunkIds.indexOf(id)<0)ST.drunkIds.push(id); });
         (e.ids||[]).forEach(id=>{
           const d=META[id]?META[id].drink:1;
           ST.cond[id]=Math.max(22,ST.cond[id]-(d>=3?20+((Math.random()*14)|0):d===2?11:5));
@@ -2168,6 +2210,7 @@ function applyWeekEvents(ST,evts){
         if(e.type==='party')us.players.forEach(p=>ST.morale[p.id]=Math.min(100,ST.morale[p.id]+4));
         break;
       case 'club':
+        (e.ids||[]).forEach(id=>{ if(ST.drunkIds.indexOf(id)<0)ST.drunkIds.push(id); });
         (e.ids||[]).forEach(id=>{ ST.cond[id]=Math.max(18,ST.cond[id]-34);
           ST.morale[id]=Math.min(100,ST.morale[id]+6); });
         break;
@@ -2178,7 +2221,7 @@ function applyWeekEvents(ST,evts){
         break;
       case 'dehydrate': ST.cond[e.pid]=Math.max(18,ST.cond[e.pid]-26); break;
       case 'holiday':
-        if(e.pid){ ST.buff[e.pid]={pow:1.30,label:'각성'};
+        if(e.pid){ ST.buff[e.pid]={pow:e.pow||1.30,label:'각성'};
           us.players.forEach(p=>ST.morale[p.id]=Math.min(100,ST.morale[p.id]+3)); }
         break;
       case 'basket':
@@ -3533,6 +3576,89 @@ function bondLabel(v){
   return v>=80?'매우 친함':v>=62?'친함':v>=42?'보통':v>=25?'서먹함':'거의 안 봄';
 }
 
+/* =========================================================
+   경기 중 마찰 · 팀 사기 이벤트 (상대 무관)
+   ---------------------------------------------------------
+   고진선(안산유나이티드 전용)과 별개로, 어느 팀 상대로든 일어난다.
+   실제로 술 마시고 온 김인규가 시비가 붙거나,
+   김한규가 벤치클리어링 한복판에 서 있거나 하는 일이 있었다.
+   ========================================================= */
+const FRIC_HBP=[      // 몸에 맞는 공 → 벤치가 험악해진다
+  '{n}이(가) 몸에 맞았다. 우리 벤치가 일어섰다',
+  '{n} 등에 공이 꽂혔다. 더그아웃이 술렁인다',
+  '{n}이(가) 헬멧에 맞을 뻔했다. 분위기가 싸늘해진다',
+];
+const FRIC_HBP_AFTER=[
+  '주장이 나가서 상황을 정리했다',
+  '심판이 양 팀에 경고를 줬다',
+  '상대 투수가 모자를 들어 사과했다',
+];
+const FRIC_KIG_DRUNK=[   // 전날 마신 김인규가 흥분한다
+  '김인규가 상대 벤치에 대고 뭐라고 한다. 아직 술이 안 깬 것 같다',
+  '김인규가 판정에 크게 반응했다. 목소리가 평소보다 크다',
+  '김인규가 헬멧을 집어던졌다. 어제 새벽까지 마신 게 티가 난다',
+  '김인규가 상대 포수랑 말이 길어진다',
+];
+const FRIC_KHG_CLEAR=[   // 김한규가 벤치클리어링 한복판에
+  '김한규가 제일 먼저 뛰어나갔다',
+  '김한규가 상대 더그아웃 앞까지 갔다. 말리는 사람이 더 많다',
+  '김한규가 데이터를 들이대며 항의한다. 상황이 더 커졌다',
+];
+const FRIC_CLEAR_END=[
+  '심판이 양 팀 주장을 불러 경고하고 경기를 재개했다',
+  '양 팀 감독이 나와서 겨우 정리했다',
+  '누구 하나 퇴장은 없었다. 다행이다',
+];
+const FRIC_UP=[          // 분위기가 올라간다
+  '더그아웃이 살아났다',
+  '벤치에서 응원가가 나온다',
+  '분위기를 탔다',
+  '상대 투수가 흔들리기 시작했다',
+];
+/* 경기 후 마찰 결과를 사기·컨디션·단톡에 반영 */
+function applyFriction(ST, fr){
+  const msgs=[];
+  if(!fr||!fr.log||!fr.log.length)return msgs;
+  const us=TBYID['wwzw'];
+  if(fr.hbp){
+    us.players.forEach(p=>ST.morale[p.id]=Math.min(100,(ST.morale[p.id]||70)+5));
+    msgs.push({who:'lg',type:'notice',text:'사구로 벤치가 뭉쳤다\n전원 사기 +5'});
+    const spk=speakers(ST,null,2,Math.random);
+    spk.forEach(p=>msgs.push({who:p.id,
+      text:line(p.id,ST.playerId,
+        ['그건 좀 심했다','다음에 우리가 갚자','괜찮냐 진짜','저건 고의 아니냐'],
+        ['그건 좀 심했습니다','다음에 우리가 갚죠','괜찮으세요 진짜','저건 고의 아닌가요'],Math.random),
+      mood:'angry'}));
+  }
+  if(fr.cleared){
+    us.players.forEach(p=>{
+      ST.cond[p.id]=Math.max(20,(ST.cond[p.id]||70)-5);
+      ST.morale[p.id]=Math.min(100,(ST.morale[p.id]||70)+9);
+    });
+    msgs.push({who:'lg',type:'notice',text:'벤치클리어링\n전원 컨디션 -5 · 사기 +9'});
+    if(fr.by&&us.players.some(p=>p.id===fr.by)){
+      msgs.push({who:fr.by,text:say(fr.by,'나는 잘못한 거 없다','저는 잘못한 거 없습니다'),mood:'angry'});
+      const spk=speakers(ST,fr.by,2,Math.random);
+      spk.forEach(p=>msgs.push({who:p.id,
+        text:line(p.id,ST.playerId,
+          ['너 좀 참아라 진짜','다칠 뻔했다','그래도 시원하긴 했다','다음엔 말리자'],
+          ['좀 참으세요 진짜','다칠 뻔했습니다','그래도 시원하긴 했습니다','다음엔 말리시죠'],Math.random),
+        mood:'flat'}));
+    }
+  }
+  if(fr.drunk&&us.players.some(p=>p.id===fr.drunk)){
+    ST.morale[fr.drunk]=Math.max(10,(ST.morale[fr.drunk]||70)-6);
+    msgs.push({who:fr.drunk,
+      text:say(fr.drunk,'어제 좀 마시긴 했다 미안','어제 좀 마시긴 했습니다 죄송합니다'),mood:'sad'});
+    msgs.push({who:fr.drunk,type:'notice',text:`${nameOf(fr.drunk)} 사기 -6 — 경기 전날은 좀 참자`});
+  }
+  if(fr.up){
+    us.players.forEach(p=>ST.morale[p.id]=Math.min(100,(ST.morale[p.id]||70)+4));
+    msgs.push({who:'lg',type:'notice',text:'경기 중 분위기를 탔다\n전원 사기 +4'});
+  }
+  return msgs;
+}
+
 /* 약속 요약 문구 (홈 화면·면담 화면 공용) */
 function promiseLabel(pr){
   if(!pr) return '';
@@ -3600,6 +3726,11 @@ function LiveGame(cfg){
   this.gojinOpp = 1;     // 안산 BABIP 배수
   this.gojinWake = {};   // 각성 예약 {pid:true} — 두 명이 동시에 예약될 수 있다
   this.highlights = [];  // 이닝별 주요 장면 (2루타·3루타·홈런·도루자·병살타)
+  this.friction = {log:[],hbp:false,cleared:false,drunk:null,by:null,up:false,pending:false};
+  this.drunkIds = cfg.drunkIds||[];   // 전날 마신 사람들
+  this.fricUs = 1;       // 마찰 여파로 붙는 우리 BABIP 배수
+  this.fricOpp = 1;
+  this.mgr = {left:3, boost:1, log:[]};  // 감독 액션
   this.log.push({t:'inning', inning:1, half:0, text:`1회 초 · ${this.away.team.name} 공격`});
   this.startedInning = true;
   this.checkPitcherChange(this.home);
@@ -3848,6 +3979,46 @@ LiveGame.prototype.stepPA = function(){
     }
   }
 
+  /* ---- 경기 중 마찰 ---- 상대가 누구든 일어난다 */
+  if(off.isUser || def.isUser){
+    const usS=this.userSide(), thS=this.oppSide();
+    const diff=usS.runs-thS.runs;
+    // 전날 마신 김인규가 흥분한다
+    if(!this.friction.drunk && this.inning>=3 && this.drunkIds.indexOf('kig')>=0
+       && usS.slots.some(x=>x.id==='kig') && rng()<0.004){   // 경기당 약 13%
+      this.friction.drunk='kig'; this.friction.log.push('drunk');
+      this.log.push({t:'fric',text:pickOne(FRIC_KIG_DRUNK,rng)});
+      this.friction.pending=true;
+    }
+    // 김한규가 있으면 벤치클리어링으로 번진다.
+    // 판정은 딱 한 번만 한다 — 매 타석 굴리면 결국 100% 터진다.
+    if(this.friction.pending && !this.friction.cleared){
+      this.friction.pending=false;
+      if(rng()<0.42){
+      this.friction.cleared=true; this.friction.log.push('clear');
+      const khg = usS.slots.some(x=>x.id==='khg');
+      this.log.push({t:'fric',text: khg?pickOne(FRIC_KHG_CLEAR,rng)
+        :'양 팀 선수들이 그라운드로 몰려나왔다'});
+      this.log.push({t:'fric',text:pickOne(FRIC_CLEAR_END,rng)});
+      this.friction.by = khg?'khg':(this.friction.drunk||'kig');
+      this.fricUs*=0.97; this.fricOpp*=0.95;   // 양 팀 다 흔들린다
+      } else {
+        this.log.push({t:'fric',text:'주변에서 말려서 더 커지지는 않았다'});
+      }
+    }
+    // 사구 뒤에도 번질 수 있다
+    if(this.friction.hbp && !this.friction.cleared && !this.friction.pending
+       && diff<=-3 && this.inning>=4 && rng()<0.004){
+      this.friction.pending=true;
+    }
+    // 분위기 상승 — 크게 앞설 때
+    if(!this.friction.up && off.isUser && diff>=3 && this.inning>=3 && rng()<0.012){
+      this.friction.up=true; this.friction.log.push('up');
+      this.log.push({t:'fric',text:pickOne(FRIC_UP,rng)});
+      this.fricUs*=1.05;
+    }
+  }
+
   let pitE = pit;
   if(pit.heatFade && pl.outs>=6){
     const over=Math.min(12,pl.outs-6);
@@ -3861,7 +4032,9 @@ LiveGame.prototype.stepPA = function(){
            d2:this.park.d2*1.18, err:this.park.err*1.06};
   }
   // 고진선 이벤트 여파 — 공격 중인 쪽에 해당하는 배수를 곱한다
-  const gjM = off.isUser ? this.gojinUs : this.gojinOpp;
+  const gjM = (off.isUser ? this.gojinUs : this.gojinOpp)
+            * (off.isUser ? this.fricUs : this.fricOpp)
+            * (off.isUser ? (this.mgr.boost||1) : 1);
   if(gjM!==1) parkE={...parkE, babip:parkE.babip*gjM};
   const res = simPA(batE, pitE, off.team, def.team, rng, off.tac, cond, parkE);
   // 번트 앤 런은 주자가 한 베이스 더 간다
@@ -3875,7 +4048,16 @@ LiveGame.prototype.stepPA = function(){
     events.push({text:`${bat.name} 삼진`,cls:'out'}); }
   else if(res.type==='BB'||res.type==='HBP'){
     const isBB=res.type==='BB';
-    if(isBB){bl.bb++;pl.bb++;off.bbs++;}else{bl.hbp++;pl.hbp++;}
+    if(isBB){bl.bb++;pl.bb++;off.bbs++;}else{
+      bl.hbp++;pl.hbp++;
+      // 우리 타자가 맞으면 벤치가 험악해진다 (경기당 1회)
+      if(off.isUser && !this.friction.hbp && rng()<0.35){
+        this.friction.hbp=true; this.friction.log.push('hbp');
+        this.log.push({t:'fric',text:pickOne(FRIC_HBP,rng).replace('{n}',bat.name)});
+        this.log.push({t:'fric',text:pickOne(FRIC_HBP_AFTER,rng)});
+        this.fricUs*=1.04; this.fricOpp*=0.97;
+      }
+    }
     if(this.bases[0]&&this.bases[1]&&this.bases[2]){score(this.bases[2],true);bl.rbi++;this.bases[2]=this.bases[1];this.bases[1]=this.bases[0];}
     else if(this.bases[0]&&this.bases[1]){this.bases[2]=this.bases[1];this.bases[1]=this.bases[0];}
     else if(this.bases[0]){this.bases[1]=this.bases[0];}
@@ -4018,6 +4200,7 @@ LiveGame.prototype.finish = function(){
     dpCount:this.dpCount||0, assists:this.assists||0, assistBy:this.assistBy||null,
     wpCount:this.wp||0,          // 폭투 수. wp(승리투수 id)와 키가 겹치면 안 된다
     gojin:this.gojin,
+    friction:this.friction,
     highlights:this.highlights,
   };
 };
@@ -4117,6 +4300,66 @@ LiveGame.prototype.intentionalWalk = function(){
   this.log.push({t:'sub',text:`고의4구 · ${bat.name}을(를) 거른다`});
   this.pending=null;
   this.tickTactics(false);
+};
+
+/* =========================================================
+   감독 액션 — FM 의 벤치 반응
+   ---------------------------------------------------------
+   물통 차기 · 박수 · 심판 어필 · 조용히 지켜보기.
+   경기당 3번. 지금 지고 있냐 이기고 있냐에 따라 결과가 다르다.
+   ========================================================= */
+LiveGame.prototype.mgrAction = function(kind){
+  if(this.mgr.left<=0) return {ok:false, text:'더 할 수 있는 게 없다'};
+  const rng=this.rng;
+  const us=this.userSide(), th=this.oppSide();
+  const diff=us.runs-th.runs;
+  this.mgr.left--;
+  let text='', sub='', d=0;
+
+  if(kind==='bottle'){
+    // 물통 차기 — 지고 있을 때 효과가 크고, 이기고 있으면 역효과
+    const good = diff<0 ? 0.62 : (diff===0?0.45:0.25);
+    if(rng()<good){
+      d=+0.06; this.mgr.boost=(this.mgr.boost||1)*1.06;
+      text=pickOne(['감독이 물통을 걷어찼다','감독이 물통을 발로 날렸다','감독이 아이스박스를 쳤다'],rng);
+      sub=pickOne(['벤치가 조용해지더니 눈빛이 달라졌다','선수들이 정신을 차렸다','더그아웃 공기가 팽팽해졌다'],rng);
+    } else {
+      d=-0.04; this.mgr.boost=(this.mgr.boost||1)*0.96;
+      text=pickOne(['감독이 물통을 걷어찼다','감독이 헬멧 통을 밀어버렸다'],rng);
+      sub=pickOne(['다들 눈치만 본다. 분위기가 더 굳었다','선수들이 위축됐다','심판이 이쪽을 쳐다본다'],rng);
+    }
+  }
+  else if(kind==='clap'){
+    d=+0.03; this.mgr.boost=(this.mgr.boost||1)*1.03;
+    text=pickOne(['감독이 크게 박수를 친다','감독이 파이팅을 외쳤다','감독이 하나하나 손뼉을 마주쳤다'],rng);
+    sub=pickOne(['벤치가 따라 소리를 낸다','분위기가 조금 올라왔다','타석 들어가는 선수 표정이 낫다'],rng);
+  }
+  else if(kind==='umpire'){
+    // 심판 어필 — 판정이 유리해질 수도, 역효과일 수도
+    const r=rng();
+    if(r<0.40){
+      d=+0.05; this.mgr.boost=(this.mgr.boost||1)*1.05;
+      text='감독이 심판에게 스트라이크 존을 항의했다';
+      sub='심판이 고개를 끄덕였다. 다음 타석부터 존이 조금 넓어진 느낌이다';
+    } else if(r<0.80){
+      text='감독이 심판에게 항의했다';
+      sub='심판이 손을 저었다. 달라진 건 없다';
+    } else {
+      d=-0.05; this.mgr.boost=(this.mgr.boost||1)*0.95;
+      this.mgr.warned=true;
+      text='감독이 심판에게 강하게 항의했다';
+      sub='경고를 받았다. 한 번 더 하면 퇴장이다';
+    }
+  }
+  else { // watch
+    this.mgr.left++;                       // 지켜보기는 횟수를 안 쓴다
+    text='감독이 팔짱을 끼고 그라운드를 본다';
+    sub='아무 말도 하지 않았다';
+  }
+  this.log.push({t:'mgr',text:text});
+  this.log.push({t:'mgr',text:'— '+sub});
+  this.mgr.log.push(kind);
+  return {ok:true, text:text+' — '+sub, delta:d};
 };
 
 /* 수비 시프트 — 3타석 동안 유지되고 자동으로 풀린다 */
@@ -4257,7 +4500,9 @@ function newSeason(){
     mercs:[],                                              // 이번 경기 용병
     recruit:null,                                          // 영입 접촉 진행 상태
     gear:{}, duesCount:0, gearMeeting:null, feeDue:false,  // 장비·회비
+    drunkIds:[],
     bossTalk:null, bossTalkCount:0, bossTalkAt:-99, valuePrev:{},  // 감독 면담·몸값
+    tutDone:false, tutStep:0,                              // 튜토리얼
     posTrain:{}, trainPos:null, trainStreak:0,             // 포지션 적응 훈련
     trainRain:false, trainPush:false,
     bond:(function(){const o={};TBYID['wwzw'].players.forEach(p=>o[p.id]=50);return o;})(),
@@ -4579,7 +4824,10 @@ function renderPick(){
       ST=newSeason(); ST.playerId=MYID;
       ST.lineup=recommendLineup(); ST.rotation=recommendRotation();
     } else { ST.playerId=MYID; }
-    await saveGame(true); go('home');
+    await saveGame(true);
+    // 새 게임이면 룰 안내부터 보여준다
+    if(!ST.tutDone){ ST.tutStep=0; go('tutorial'); }
+    else go('home');
   };
   c.appendChild(go2);
 }
@@ -5608,6 +5856,101 @@ function openPosPicker(idx){
 }
 function closeSheet(){$('#sheet').classList.remove('open');}
 
+/* =========================================================
+   튜토리얼 — 야구 룰도 이 게임도 모르는 사람용
+   ========================================================= */
+const TUTORIAL=[
+ {t:'이게 무슨 게임이냐',
+  b:`안산시야구소프트볼협회 <b>4부리그</b>에서 뛰는 사회인야구팀 <b>우완좌완</b>의
+     감독이 되는 게임이다.<br><br>
+     선수 14명은 <b>실존 인물</b>이고 능력치는 2026시즌 실제 박스스코어를 판독해서 뽑았다.
+     상대 23팀도, 그 팀 투수들의 방어율도 전부 실제 기록이다.<br><br>
+     매주 일요일에 경기가 한 번 있다. 22경기를 치르면 시즌이 끝난다.`},
+ {t:'한 주는 이렇게 굴러간다',
+  b:`<b>1. 홈에서 "이번 주 시작"</b><br>
+     날씨·회식·개인 사정 같은 변수가 이때 확정된다. 누가 못 나오는지도 여기서 정해진다.<br><br>
+     <b>2. 라인업 짜기</b><br>
+     타순 9명과 수비 위치, 그리고 선발 투수를 정한다.<br><br>
+     <b>3. 카톡 발표</b><br>
+     단톡방에 라인업이 올라간다. 뭐라고 한마디 보낼지 고를 수 있고, 그게 팀 사기에 영향을 준다.<br><br>
+     <b>4. 경기</b><br>
+     '직접 지휘'를 고르면 중요한 순간마다 판단을 물어본다. '자동 진행'은 알아서 끝까지 간다.`},
+ {t:'야구를 잘 모른다면 이것만',
+  b:`<b>타순</b> — 앞 번호일수록 타석에 자주 선다. 잘 치는 사람을 앞에 둔다.<br>
+     <b>수비 위치</b> — 포수·1루·2루·3루·유격·좌익·중견·우익. 적합도가 0이면 그 자리에 못 선다.<br>
+     <b>지명타자(DH)</b> — 쓰면 투수가 타석에 안 선다. 대신 타자 한 명을 더 넣는다.<br>
+     <b>콜드게임</b> — 4회에 10점 차, 6회에 7점 차가 나면 그대로 끝난다.<br>
+     이 리그는 7이닝 경기다. 방어율(ERA)도 7이닝 기준으로 환산해서 보여준다.`},
+ {t:'이 팀의 핵심 규칙 — 공짜진루 지수',
+  b:`<b>공짜진루 지수 = 볼넷 + 도루 허용 + 폭투</b><br><br>
+     실제 13경기에서 <b>예외가 하나도 없었다.</b><br>
+     <span class="tut-g">14 이하 → 이겼다</span><br>
+     <span class="tut-r">16 이상 → 졌다</span><br><br>
+     안타를 몇 개 맞았느냐보다 이게 훨씬 중요하다.
+     제구가 되는 투수를 쓰고, 2루 송구는 웬만하면 하지 마라
+     (실제 저지율이 3%라 시도할수록 손해다).`},
+ {t:'사람 관리가 절반이다',
+  b:`사회인야구다. 실력보다 <b>나오느냐</b>가 먼저다.<br><br>
+     <b>출석</b> — 선수마다 출석 성향이 다르다. 38%인 사람은 정말 자주 빠진다.<br>
+     <b>사기·컨디션</b> — 회식하면 사기가 오르고 컨디션이 떨어진다. 전날 마시면 더 떨어진다.<br>
+     <b>불만</b> — 계속 벤치에 두면 쌓인다. 4단계까지 가면 이적을 요구한다.<br>
+     <b>면담</b> — 선수단 화면에서 아무나 불러 이야기할 수 있다.
+     약속을 하면 지켜야 한다. 어기면 사기가 크게 떨어진다.<br>
+     <b>카풀</b> — 차 있는 사람이 없는 사람을 태워 온다. 운전자가 빠지면 누군가는 못 온다.`},
+ {t:'훈련과 돈',
+  b:`<b>훈련</b> — 한 명을 정해 집중적으로 키운다. 나온 사람만 큰다.
+     매주 부르면 참석률이 떨어지니 가끔 쉬어야 한다. 비 오는 날은 강행할지 고를 수 있다.<br><br>
+     <b>포지션 적응</b> — 새 자리를 연습시킬 수 있다. 원래 서던 자리는 +25까지,
+     안 서던 자리는 30이 한계다. 좌투는 포수·2루·3루·유격을 못 본다.<br><br>
+     <b>운영비</b> — 경기를 치르면 회비가 들어온다. 장비·레슨·회식·용병·영입에 쓴다.
+     시즌이 끝나면 <b>다음 시즌 리그 가입비 350만원</b>을 내야 한다.
+     모자라면 회비를 걷어야 하고, 그러면 단톡방이 뒤집어진다.`},
+ {t:'인원이 모자라면',
+  b:`9명을 못 채우면 <b>몰수패(0:7)</b>다.<br><br>
+     <b>1. 단톡방에 사정해본다</b> — 45% 확률로 누군가 늦게라도 온다.<br>
+     <b>2. 용병을 부른다</b> — 조창익·박재민·최민서. 돈이 나가고 팀 사기가 깎이지만
+     몰수패보다는 낫다. 조창익은 1루만 설 수 있다.<br><br>
+     둘 다 안 하면 몰수패로 넘어간다.`},
+ {t:'저장은 신경 안 써도 된다',
+  b:`경기가 끝날 때마다 <b>자동으로 저장</b>된다. 아무것도 안 눌러도 된다.<br><br>
+     폰을 바꾸거나 다른 브라우저에서 이어 하려면
+     <b>설정 → 파일로 저장</b>으로 파일을 받아서 새 기기에서 불러오면 된다.
+     카톡으로 자기한테 코드를 보내도 된다.<br><br>
+     기록이 사라진 것 같으면 <b>설정 → 직전 저장으로 되돌리기</b>를 먼저 눌러봐라.
+     자동 백업이 한 세대 남아 있다.<br><br>
+     이 안내는 <b>설정 → 튜토리얼 다시 보기</b>에서 언제든 다시 볼 수 있다.`},
+];
+
+function renderTutorial(){
+  const c=$('#view'); c.innerHTML='';
+  const i=Math.max(0,Math.min(TUTORIAL.length-1, ST.tutStep||0));
+  const t=TUTORIAL[i];
+  const head=el('div','card');
+  head.innerHTML=`<div class="card-h">${t.t}</div>
+    <div class="tut-body">${t.b}</div>
+    <div class="tut-dots">${TUTORIAL.map((_,k)=>`<i class="${k===i?'on':''}"></i>`).join('')}</div>`;
+  c.appendChild(head);
+  const row=el('div','btn-row');
+  if(i>0){
+    const pv=el('button','btn','← 이전');
+    pv.onclick=()=>{ST.tutStep=i-1;renderTutorial();};
+    row.appendChild(pv);
+  }
+  if(i<TUTORIAL.length-1){
+    const nx=el('button','btn primary','다음 →');
+    nx.onclick=()=>{ST.tutStep=i+1;saveGame(true);renderTutorial();};
+    row.appendChild(nx);
+  } else {
+    const done=el('button','btn primary','시작한다');
+    done.onclick=()=>{ST.tutDone=true;ST.tutStep=0;saveGame(true);go('home');toast('설정에서 다시 볼 수 있다');};
+    row.appendChild(done);
+  }
+  c.appendChild(row);
+  const skip=el('button','btn',`${i+1} / ${TUTORIAL.length} · 건너뛴다`);
+  skip.onclick=()=>{ST.tutDone=true;ST.tutStep=0;saveGame(true);go('home');};
+  c.appendChild(skip);
+}
+
 /* ---------- 면담 ---------- */
 /* 면담은 선수당 주 1회. 라운드가 넘어가면 다시 부를 수 있다. */
 function openMeet(pid){
@@ -6015,6 +6358,7 @@ function makeLive(){
     awayCond: next.homeGame?{}:cond,
     park, gearPenalty, buff: ST.buff||{}, hot: ST.weather==='hot',
     myId: ST.playerId||MYID,          // 내 선수 연출용
+    drunkIds: (ST.drunkIds||[]).slice(),
   });
 }
 
@@ -6055,7 +6399,7 @@ function flushLog(){
   const fresh=LIVE.log.slice(LIVE._logSeen||0);
   LIVE._logSeen=LIVE.log.length;
   fresh.forEach(l=>{
-    const cls=l.t==='inning'?'inn':(l.t==='sub'?'sub':(l.t==='me'?'meline':(l.t==='gojin'?'gojin':(l.cls||''))));
+    const cls=l.t==='inning'?'inn':(l.t==='sub'?'sub':(l.t==='me'?'meline':(l.t==='gojin'?'gojin':(l.t==='fric'?'fric':(l.t==='mgr'?'mgr':(l.cls||''))))));
     const d=el('div','fl '+cls+(l.me?' me':'')); d.textContent=l.text; feed.appendChild(d);
   });
   while(feed.children.length>50)feed.removeChild(feed.firstChild);
@@ -6089,6 +6433,39 @@ function runLive(){
 
 /* 판단창을 닫고 경기를 다시 굴린다 */
 function decDone(box){ box.classList.remove('on'); box.innerHTML=''; flushLog(); updateLiveUI(); runLive(); }
+
+/* 감독 액션 버튼 — 물통 차기 등. 판단창 양쪽에 붙는다 */
+function mgrBtn(box){
+  const b=el('button','decb wide alt');
+  b.innerHTML=`<b>감독 액션 (남은 ${LIVE.mgr.left}회)</b><span>물통 차기 · 박수 · 심판 어필</span>`;
+  b.onclick=()=>{
+    const body=$('#sheet-body'); body.innerHTML='';
+    $('#sheet-title').textContent='감독 액션';
+    const us=LIVE.userSide(), th=LIVE.oppSide();
+    const diff=us.runs-th.runs;
+    body.appendChild(el('div','sheet-note',
+      `${LIVE.inning}회 · ${diff>0?'+':''}${diff}점. `+
+      (diff<0?'지고 있을 때는 물통을 차는 게 먹힐 확률이 높다.'
+             :'이기고 있을 때 화를 내면 오히려 위축된다.')+
+      ` 남은 횟수 ${LIVE.mgr.left}회.`));
+    [['bottle','물통을 걷어찬다',`분위기 반전. 지고 있으면 62% 성공, 이기고 있으면 25%`],
+     ['clap','크게 박수를 친다','무난하게 사기 +3%'],
+     ['umpire','심판에게 어필한다','40% 유리 / 20% 경고'],
+     ['watch','조용히 지켜본다','횟수를 쓰지 않는다']].forEach(([k,n,d2])=>{
+      const r=el('button','pick-row'+(LIVE.mgr.left<=0&&k!=='watch'?' bad':''));
+      r.innerHTML=`<div class="pk-l"><div class="pk-name">${n}</div>
+        <div class="pk-note">${d2}</div></div>`;
+      if(LIVE.mgr.left>0||k==='watch')r.onclick=()=>{
+        const res=LIVE.mgrAction(k);
+        closeSheet(); toast(res.text.length>40?res.text.slice(0,40)+'…':res.text);
+        decDone(box);
+      };
+      body.appendChild(r);
+    });
+    $('#sheet').classList.add('open');
+  };
+  return b;
+}
 
 /* '투수 교체' 상시 버튼 — 공격 중에도 미리 예고해 둘 수 있다 */
 function pchangeBtn(box){
@@ -6137,6 +6514,7 @@ function showDecision(d){
     sh.onclick=()=>{ LIVE.applyDecision(LIVE.shiftTTL>0?'unshift':'shift'); decDone(box); };
     g.appendChild(sh);
 
+    g.appendChild(mgrBtn(box));
     const nb=el('button','decb wide');
     nb.innerHTML=`<b>그대로 간다</b><span>지시 없음</span>`;
     nb.onclick=()=>{ LIVE.applyDecision('defnone'); decDone(box); };
@@ -6180,6 +6558,7 @@ function showDecision(d){
     g.appendChild(b);
   });
   const pb2=pchangeBtn(box); if(pb2)g.appendChild(pb2);
+  g.appendChild(mgrBtn(box));
 
   // 수비 위치 변경
   const dz=el('button','decb wide alt');
@@ -6418,6 +6797,7 @@ function commitGame(res,usSide,thSide,uSlots){
   ST.canParty = won;
   ST.kakaoPost = buildKakaoPost(ST,res,usSide,thSide,uSlots,miles);
   applyGojin(ST,res.gojin).forEach(m=>ST.kakaoPost.push(m));
+  applyFriction(ST,res.friction).forEach(m=>ST.kakaoPost.push(m));
   promiseMsgs.forEach(m=>ST.kakaoPost.push(m));
   ST.sentPost=false;
   ST.partyDone = !won;
@@ -7660,6 +8040,9 @@ function renderMore(){
   pcard.appendChild(el('p','muted',`현재: <b>${nameOf(ST.playerId||MYID)}</b>`));
   pcard.lastChild.innerHTML=`현재: <b>${nameOf(ST.playerId||MYID)}</b>`;
   const pb=el('button','btn','선수 바꾸기'); pb.onclick=()=>go('pick');
+  const tb=el('button','btn','튜토리얼 다시 보기');
+  tb.onclick=()=>{ST.tutStep=0;go('tutorial');};
+  pcard.appendChild(tb);
   pcard.appendChild(pb);
   c.appendChild(pcard);
 
@@ -7707,7 +8090,7 @@ function renderMore(){
 /* ---------- 네비 ---------- */
 const VIEWS={home:renderHome,squad:renderSquad,lineup:renderLineup,kakao:renderKakao,
   game:renderGame,train:renderTrain,scout:renderScout,stand:renderStand,stats:renderStats,
-  records:renderRecords,pick:renderPick,more:renderMore,meet:renderMeet,recruit:renderRecruit};
+  records:renderRecords,pick:renderPick,more:renderMore,meet:renderMeet,recruit:renderRecruit,tutorial:renderTutorial};
 function go(v){
   clearInterval(playTimer);
   curView=v;
@@ -7780,11 +8163,14 @@ function normalizeState(){
     // 로스터에 없는 선수(이적·방출)의 약속은 정리한다
     if(ST.promise[pid]&&!us.players.some(p=>p.id===pid))delete ST.promise[pid];
   });
+  if(ST.tutDone==null)ST.tutDone=false;
+  if(ST.tutStep==null)ST.tutStep=0;
   if(ST.bossTalk===undefined)ST.bossTalk=null;
   if(ST.bossTalk&&!us.players.some(p=>p.id===ST.bossTalk.boss))ST.bossTalk=null;
   if(ST.bossTalkCount==null)ST.bossTalkCount=0;
   if(ST.bossTalkAt==null)ST.bossTalkAt=-99;
   if(!ST.valuePrev)ST.valuePrev={};
+  if(!Array.isArray(ST.drunkIds))ST.drunkIds=[];
   if(!ST.gear)ST.gear={};
   if(ST.duesCount==null)ST.duesCount=0;
   if(ST.gearMeeting===undefined)ST.gearMeeting=null;
@@ -7851,6 +8237,7 @@ async function boot(){
   $('#sheet-bg').onclick=closeSheet;
   $('#loading').style.display='none';
   go(saved?'home':'pick');
+  if(!saved) ST.tutPending=true;      // 선수 고르고 나면 튜토리얼로 보낸다
   // 재접속 안내 — 저장이 살아 있다는 걸 눈으로 확인시켜 준다
   if(saved){
     const st0=ST.stand['wwzw']||{w:0,l:0};
