@@ -2679,6 +2679,7 @@ function buildKakaoPre(ST){
   if(!ST.unhappy)ST.unhappy={};
   if(!ST.lastOrder)ST.lastOrder={};
   if(!ST.dropouts)ST.dropouts=[];
+  resolveStarterField();          // 발표 전에 투수/야수 중복을 없앤다
   const idx=id=>ST.lineup.findIndex(s=>s.id===id);
   const park=PARKS.find(p=>p.id===ST.park)||PARKS[0];
   const opp=TBYID[ST.schedule[ST.round].opp];
@@ -2880,7 +2881,12 @@ function buildKakaoPre(ST){
       '알림 좀 꺼두겠습니다','형제끼리 왜 그러세요','경기 앞두고 이러지 마시죠',
       '이거 몇 번째인가요','좀 있다 얘기하시죠'];
     shuffled.slice(0,nMed).forEach(p=>{
-      const jon = speechTo(p.id,'kig')==='jon';
+      /* [버그 이력] 여기서 speechTo(p.id,'kig') 로 말투를 정하고 있었다.
+         김인규는 00년생이라 동갑인 00년생들은 반말 판정이 났는데,
+         이 말은 김인규한테가 아니라 단톡방 전체에 하는 말이다.
+         그래서 00년생이 99년생 형들 앞에서 반말을 쓰는 꼴이 됐다.
+         (이승민(00) 이 이민혁(99) 앞에서 반말하던 게 이것) */
+      const jon = speechOf(p.id)!=='ban';
       uniqPush(msgs,{who:p.id,text:pickOne(jon?MED_JON:MED_BAN,rng),mood:'flat'});
     });
 
@@ -3179,7 +3185,7 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
     const m0=milestones[0];
     if(m0.pid){
       const cg=us.players.find(p=>p.id!==m0.pid&&isAvailable(p.id));
-      if(cg)uniqPush(msgs,{who:cg.id,text:say(cg.id,'ㅋㅋ 축하한다','축하드립니다!'),mood:'happy'});
+      if(cg)uniqPush(msgs,{who:cg.id,text:sayTo(cg.id,m0.pid,'ㅋㅋ 축하한다','축하드립니다!'),mood:'happy'});
     }
   }
 
@@ -3194,7 +3200,7 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
     if(best&&rng()<0.6){
       const tz=us.players.find(p=>META[p.id]&&META[p.id].friends.includes(best));
       if(tz){
-        uniqPush(msgs,{who:tz.id,text:say(tz.id,
+        uniqPush(msgs,{who:tz.id,text:sayTo(tz.id,best,
           pickOne(['오늘은 운이었다 ㅋㅋ','내야안타 몇 개냐 그거','자꾸 그러면 다음에 못 친다'],rng),
           pickOne(['오늘은 운이 좋으셨네요 ㅋㅋ','내야안타 아니었나요'],rng)),mood:'happy'});
         uniqPush(msgs,{who:best,text:say(best,'운도 실력이다','운도 실력이죠 ㅎㅎ'),mood:'happy'});
@@ -3267,8 +3273,8 @@ function doAfterParty(ST){
         const b=pickOne(bs);
         ST.cond[a]=Math.max(18,ST.cond[a]-16); ST.morale[a]=Math.max(12,ST.morale[a]-14);
         ST.cond[b]=Math.max(18,ST.cond[b]-8);  ST.morale[b]=Math.max(12,ST.morale[b]-18);
-        msgs.push({who:b,text:say(b,`${nameOf(a)} 내 차에 토했다 진짜`,`${nameOf(a)}님이 제 차에 토하셨습니다...`),mood:'angry'});
-        msgs.push({who:a,text:say(a,'미안하다 세차비 줄게','죄송합니다 세차비 드리겠습니다'),mood:'sad'});
+        msgs.push({who:b,text:sayTo(b,a,`${nameOf(a)} 내 차에 토했다 진짜`,`${nameOf(a)}님이 제 차에 토하셨습니다...`),mood:'angry'});
+        msgs.push({who:a,text:sayTo(a,b,'미안하다 세차비 줄게','죄송합니다 세차비 드리겠습니다'),mood:'sad'});
       }
     }
   }
@@ -3586,9 +3592,9 @@ function collectDues(need){
 }
 
 /* ================= 폼 — 슬럼프와 뜨거운 감각 =================
-   몇 타석 연속 못 치면 눈이 풀리고(👀), 연속으로 맞히면 방망이가 뜨겁다(🔥).
+   몇 타석 연속 못 치면 눈이 내리고(🌨️), 연속으로 맞히면 방망이가 뜨겁다(🔥).
    경기 기록에서 누적으로 세기 때문에 경기를 건너뛰어도 이어진다.        */
-const FORM_HOT='🔥', FORM_COLD='👀';
+const FORM_HOT='🔥', FORM_COLD='🌨️';
 const HOT_HITS=5;      // 최근 안타 5개가 이어지면 뜨겁다
 const COLD_AB=8;       // 무안타 타수 8개가 이어지면 슬럼프
 const HOT_APP=2;       // 투수는 두 번 연속 잘 던지면
@@ -4318,6 +4324,7 @@ function LiveGame(cfg){
   this.gearPenalty = cfg.gearPenalty||0;
   this.buff = cfg.buff||{};
   this.form = cfg.form||{};          // 투수 폼 배수 {pid:0.93~1.07}
+  this.benchPool = cfg.benchPool||[];   // 나왔는데 라인업엔 못 든 사람들
   this.dpCount=0; this.assists=0; this.wp=0;
   this.hot = !!cfg.hot;
   this.timeouts = 5;      // 공격 작전 지시 가능 횟수
@@ -4795,6 +4802,7 @@ LiveGame.prototype.endHalf = function(){
     this.log.push({t:'inning',inning:this.inning,half:1,
       text:`${this.inning}회 말${this.inning>this.INN?' (연장)':''} · ${this.home.team.name} 공격`});
     this.checkPitcherChange(this.away);
+    this.benchRotation();
   } else {
     // 이닝 종료
     const diff=Math.abs(this.away.runs-this.home.runs);
@@ -4805,7 +4813,55 @@ LiveGame.prototype.endHalf = function(){
     this.log.push({t:'inning',inning:this.inning,half:0,
       text:`${this.inning}회 초${this.inning>this.INN?' (연장)':''} · ${this.away.team.name} 공격`});
     this.checkPitcherChange(this.home);
+    this.benchRotation();          // 나온 사람은 한 번은 타석에 세운다
   }
+};
+
+/* 사회인야구는 나온 사람을 그냥 앉혀두지 않는다.
+   경기 후반이 되면 벤치에서 기다린 사람을 한 번은 타석에 세운다.
+   대신 잘 치고 있는 사람을 빼지는 않는다 — 그날 무안타인 사람과 바꾼다.
+   (선발 투수는 건드리지 않는다)                                        */
+LiveGame.prototype.benchRotation = function(){
+  const us=this.userSide(); if(!us||!us.isUser) return;
+  if(this.inning < Math.max(4, this.INN-2)) return;      // 5회부터
+  if(this._benchDone==null) this._benchDone=0;
+  if(this._benchDone>=3) return;                          // 한 경기 세 명까지
+  const team=us.team;
+  const inGame=new Set(us.slots.map(x=>x.id));
+  const cand=(this.benchPool||[]).filter(id=>!inGame.has(id));
+  if(!cand.length) return;
+
+  // 그날 무안타인 야수 중에서 타수가 제일 많은 사람을 뺀다
+  let outIdx=-1, outAb=0;
+  us.slots.forEach((sl,i)=>{
+    if(sl.pos==='P') return;                              // 투수는 안 뺀다
+    const b=this.box[sl.id]; if(!b) return;
+    if(b.h>0) return;                                     // 안타 친 사람은 그대로 둔다
+    if(b.ab>=1 && b.ab>outAb){ outAb=b.ab; outIdx=i; }
+  });
+  if(outIdx<0) return;
+
+  const pos=us.slots[outIdx].pos;
+  const inId=cand.find(id=>{
+    const f=(typeof posFit==='function')?posFit(id,pos):1;
+    return pos==='DH'||f>0;
+  }) || cand[0];
+  if(!inId) return;
+  const outId=us.slots[outIdx].id;
+  const inP=team.players.find(p=>p.id===inId);
+  if(!inP) return;
+
+  us.slots[outIdx]={id:inId,pos};
+  if(!this.box[inId]) this.box[inId]=blankBat();
+  this._benchDone=(this._benchDone||0)+1;
+  this.subs=this.subs||[];
+  this.subs.push({in:inId,out:outId,pos,inning:this.inning});
+  this.log.push({t:'sub',
+    text:`교체 · ${this.nameOf(outId)}(${outAb}타수 무안타) → ${this.nameOf(inId)} (${POSNAMES[pos]||pos})`});
+};
+LiveGame.prototype.nameOf = function(id){
+  const p=(this.home.team.players.concat(this.away.team.players)).find(x=>x.id===id);
+  return p?p.name:'?';
 };
 
 LiveGame.prototype.finish = function(){
@@ -5613,6 +5669,19 @@ function renderHome(){
   if(inj.length)mood.appendChild(el('p','muted','부상: '+inj.map(p=>`${p.name}(${ST.injury[p.id].name} ${ST.injury[p.id].games}경기)`).join(', ')));
   const unh=us.players.filter(p=>ST.unhappy&&ST.unhappy[p.id]&&ST.unhappy[p.id].level>=2);
   if(unh.length)mood.appendChild(el('div','warn','불만: '+unh.map(p=>`${p.name}(${unhappyLabel(ST.unhappy[p.id].level)})`).join(', ')));
+  // 폼 — 누가 뜨겁고 누가 슬럼프인지 한 줄로
+  const hotL=us.players.filter(p=>formTag(p.id)===FORM_HOT);
+  const coldL=us.players.filter(p=>formTag(p.id)===FORM_COLD);
+  if(hotL.length||coldL.length){
+    const fl=el('p','muted');
+    const parts=[];
+    if(hotL.length)parts.push(`${FORM_HOT} <b>${hotL.map(p=>p.name).join(', ')}</b>`);
+    if(coldL.length)parts.push(`${FORM_COLD} <b>${coldL.map(p=>p.name).join(', ')}</b>`);
+    fl.innerHTML='<b>폼</b> — '+parts.join(' &nbsp;/&nbsp; ')
+      +'<br>뜨거운 선수는 위 타순, 슬럼프는 아래로 내려라.';
+    mood.appendChild(fl);
+  }
+
   // 불씨 — 아직 불만은 아닌데 쌓이는 중인 것들. 터지기 전에 손 쓰라는 신호다.
   const spk=us.players.filter(p=>{
     const sp=sparkOf(ST,p.id);
@@ -6106,7 +6175,9 @@ function renderHome(){
       card.appendChild(b);
     } else {
       const b1=el('button','btn','라인업 · 카톡 발표'); b1.onclick=()=>go('lineup');
-      const b2=el('button','btn primary','경기 시작'); b2.onclick=()=>go('game');
+      const announced0=!!(ST.kakao&&ST.kakao.length);
+      const b2=el('button','btn primary',announced0?'경기 시작':'라인업 발표부터');
+      b2.onclick=()=>go(announced0?'game':'kakao');
       card.appendChild(b1); card.appendChild(b2);
     }
   }
@@ -6987,6 +7058,7 @@ function renderLineup(){
   const br2=el('div','btn-row'); br2.appendChild(b2); head.appendChild(br2);
   c.appendChild(head);
 
+  resolveStarterField();          // 투수와 야수가 겹치면 여기서 정리한다
   const list=el('div','lineup');
   ST.lineup.forEach((s,i)=>{
     const p=t.players.find(x=>x.id===s.id);
@@ -6995,7 +7067,7 @@ function renderLineup(){
     const bad=!isAvailable(p.id);
     const row=el('div','lp-row'+(bad?' bad':''));
     row.innerHTML=`<div class="lp-n">${i+1}</div>
-      <div class="lp-main"><div class="lp-name">${p.name}${p.bats==='L'?'<span class="lh">좌</span>':''}${bad?'<span class="tagx">출전 불가</span>':''}</div>
+      <div class="lp-main"><div class="lp-name">${p.no!=null?`<span class="pc-no">#${p.no}</span> `:''}${p.name}${formTag(p.id)?`<span class="ftag">${formTag(p.id)}</span>`:''}${p.bats==='L'?'<span class="lh">좌</span>':''}${bad?'<span class="tagx">출전 불가</span>':''}</div>
       <div class="lp-stat">${condLabel(ST.cond[p.id]||70)} · ${b.pa?`${fmt3(avg(b))} OPS ${ops(b).toFixed(3)}`:'기록 없음'}</div></div>
       <button class="pos-badge">${POSNAMES[s.pos]}</button>
       <div class="lp-ctl"><button class="up">▲</button><button class="dn">▼</button></div>`;
@@ -7125,6 +7197,55 @@ function syncStarter(){
     ST.lineup[pIdx].id=sp;
   }
 }
+/* 지명타자를 쓰면 투수는 타순 밖에 있는 게 원칙이다.
+   그런데 결장이 겹치면 이미 야수로 들어가 있는 사람이 마운드에 올라간다.
+   그러면 한 사람이 3루와 투수를 동시에 맡는 꼴이 되고, 화면에도 두 번 뜬다.
+
+   [버그 이력] 송승민 결장 → 다음 투수도 결장 → 이미 3루수로 들어가 있던
+   김한규가 선발이 되면서 '김한규 3루 / 김한규 투수' 가 됐다.
+
+   이때는 그 사람의 수비 위치를 P 로 바꾸고, 비는 야수 자리를 지명타자나
+   벤치에서 메운다. 메울 사람이 정말 없으면 선발을 다른 투수로 바꾼다.     */
+function resolveStarterField(){
+  if(!ST.lineup) return null;
+  const t=TBYID['wwzw'];
+  const rot=gameRotation();
+  const sp=rot&&rot[0]; if(!sp) return null;
+  const i=ST.lineup.findIndex(s=>s.id===sp);
+  if(i<0) return null;                        // 타순 밖 — 정상
+  const pos=ST.lineup[i].pos;
+  if(pos==='P') return null;                  // 이미 투수 자리
+  if(pos==='DH'){ ST.lineup[i].pos='P'; return {starter:sp,filled:null,from:'DH'}; }
+
+  // 1) 지명타자가 그 자리를 볼 수 있으면 지타가 나간다
+  const dh=ST.lineup.findIndex(s=>s.pos==='DH');
+  if(dh>=0 && posFit(ST.lineup[dh].id,pos)>0){
+    ST.lineup[dh].pos=pos; ST.lineup[i].pos='P';
+    return {starter:sp, filled:ST.lineup[dh].id, pos, from:'DH'};
+  }
+  // 2) 벤치에서 그 자리를 볼 수 있는 사람을 올린다 (지타 자리와 맞바꾼다)
+  const bench=t.players.filter(q=>isAvailable(q.id)&&!ST.lineup.some(x=>x.id===q.id));
+  const rep=bench.filter(q=>posFit(q.id,pos)>0).sort((a,b)=>posFit(b.id,pos)-posFit(a.id,pos))[0];
+  if(rep && dh>=0){
+    const outId=ST.lineup[dh].id;
+    ST.lineup[dh].id=rep.id; ST.lineup[dh].pos=pos; ST.lineup[i].pos='P';
+    return {starter:sp, filled:rep.id, pos, from:'bench', out:outId};
+  }
+  if(rep){
+    ST.lineup[i].pos='P';
+    // 지타가 없으면 타순 밖 수비 교대는 불가능하니 그냥 P 로 두고 자리를 비운다
+    return {starter:sp, filled:null, pos, from:'none'};
+  }
+  // 3) 아무도 못 메우면 다른 투수를 선발로 세운다
+  const alt=rot.find(id=>id!==sp && !ST.lineup.some(x=>x.id===id));
+  if(alt){
+    ST.rotation=[alt].concat((ST.rotation||[]).filter(x=>x!==alt));
+    return {starter:alt, swapped:sp};
+  }
+  ST.lineup[i].pos='P';
+  return {starter:sp, filled:null, pos, from:'none'};
+}
+
 function applyDHRule(){
   const t=TBYID['wwzw'];
   const sp=ST.rotation[0];
@@ -7201,7 +7322,7 @@ function openPicker(idx){
     const ok=isAvailable(p.id);
     const iv=ST.injury[p.id];
     const row=el('button','pick-row'+(cur?' cur':'')+(used?' used':'')+(ok?'':' bad'));
-    row.innerHTML=`<div class="pk-l"><div class="pk-name">${p.name}${p.bats==='L'?'<span class="lh">좌</span>':''}</div>
+    row.innerHTML=`<div class="pk-l"><div class="pk-name">${p.no!=null?`<span class="pc-no">#${p.no}</span> `:''}${p.name}${formTag(p.id)?`<span class="ftag">${formTag(p.id)}</span>`:''}${p.bats==='L'?'<span class="lh">좌</span>':''}</div>
       <div class="pk-note">${iv?iv.name:((ST.absent&&ST.absent[p.id])||(META[p.id]?META[p.id].desc:''))}</div></div>
       <div class="pk-r">${starHTML(effCA(p.id))}<div class="pk-stat">${condLabel(ST.cond[p.id]||70)}</div></div>`;
     row.onclick=()=>{
@@ -7327,9 +7448,9 @@ const TUTORIAL=[
      설정 화면의 <b>장비</b>에서 언제든 사고 강화할 수 있다.`},
  {t:'슬럼프와 뜨거운 감각',
   b:`방망이는 계속 같지 않다.<br><br>
-     <b>👀 슬럼프</b> — 무안타가 <b>8타수</b> 이어지면 붙는다. 타격이 8% 떨어진다.<br>
+     <b>🌨️ 슬럼프</b> — 무안타가 <b>8타수</b> 이어지면 붙는다. 타격이 8% 떨어진다.<br>
      <b>🔥 뜨거운 감각</b> — 안타가 <b>5개</b> 이어지면 붙는다. 타격이 8% 오른다.<br><br>
-     투수도 같다. 두 번 연속 잘 던지면 🔥, 두 번 연속 무너지면 👀 가 붙고
+     투수도 같다. 두 번 연속 잘 던지면 🔥, 두 번 연속 무너지면 🌨️ 가 붙고
      구위·제구가 7%씩 움직인다.<br><br>
      경기를 건너뛰어도 이어지고, 상태가 바뀌면 단톡에 알림이 온다.
      이름 옆 이모지를 보고 타순을 짜라. 슬럼프인 선수를 3번에 두면 손해다.`},
@@ -7637,8 +7758,13 @@ function renderKakao(){
   }
 
   if(!played){
-    const g=el('button','btn primary','경기 시작'); g.onclick=()=>go('game');
-    c.appendChild(g);
+    /* 카톡에 라인업을 올려야 경기로 넘어간다. 발표 없이 경기부터 하는 건 순서가 아니다. */
+    if(!announced){
+      c.appendChild(el('p','muted','라인업을 먼저 발표해야 경기로 넘어간다.'));
+    } else {
+      const g=el('button','btn primary','경기 시작'); g.onclick=()=>go('game');
+      c.appendChild(g);
+    }
   } else {
     const g=el('button','btn primary','다음 주로'); g.onclick=()=>go('home');
     c.appendChild(g);
@@ -7650,6 +7776,11 @@ function renderGame(){
   const c=$('#view'); c.innerHTML='';
   if(ST.seasonOver){c.appendChild(el('div','card','시즌이 끝났다.'));return;}
   if(!ST.weekDone){c.appendChild(el('div','card','홈에서 이번 주를 먼저 시작해라.'));return;}
+  if(!(ST.kakao&&ST.kakao.length)){
+    c.appendChild(el('div','card','단톡방에 라인업을 먼저 발표해야 한다.'));
+    const kb=el('button','btn primary','단톡방으로'); kb.onclick=()=>go('kakao');
+    c.appendChild(kb); return;
+  }
   if(ST.events&&ST.events.some(e=>e.type==='rain'||e.type==='postpone')){c.appendChild(el('div','card','우천 취소된 주다.'));return;}
 
   const avail=TBYID['wwzw'].players.filter(p=>isAvailable(p.id)).length;
@@ -7707,8 +7838,17 @@ function renderGame(){
     <div class="scout">${ST.scoutBlocked?'상대 정보 없음':scoutLine(opp)}</div>`;
   c.appendChild(head);
 
-  const sp=TBYID['wwzw'].pitchers.find(x=>x.id===ST.rotation[0]);
-  const rr=ST.rest?ST.rest[sp.id]:3;
+  const fx=resolveStarterField();
+  if(fx&&fx.filled)
+    c.appendChild(el('div','warn',
+      `${nameOf(fx.starter)}이(가) 마운드에 올라가서 ${POSNAMES[fx.pos]}는 ${nameOf(fx.filled)}이(가) 본다.`));
+  else if(fx&&fx.swapped)
+    c.appendChild(el('div','warn',
+      `${nameOf(fx.swapped)}은(는) 이미 야수로 나가 있어서 선발을 ${nameOf(fx.starter)}(으)로 바꿨다.`));
+  const sp=TBYID['wwzw'].pitchers.find(x=>x.id===gameRotation()[0])
+    ||TBYID['wwzw'].pitchers.find(x=>x.id===ST.rotation[0]);
+  const rr=(ST.rest&&sp)?ST.rest[sp.id]:3;
+  if(!sp){c.appendChild(el('div','card','던질 사람이 없다.'));return;}
   if(rr<2)c.appendChild(el('div','warn',`선발 ${sp.name}이(가) ${rr===0?'과부하 상태다':'피로하다'}. 구위·제구가 떨어진다.`));
 
   /* [버그 이력] 경기가 끝나고 결과를 확정하기 전에 이 버튼을 또 누르면
@@ -7853,6 +7993,10 @@ function makeLive(){
     awayCond: next.homeGame?{}:cond,
     park, gearPenalty, buff: ST.buff||{}, hot: ST.weather==='hot',
     form: (function(){const o={};TBYID['wwzw'].pitchers.forEach(x=>{const m=formPitMul(x.id);if(m!==1)o[x.id]=m;});return o;})(),
+    benchPool: TBYID['wwzw'].players
+      .filter(p=>isAvailable(p.id) && !uLine.some(s=>s.id===p.id)
+        && !(ST.gameRotation||[]).includes(p.id))
+      .map(p=>p.id),
     myId: ST.playerId||MYID,          // 내 선수 연출용
     drunkIds: (ST.drunkIds||[]).slice(),
   });
