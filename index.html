@@ -2608,6 +2608,45 @@ function rollOppEvent(ST, rng, opp){
 }
 
 /* ================= 카톡: 경기 전 ================= */
+/* 김선호·김한규는 라인업이 올라오면 꼭 한마디씩 던진다.
+   둘만 쓰는 말투라 다른 사람 대사 풀과 따로 둔다.
+   (김선호는 평소 존댓말이지만 이 농담만은 반말로 한다 — 실제로 그렇다)  */
+const BANTER_IDS=['ksh','khg'];
+const BANTER=[
+  '오늘 이길듯? 지면 똥무께',
+  '느낌 좋다 오늘 3안타 침 ㅇㅇ',
+  '지면 내가 밥 산다 근데 안 짐',
+  '오늘 안타 못 치면 걸어서 집 감',
+  '나 오늘 폼 미쳤음 ㄹㅇ',
+  '상대 투수 누구임 그냥 다 침',
+  '오늘 홈런 하나 침 ㅇㅇ 봐라',
+  '3타수 3안타 예약함',
+  '오늘 도루 3개 함 ㄱㄱ',
+  '이거 지면 진짜 말 안 함',
+  '아 오늘 진짜 각인데',
+  '나 오늘 안타 못 치면 은퇴함',
+  '오늘 이기면 내가 아이스크림 쏨',
+  '지면 똥무께 ㄹㅇ로',
+  '오늘 우리가 이김 ㅇㅇ 확정',
+];
+/* 지고 있거나 컨디션이 나쁠 때 쓰는 버전 */
+const BANTER_LOW=[
+  '몸이 좀 무거운데 그래도 이김 ㅇㅇ',
+  '컨디션 별로긴 한데 뭐 어차피 침',
+  '오늘 좀 애매한데 일단 가봄',
+  '어제 잠을 못 잤는데 안타는 침',
+];
+const BANTER_HOT=[
+  '나 지금 손 뜨거움 만지지 마셈',
+  '요새 뭘 해도 맞음 ㄹㅇ',
+  '오늘도 그냥 침 ㅇㅇ',
+];
+const BANTER_COLD=[
+  '아 방망이가 왜 이러냐 진짜',
+  '오늘은 하나만 치자 하나만',
+  '슬럼프 온 듯 근데 오늘 깸',
+];
+
 function buildKakaoPre(ST){
   const us=TBYID['wwzw'];
   const msgs=[];
@@ -2650,6 +2689,20 @@ function buildKakaoPre(ST){
       pickOne(['죄송합니다 오늘 개인 사정으로 못 갑니다','죄송합니다 이번 주는 못 갈 것 같습니다',
         '일이 생겨서 못 갑니다 죄송합니다','이번엔 못 갈 것 같습니다','다음 주엔 꼭 가겠습니다',
         '일정이 겹쳤습니다 죄송합니다'],rng)),mood:'sad'});
+  });
+
+  /* 김선호·김한규의 출사표 — 라인업에 들었으면 높은 확률로 한마디 한다 */
+  BANTER_IDS.forEach(bid=>{
+    if(!us.players.some(x=>x.id===bid))return;
+    if(!isAvailable(bid))return;
+    if(idx(bid)<0)return;
+    if(rng()>=0.62)return;
+    const tag=formTag(bid);
+    let pool=BANTER;
+    if(tag===FORM_HOT)pool=BANTER_HOT.concat(BANTER);
+    else if(tag===FORM_COLD)pool=BANTER_COLD.concat(BANTER);
+    else if((ST.cond[bid]||70)<48)pool=BANTER_LOW;
+    uniqPush(msgs,{who:bid,text:pickOne(pool,rng),mood:'happy'});
   });
 
   const avail=us.players.filter(p=>isAvailable(p.id)).length;
@@ -3601,7 +3654,7 @@ function applyFormBuff(ST){
    5경기마다 구간 시상을 한다. 상을 받으면 사기가 오르고 몸값이 조금 붙는다.
    받은 상은 전시장(트로피)에 그대로 쌓인다.                            */
 const MINI_LABELS={mvp:'구간 MVP',bat:'타자상',avg:'타율상',pit:'투수상',
-  mgr:'감독상',sb:'주루상'};
+  mgr:'감독상',team:'팀 공헌상',sb:'주루상'};
 const AWARD_CHEER=[
   ['축하한다 진짜','축하드립니다 진짜'],
   ['이건 받을 만했다','이건 받으실 만했습니다'],
@@ -3624,7 +3677,8 @@ const AWARD_REPLIES=[
 ];
 
 function blankSnap(){
-  const o={bat:{},pit:{}};
+  const st=ST.stand['wwzw']||{w:0,l:0,t:0};
+  const o={bat:{},pit:{},rec:{w:st.w,l:st.l,t:st.t}};
   TBYID['wwzw'].players.forEach(p=>o.bat[p.id]={...(ST.bat[p.id]||blankBat())});
   TBYID['wwzw'].pitchers.forEach(p=>o.pit[p.id]={...(ST.pit[p.id]||blankPit())});
   return o;
@@ -3654,12 +3708,25 @@ function runMiniAwards(ST){
     const tb=(b.h||0)+(b.d2||0)+2*(b.d3||0)+3*(b.hr||0);
     return (((b.h||0)+(b.bb||0)+(b.hbp||0))/pa) + (ab?tb/ab:0);
   };
-  give('mvp', best(B,b=>b.pa>=5,opsOf), b=>b);
+  /* 감독상은 감독(이건)만 받는다. 구간 팀 성적이 5할 이상이면 준다.
+     나머지 선수의 몫은 '팀 공헌상'으로 따로 뺐다. */
+  const mgrP=us.players.find(p=>META[p.id]&&(META[p.id].traits||[]).includes('감독'));
+  const stNow=ST.stand['wwzw']||{w:0,l:0,t:0};
+  const rec0=(snap&&snap.rec)||{w:0,l:0,t:0};
+  const gw=(stNow.w||0)-(rec0.w||0), gl=(stNow.l||0)-(rec0.l||0), gt=(stNow.t||0)-(rec0.t||0);
+  let mgrGiven=false;
+  if(mgrP && (gw+gl+gt)>0 && gw>=gl){
+    won.push({kind:'mgr',pid:mgrP.id,value:`${gw}승 ${gl}패${gt?` ${gt}무`:''}`});
+    mgrGiven=true;
+  }
+  const noMgr={}; Object.keys(B).forEach(id=>{ if(!mgrP||id!==mgrP.id) noMgr[id]=B[id]; });
+
+  give('mvp', best(B,b=>b.pa>=5,opsOf), null);
   give('avg', best(B,b=>b.ab>=6,b=>b.h/b.ab), null);
   give('bat', best(B,b=>b.h>=1,b=>(b.h||0)*1.0+(b.rbi||0)*0.8), null);
   give('sb',  best(B,b=>(b.sb||0)>=2,b=>b.sb), null);
   give('pit', best(P,l=>l.outs>=6,l=>-((l.er*7)/(l.outs/3))), null);
-  give('mgr', best(B,b=>b.pa>=4,b=>(b.rbi||0)+(b.r||0)), null);
+  give('team', best(noMgr,b=>b.pa>=4,b=>(b.rbi||0)+(b.r||0)), null);
 
   /* 값 문구 채우기 */
   won.forEach(w=>{
@@ -3669,7 +3736,8 @@ function runMiniAwards(ST){
     else if(w.kind==='bat') w.value=`${b.h}안타 ${b.rbi}타점`;
     else if(w.kind==='sb') w.value=`${b.sb}도루`;
     else if(w.kind==='pit') w.value=`ERA ${(l.outs?((l.er*7)/(l.outs/3)):0).toFixed(2)}`;
-    else if(w.kind==='mgr') w.value=`${b.rbi}타점 ${b.r}득점`;
+    else if(w.kind==='team') w.value=`${b.rbi}타점 ${b.r}득점`;
+    /* 감독상 값은 위에서 이미 넣었다 */
   });
 
   const at=ST.schedule.filter(x=>x.played&&!x.po).length;
@@ -6402,7 +6470,7 @@ function personaLines(pid){
 
 /* ================= 전시장 =================
    내가 고른 선수가 받은 상을 트로피로 늘어놓는다. 스크린샷 찍으라고 만든 화면이다. */
-const TROPHY_ICON={mvp:'🏆',bat:'🏏',avg:'🎯',pit:'⚾',mgr:'📋',sb:'💨',
+const TROPHY_ICON={mvp:'🏆',bat:'🏏',avg:'🎯',pit:'⚾',mgr:'📋',team:'🤝',sb:'💨',
   season:'🏅',champ:'👑',runner:'🥈',third:'🥉'};
 let hallWho=null;
 function renderHall(){
@@ -6662,9 +6730,10 @@ function renderPlayer(){
   c.appendChild(wrap);
 
   const act=el('div','btn-row');
-  if(!isMerc(p.id)){
+  if(!isMerc(p.id) && p.id!==meId){
     const mb=el('button','btn primary','면담'); mb.onclick=()=>openMeet(p.id); act.appendChild(mb);
   }
+  const hb2=el('button','btn','전시장'); hb2.onclick=()=>{hallWho=p.id;go('hall');}; act.appendChild(hb2);
   const bk=el('button','btn','선수단으로'); bk.onclick=()=>go('squad'); act.appendChild(bk);
   c.appendChild(act);
 }
@@ -6737,10 +6806,13 @@ function renderSquad(){
       const pb=el('button','mbtn','프로필');
       pb.onclick=()=>openPlayer(p.id);
       act.appendChild(pb);
-      const mb=el('button','mbtn'+(un>=2?' hot':''),
-        un>=2?`면담 · ${unhappyLabel(un)}`:`면담 · ${bondLabel(bondOf(p.id))}`);
-      mb.onclick=()=>openMeet(p.id);
-      act.appendChild(mb);
+      // 나 자신과 면담할 수는 없다
+      if(p.id!==(ST.playerId||MYID)){
+        const mb=el('button','mbtn'+(un>=2?' hot':''),
+          un>=2?`면담 · ${unhappyLabel(un)}`:`면담 · ${bondLabel(bondOf(p.id))}`);
+        mb.onclick=()=>openMeet(p.id);
+        act.appendChild(mb);
+      }
       card.appendChild(act);
     }
     c.appendChild(card);
@@ -7107,7 +7179,8 @@ const TUTORIAL=[
      감독이 되는 게임이다.<br><br>
      선수 14명은 <b>실존 인물</b>이고 능력치는 2026시즌 실제 박스스코어를 판독해서 뽑았다.
      상대 23팀도, 그 팀 투수들의 방어율도 전부 실제 기록이다.<br><br>
-     매주 일요일에 경기가 한 번 있다. 22경기를 치르면 시즌이 끝난다.`},
+     매주 일요일에 경기가 한 번 있다. 정규시즌 22경기를 치르고,
+     상위 4팀은 플레이오프까지 간다.`},
  {t:'한 주는 이렇게 굴러간다',
   b:`<b>1. 홈에서 "이번 주 시작"</b><br>
      날씨·회식·개인 사정 같은 변수가 이때 확정된다. 누가 못 나오는지도 여기서 정해진다.<br><br>
@@ -7139,8 +7212,9 @@ const TUTORIAL=[
      <b>불씨</b>로 조용히 쌓이다가, 참는 한도를 넘긴 날 한꺼번에 터진다.
      홈 화면의 '불만 조짐'이 그 카운터다. 터지기 전에 라인업에 넣거나 면담으로 풀어라.
      4단계까지 가면 이적을 요구한다.<br>
-     <b>면담</b> — 선수단 화면에서 아무나 불러 이야기할 수 있다.
-     약속을 하면 지켜야 한다. 어기면 사기가 크게 떨어진다.<br>
+     <b>면담</b> — 선수단 화면에서 팀원을 불러 이야기할 수 있다. 내 선수는 빼고.
+     약속을 하면 지켜야 한다. 어기면 사기가 크게 떨어진다.
+     상위타순 약속은 <b>5번 안쪽</b> 보장이다.<br>
      <b>카풀</b> — 차 있는 사람이 없는 사람을 태워 온다. 운전자가 빠지면 누군가는 못 온다.`},
  {t:'단원리그 C 규정',
   b:`정규시즌 22경기를 치르고 <b>상위 4팀</b>이 플레이오프에 간다.<br><br>
@@ -7160,14 +7234,35 @@ const TUTORIAL=[
      기본 → 보강 → 최상. 올릴수록 값이 비싸지지만 효과도 그만큼 커지고
      닳음도 0으로 돌아간다.<br><br>
      설정 화면의 <b>장비</b>에서 언제든 사고 강화할 수 있다.`},
+ {t:'슬럼프와 뜨거운 감각',
+  b:`방망이는 계속 같지 않다.<br><br>
+     <b>👀 슬럼프</b> — 무안타가 <b>8타수</b> 이어지면 붙는다. 타격이 8% 떨어진다.<br>
+     <b>🔥 뜨거운 감각</b> — 안타가 <b>5개</b> 이어지면 붙는다. 타격이 8% 오른다.<br><br>
+     투수도 같다. 두 번 연속 잘 던지면 🔥, 두 번 연속 무너지면 👀 가 붙고
+     구위·제구가 7%씩 움직인다.<br><br>
+     경기를 건너뛰어도 이어지고, 상태가 바뀌면 단톡에 알림이 온다.
+     이름 옆 이모지를 보고 타순을 짜라. 슬럼프인 선수를 3번에 두면 손해다.`},
+ {t:'상과 전시장',
+  b:`<b>5경기마다 구간 시상</b>이 있다.<br>
+     구간 MVP · 타자상 · 타율상 · 투수상 · 주루상 · 팀 공헌상,
+     그리고 <b>감독상</b>은 감독인 이건이 받는다 (그 구간 팀 성적이 5할 이상일 때).<br><br>
+     상을 받으면 <b>사기 +7</b>, <b>몸값 +3%</b>(최대 30%)가 붙는다.<br>
+     받은 상은 <b>전시장</b>에 트로피로 남는다. 시즌이 바뀌어도 안 사라진다.<br><br>
+     내가 상을 받으면 단톡방에서 뭐라고 답할지 고를 수 있고,
+     그 대답에 따라 팀 사기가 오르거나 떨어진다.<br>
+     홈 화면 아래 <b>전시장</b>에서 트로피를 늘어놓고 볼 수 있다. 스크린샷 찍으라고 만든 화면이다.`},
  {t:'훈련과 돈',
   b:`<b>훈련</b> — 한 명을 정해 집중적으로 키운다. 나온 사람만 큰다.
      매주 부르면 참석률이 떨어지니 가끔 쉬어야 한다. 비 오는 날은 강행할지 고를 수 있다.<br><br>
      <b>포지션 적응</b> — 새 자리를 연습시킬 수 있다. 원래 서던 자리는 +25까지,
      안 서던 자리는 30이 한계다. 좌투는 포수·2루·3루·유격을 못 본다.<br><br>
-     <b>운영비</b> — 경기를 치르면 회비가 들어온다. 장비·레슨·회식·용병·영입에 쓴다.
-     시즌이 끝나면 <b>다음 시즌 리그 가입비 350만원</b>을 내야 한다.
-     모자라면 회비를 걷어야 하고, 그러면 단톡방이 뒤집어진다.`},
+     <b>운영비</b> — 경기를 치르면 수입이 생긴다. 이기면 14만원, 비기면 8, 지면 4.
+     플레이오프는 이기면 18만원이고 상금은 따로다. 장비·레슨·회식·용병·영입에 쓴다.<br><br>
+     시즌이 끝나면 <b>다음 시즌 리그 가입비 ${LEAGUE_FEE}만원</b>을 내야 한다.
+     모자라면 회비를 걷는데, 걷을 때마다 사기가 깎이고
+     <b>세 번째부터는 불씨가 쌓인다.</b> 돈 얘기가 잦으면 결국 터진다.<br><br>
+     <b>선수단 가치가 높으면 회비를 덜 걷는다.</b> 초청·스폰서가 붙어서
+     최대 30%까지 메워진다. 선수를 키우는 게 곧 돈이다.`},
  {t:'인원이 모자라면',
   b:`9명을 못 채우면 <b>몰수패(0:7)</b>다.<br><br>
      <b>1. 단톡방에 사정해본다</b> — 45% 확률로 누군가 늦게라도 온다.<br>
@@ -7181,7 +7276,15 @@ const TUTORIAL=[
      카톡으로 자기한테 코드를 보내도 된다.<br><br>
      기록이 사라진 것 같으면 <b>설정 → 직전 저장으로 되돌리기</b>를 먼저 눌러봐라.
      자동 백업이 한 세대 남아 있다.<br><br>
-     이 안내는 <b>설정 → 튜토리얼 다시 보기</b>에서 언제든 다시 볼 수 있다.`},
+     이 안내는 <b>설정 → 튜토리얼 다시 보기</b>에서 언제든 다시 볼 수 있다.<br><br>
+     <b>게임이 업데이트돼도 링크가 같으면 기록은 그대로다.</b>
+     링크가 바뀔 때만 <b>코드 복사</b>로 옮기면 된다.`},
+ {t:'그 밖에',
+  b:`<b>선수 프로필</b> — 선수단에서 선수를 누르면 능력치·가능 포지션·훈련 방향·성격이
+     한 장에 뜬다. 능력치 옆의 흐린 칸이 잠재치다.<br><br>
+     <b>플레이타임</b> — 홈과 설정에 누적 시간이 뜬다. 탭을 뒤로 보내면 안 센다.<br><br>
+     <b>기록실</b> — 리그 전체 타격·투수 순위를 볼 수 있다. 우리 팀이 몇 등인지 확인해라.<br><br>
+     <b>통산</b> — 시즌을 넘겨도 남는 개인 통산 기록과 마일스톤이 쌓인다.`},
 ];
 
 function renderTutorial(){
@@ -7217,6 +7320,7 @@ function renderTutorial(){
 /* ---------- 면담 ---------- */
 /* 면담은 선수당 주 1회. 라운드가 넘어가면 다시 부를 수 있다. */
 function openMeet(pid){
+  if(pid===(ST.playerId||MYID)){ toast('나 자신과 면담할 수는 없다'); return; }
   if(!ST.meetRound)ST.meetRound={};
   const resuming = ST.meet && ST.meet.pid===pid && !ST.meet.done;
   if(!resuming && ST.meetRound[pid]===ST.round){
