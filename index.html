@@ -431,6 +431,7 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .savestat{font-size:11px;color:var(--blue);background:var(--panel2);border:1px solid var(--line);
   border-radius:9px;padding:8px 10px;margin:8px 0}
 .savestat.bad{color:#ffb4a8;border-color:#7a3b34}
+.pt-big{font-size:26px;font-weight:800;letter-spacing:-.01em;color:var(--gold);margin:2px 0 6px}
 .pt-role{font-size:10px;color:var(--blue);margin-top:2px}
 .pt-row.bad .pt-role{color:#c98a80}
 .pt-ctl .rm{color:#c98a80}
@@ -718,9 +719,10 @@ const WWZW = [
    real:{g:13,pa:37,ab:29,h:15,d2:2,d3:2,hr:0,bb:2,hbp:6,k:1,sb:13,cs:1,rbi:3,r:17},
    note:'전 경기 출장. 37타석 삼진 1개'},
   {id:'kig',name:'김인규',bats:'R',con:63,pow:64,eye:30,spd:24,def:50,arm:62,
-   pos:['C','3B','1B'],pitch:null,
+   pos:['C','3B','1B'],pitch:{stf:38,ctl:13,sta:22},
    real:{g:12,pa:34,ab:28,h:12,d2:5,d3:0,hr:0,bb:1,hbp:4,k:4,sb:1,cs:0,rbi:13,r:11},
-   note:'주전 포수. 2루타 5개 팀 공동 1위'},
+   realPit:{g:2,ip:0.667,h:4,r:12,er:9,bb:10,k:2,era:94.50},
+   note:'주전 포수. 2루타 5개 팀 공동 1위. 마운드는 0.2이닝 10사사구 ERA 94.50'},
   {id:'jms',name:'정민수',bats:'R',con:73,pow:33,eye:46,spd:40,def:45,arm:45,
    pos:['LF','RF','2B'],pitch:null,
    real:{g:8,pa:21,ab:18,h:10,d2:1,d3:0,hr:0,bb:2,hbp:1,k:2,sb:3,cs:1,rbi:6,r:4},
@@ -1256,8 +1258,8 @@ const META = {
 
   kig:{born:2000,speech:'ban',throws:'R',car:false,school:'군포고',drink:3,attend:0.92,loyal:70,pot:5,
     traits:['안방마님','포수','강견','형제'],friends:['yjh','ksn'],rival:'khg',coach:{},
-    pos:PR({C:60,'3B':50,'1B':50,'2B':0,SS:0,LF:0,CF:0,RF:0,P:44}),
-    desc:'주전 포수. 어깨가 좋아 급하면 마운드도 오른다. 김한규와 형제.'},
+    pos:PR({C:60,'3B':50,'1B':50,'2B':0,SS:0,LF:0,CF:0,RF:0,P:28}),
+    desc:'주전 포수. 어깨는 좋은데 마운드에만 올라가면 스트라이크가 안 들어간다. 김한규와 형제.'},
 
   khg:{born:2000,speech:'ban',throws:'R',car:false,school:'군포고',drink:1,attend:0.92,loyal:52,pot:6,
     traits:['불만러','분석가','유리몸','형제','좁은범위','더위약함'],friends:[],rival:'kig',coach:{},
@@ -2069,17 +2071,27 @@ function rollWeekEvents(ST, rng){
     }
   }
 
-  /* 축구 언해피 — 형제(김인규·김한규)가 야구보다 축구에 마음이 가 있다 */
-  ['kig','khg'].forEach(pid=>{
-    if(!us.players.some(p=>p.id===pid))return;
-    if(ST.injury[pid])return;
-    if(evts.some(e=>e.type==='soccer'))return;
-    if(rng()<0.032){
-      evts.push({type:'soccer',pid,title:`${nameOf(pid)} 축구`,
-        body:sayTo(pid,ST.playerId||'ksh',...pickOne(SOCCER_LINES,rng)),
-        effect:'사기 하락 · 불만 1단계 상승'});
-    }
-  });
+  /* 축구 언해피 — 형제(김인규·김한규)가 야구보다 축구에 마음이 가 있다.
+     개막하자마자 이 소리를 하면 아무 맥락이 없다. 3차전부터 나오게 막아두고,
+     나와도 그 자리에서 불만이 되지는 않는다. 불씨로만 남았다가
+     벤치·하위타순·대패 같은 게 겹치는 날 터진다.                         */
+  if((ST.round||0)>=2){
+    ['kig','khg'].forEach(pid=>{
+      if(!us.players.some(p=>p.id===pid))return;
+      if(ST.injury[pid])return;
+      if(evts.some(e=>e.type==='soccer'))return;
+      const mm=META[pid]||{traits:[]};
+      let pr=(mm.traits||[]).includes('불만러')?0.055:0.032;
+      const mo=(ST.morale&&ST.morale[pid]!=null)?ST.morale[pid]:70;
+      if(mo>=78)pr*=0.35;          // 팀이 잘 굴러가면 축구 생각이 안 난다
+      else if(mo<50)pr*=1.7;       // 재미가 없으면 딴 데로 눈이 간다
+      if(rng()<pr){
+        evts.push({type:'soccer',pid,title:`${nameOf(pid)} 축구`,
+          body:sayTo(pid,ST.playerId||'ksh',...pickOne(SOCCER_LINES,rng)),
+          effect:'사기 하락 · 불만 불씨 누적 (당장 불만 단계가 오르지는 않는다)'});
+      }
+    });
+  }
 
   /* 타팀 영입 제안 — 잘하는데 대우를 못 받는 선수에게 온다 */
   if(rng()<0.06){
@@ -2240,10 +2252,10 @@ function applyWeekEvents(ST,evts){
       case 'drinkinvite': ST.drinkInvite={pid:e.pid,line:e.body}; break;
       case 'poach': ST.poach={pid:e.pid,orderMax:e.orderMax,line:e.body}; break;
       case 'soccer':
-        // 축구가 더 재밌다는 소리는 야구 의욕이 떨어졌다는 뜻이다
-        ST.morale[e.pid]=Math.max(10,(ST.morale[e.pid]||70)-8);
-        if(!ST.unhappy[e.pid])ST.unhappy[e.pid]={level:0,streak:0};
-        ST.unhappy[e.pid].level=Math.min(4,ST.unhappy[e.pid].level+1);
+        // 축구가 더 재밌다는 소리는 야구 의욕이 떨어졌다는 뜻이다.
+        // 다만 이 한마디로 불만 단계를 올리지는 않는다. 불씨로만 남긴다.
+        ST.morale[e.pid]=Math.max(10,(ST.morale[e.pid]||70)-6);
+        addSpark(ST,e.pid,'축구',1);
         break;
     }
   });
@@ -2271,21 +2283,128 @@ function applyFriendship(ST){
   return [];
 }
 
-/* ================= 언해피 ================= */
-function updateUnhappy(ST, uSlots){
+/* ================= 불씨 =================
+   불만은 한 번에 터지지 않는다. 축구 얘기 한 번 했다고 바로 이적 요구를 하지는 않는다.
+   축구·벤치·하위타순·대패 같은 게 '불씨'로 조용히 쌓이다가,
+   정작 마음에 안 드는 일이 또 생기는 날 한꺼번에 터진다.
+   그래서 축구 이벤트는 불씨만 남기고, 터지는 판정은 경기가 끝난 뒤에 한다.       */
+const SPARK_LABEL={축구:'축구',벤치:'벤치',하위타순:'하위 타순',대패:'대패'};
+function addSpark(ST,pid,why,amt){
+  if(!ST.spark)ST.spark={};
+  const sp=ST.spark[pid]||(ST.spark[pid]={n:0,why:[]});
+  sp.n=Math.min(6,sp.n+(amt==null?1:amt));
+  if(why){
+    const i=sp.why.indexOf(why); if(i>=0)sp.why.splice(i,1);
+    sp.why.push(why); if(sp.why.length>3)sp.why=sp.why.slice(-3);
+  }
+  return sp;
+}
+function sparkOf(ST,pid){
+  return (ST&&ST.spark&&ST.spark[pid])?ST.spark[pid]:{n:0,why:[]};
+}
+/* 몇 개까지 참느냐. 불만러는 빨리 터지고, 성실한 쪽은 오래 참는다. */
+function sparkFuse(pid){
+  const m=META[pid]||{traits:[]};
+  const tr=m.traits||[];
+  if(tr.includes('불만러'))return 3;
+  if(tr.includes('성실'))return 5;
+  return 4;
+}
+function sparkLabel(sp){
+  if(!sp||!sp.n)return '';
+  return sp.why.map(w=>SPARK_LABEL[w]||w).join(' · ');
+}
+
+/* 불씨가 쌓이는 중에 흘리는 잔소리 — 아직 불만 단계는 오르지 않았다 */
+const GRUMBLE_LINES={
+  벤치:[['오늘도 앉아만 있다 가네','오늘도 앉아만 있다 갑니다'],
+       ['글러브는 왜 챙겨왔나 싶다','글러브는 왜 챙겨왔나 싶네요'],
+       ['뭐 어쩌겠냐 다음에 나가겠지','뭐 어쩌겠습니까 다음에 나가겠죠']],
+  하위타순:[['9번은 좀 아니지 않냐','9번은 좀 아니지 않습니까'],
+        ['타순 볼 때마다 기분이 묘하다','타순 볼 때마다 기분이 묘하네요'],
+        ['뭐 밑에서라도 치면 되지','뭐 밑에서라도 치면 되죠']],
+  대패:[['오늘은 그냥 말을 말자','오늘은 그냥 말을 말죠'],
+       ['이럴 거면 왜 모였나 싶다','이럴 거면 왜 모였나 싶네요'],
+       ['집에 가는 길이 멀겠다','집에 가는 길이 멀겠네요']],
+  축구:[['주말에 풋살이나 나갈까','주말에 풋살이나 나갈까요'],
+       ['축구는 최소한 뛰기라도 하지','축구는 최소한 뛰기라도 하죠']],
+};
+/* 불씨가 임계치를 넘은 날 터지는 대사 */
+const BLOWUP_LINES={
+  벤치:[['됐다 진짜. 나 왜 나오는지 모르겠다','됐습니다 진짜. 저 왜 나오는지 모르겠습니다'],
+       ['나 오늘 그냥 갈게. 어차피 안 쓸 거잖아','저 오늘 그냥 가겠습니다. 어차피 안 쓰실 거잖아요'],
+       ['한 달째 앉아만 있는데 이게 팀이냐','한 달째 앉아만 있는데 이게 팀입니까']],
+  하위타순:[['타순 이거 누가 짠 거냐. 이유나 좀 듣자','타순 이거 누가 짜신 겁니까. 이유나 좀 듣죠'],
+        ['출루율 데이터 뽑아왔다. 이거 보고도 9번이냐','출루율 데이터 뽑아왔습니다. 이거 보고도 9번입니까'],
+        ['밑에 쳐도 참았는데 이젠 못 참겠다','밑에 쳐도 참았는데 이젠 못 참겠습니다']],
+  대패:[['이러려고 주말에 나오는 거 아니잖아','이러려고 주말에 나오는 거 아니잖습니까'],
+       ['나 진짜 축구팀 알아본다','저 진짜 축구팀 알아보겠습니다'],
+       ['오늘까지만 참는다','오늘까지만 참겠습니다']],
+  축구:[['나 다음 주 풋살 나간다. 야구는 좀 쉴게','저 다음 주 풋살 나갑니다. 야구는 좀 쉬겠습니다']],
+};
+
+/* ================= 언해피 =================
+   반환값은 단톡방에 올릴 메시지다. 경기 결과 처리 쪽에서 카톡에 붙인다.       */
+function updateUnhappy(ST, uSlots, ctx){
   if(!ST.unhappy)ST.unhappy={};
+  if(!ST.spark)ST.spark={};
+  ctx=ctx||{};
+  const msgs=[];
+  const meId=ST.playerId||'ksh';
+  const order={}; uSlots.forEach((s,i)=>order[s.id]=i+1);
   TBYID['wwzw'].players.forEach(p=>{
     const m=META[p.id]; if(!m)return;
+    if(typeof isMerc==='function'&&isMerc(p.id))return;
     const played=uSlots.some(s=>s.id===p.id);
     const u=ST.unhappy[p.id]||{level:0,streak:0};
+    const sp=ST.spark[p.id]||{n:0,why:[]};
+
+    /* 오늘 마음에 안 들었던 것 — 하나만 잡는다 */
+    let gripe=null;
+    if(!played && !ST.injury[p.id] && !(ST.absent&&ST.absent[p.id])) gripe='벤치';
+    else if(played && order[p.id]>=7 && effCA(p.id)>=45) gripe='하위타순';
+    else if(played && ctx.blowout && sp.n>=1) gripe='대패';   // 대패는 이미 쌓인 게 있는 사람만 건드린다
+
+    /* 연속 결장 누적 — 불씨와 별개로 도는 원래 규칙.
+       불씨 쪽에서 터지는 길이 생겼으니 이쪽은 한 박자 느리게 잡는다. */
     if(played||ST.injury[p.id]){ u.streak=0; if(u.level>0&&Math.random()<0.4)u.level--; }
     else {
       u.streak++;
-      const th=m.traits.includes('불만러')?2:(m.born>=2000?3:4);
+      const th=m.traits.includes('불만러')?3:(m.born>=2000?4:5);
       if(u.streak>=th){ u.level=Math.min(4,u.level+1); u.streak=0; }
     }
-    ST.unhappy[p.id]=u;
+
+    if(gripe){
+      sp.n=Math.min(6,sp.n+1);
+      const i=sp.why.indexOf(gripe); if(i>=0)sp.why.splice(i,1);
+      sp.why.push(gripe); if(sp.why.length>3)sp.why=sp.why.slice(-3);
+    } else if(sp.n>0 && played && Math.random()<0.4){
+      sp.n--;                                     // 제대로 쓰이면 조용히 가라앉는다
+      if(sp.n<=0)sp.why=[];
+    }
+
+    const fuse=sparkFuse(p.id);
+    if(gripe && sp.n>=fuse){
+      /* 터진다 */
+      const jump=sp.n>=fuse+2?2:1;
+      u.level=Math.min(4,u.level+jump);
+      ST.morale[p.id]=Math.max(10,(ST.morale[p.id]||70)-12);
+      const pool=BLOWUP_LINES[gripe]||BLOWUP_LINES['벤치'];
+      const pair=pickOne(pool);
+      msgs.push({who:p.id,type:'talk',text:sayTo(p.id,meId,pair[0],pair[1]),mood:'angry'});
+      msgs.push({who:p.id,type:'notice',
+        text:`${p.name} 불만 폭발 — ${unhappyLabel(u.level)}\n쌓여 있던 것: ${sparkLabel(sp)||'—'}`});
+      sp.n=0; sp.why=[];
+    } else if(gripe && sp.n>=2 && Math.random()<0.45){
+      /* 아직 참는 중 — 한마디만 흘린다 */
+      const pool=GRUMBLE_LINES[gripe]||GRUMBLE_LINES['벤치'];
+      const pair=pickOne(pool);
+      msgs.push({who:p.id,type:'talk',text:sayTo(p.id,meId,pair[0],pair[1]),mood:'flat'});
+    }
+
+    ST.unhappy[p.id]=u; ST.spark[p.id]=sp;
   });
+  return msgs;
 }
 function unhappyLabel(l){ return ['정상','약간 불만','불만','강한 불만','이적 요구'][Math.min(4,l||0)]; }
 
@@ -4425,6 +4544,67 @@ LiveGame.prototype.pinchHit = function(newId){
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const el = (t,c,x)=>{const e=document.createElement(t); if(c)e.className=c; if(x!=null)e.textContent=x; return e;};
+
+/* ================= 플레이타임 =================
+   숫자만 던져주면 감이 안 온다. '2시간 12분' 보다 '영화 한 편 봤다'가 와닿는다.
+   그래서 구간마다 시간·거리에 빗댄 문장을 하나씩 붙여둔다.                 */
+const PLAYTIME_SCALE=[
+  [0,       '이제 막 시작했다. 캐치볼 첫 공 던진 정도다.'],
+  [3*60,    '몸 푸는 시간. 러닝 한 바퀴 돌았다.'],
+  [5*60,    '컵라면 익는 시간. 뚜껑 열면 딱이다.'],
+  [10*60,   '학교 쉬는시간 하나. 매점 갔다 오면 끝나는 시간이다.'],
+  [20*60,   '쉬는시간 두 번. 걸어서 1.5km — 집에서 편의점 갔다 온 거리다.'],
+  [30*60,   '점심시간 하나. 걸어서 2.5km — 안산 호수공원 반 바퀴다.'],
+  [45*60,   '수업 한 교시. 슬슬 눈꺼풀이 무거워질 무렵이다.'],
+  [60*60,   '한 시간. 안산에서 서울 강남까지 지하철로 가는 시간이다. 앉아서 갔으면 한숨 잤다.'],
+  [80*60,   '축구 한 경기 풀타임. 전후반에 추가시간까지 다 뛰었다.'],
+  [90*60,   '경기 5회쯤. 슬슬 투수 바꿔야 하나 고민할 때다.'],
+  [2*3600,  '영화 한 편. 서울에서 대전까지 KTX로 갔다 돌아온 시간이다.'],
+  [3*3600,  '서울에서 부산까지 KTX. 이미 도착해서 밀면 시켜놓고 기다리는 중이다.'],
+  [4*3600,  '사회인야구 한 경기 + 뒤풀이까지. 또는 인천에서 도쿄 갔다 오는 비행 시간.'],
+  [5*3600,  '인천에서 방콕 가는 비행기 안. 기내식이 두 번 나왔다.'],
+  [6*3600,  '서울-부산 KTX 왕복. 당일치기 출장 하나 다녀온 셈이다.'],
+  [8*3600,  '직장인 하루 근무. 야근 없이 칼퇴한 하루를 통으로 여기에 썼다.'],
+  [10*3600, '인천에서 두바이. 비행기에서 영화 네 편 볼 시간이다.'],
+  [12*3600, '밤 10시에 자서 아침 10시에 일어난 셈. 잠 대신 야구했다.'],
+  [15*3600, '인천에서 뉴욕 직항. 태평양을 통째로 건넜다.'],
+  [20*3600, '쉬지 않고 걸으면 서울에서 천안까지 간다. 80km다.'],
+  [24*3600, '하루를 통째로. 지구 반대편 어디든 비행기로 닿는 시간이다.'],
+  [2*86400, '주말 이틀. 금요일 밤부터 일요일 밤까지 논 셈이다.'],
+  [3*86400, '택배가 제주도까지 갔다가 돌아올 시간이다.'],
+  [5*86400, '월화수목금. 한 주 근무시간(40시간)의 세 배를 여기에 썼다.'],
+  [7*86400, '일주일. 정규시즌 한 주가 통째로 지나갔다.'],
+  [14*86400,'2주. 신병교육대 절반을 여기서 보냈다.'],
+  [30*86400,'한 달. 이쯤 되면 취미가 아니라 직업이다. 회비는 냈냐?'],
+];
+function fmtPlaySec(sec){
+  sec=Math.max(0,Math.floor(sec||0));
+  const d=Math.floor(sec/86400), h=Math.floor(sec%86400/3600), m=Math.floor(sec%3600/60);
+  if(d>0) return `${d}일 ${h}시간 ${m}분`;
+  if(h>0) return `${h}시간 ${m}분`;
+  if(m>0) return `${m}분`;
+  return `${sec}초`;
+}
+function playTimeLine(sec){
+  sec=Math.max(0,Math.floor(sec||0));
+  let out=PLAYTIME_SCALE[0][1];
+  for(let i=0;i<PLAYTIME_SCALE.length;i++){ if(sec>=PLAYTIME_SCALE[i][0]) out=PLAYTIME_SCALE[i][1]; }
+  return out;
+}
+/* 5초마다 더한다. 탭이 뒤로 가 있으면 세지 않는다 — 켜놓기만 한 시간은 플레이가 아니다.
+   5분마다 한 번씩 조용히 저장해서 브라우저를 그냥 닫아도 시간이 날아가지 않게 한다. */
+let ptTimer=null, ptSavedAt=0;
+function startPlayClock(){
+  if(ptTimer)clearInterval(ptTimer);
+  ptTimer=setInterval(()=>{
+    if(!ST)return;
+    if(typeof document.hidden!=='undefined'&&document.hidden)return;
+    ST.playSec=(ST.playSec||0)+5;
+    if((ST.playSec-ptSavedAt)>=300){ ptSavedAt=ST.playSec; saveGame(true); }
+    const a=document.getElementById('pt-val'); if(a)a.textContent=fmtPlaySec(ST.playSec);
+    const b=document.getElementById('pt-line'); if(b)b.textContent=playTimeLine(ST.playSec);
+  },5000);
+}
 const POSNAMES = {C:'포수','1B':'1루','2B':'2루','3B':'3루',SS:'유격',LF:'좌익',CF:'중견',RF:'우익',DH:'지타',P:'투수'};
 const ALLPOS = ['C','1B','2B','3B','SS','LF','CF','RF','DH'];
 
@@ -4496,7 +4676,8 @@ function newSeason(){
     fieldMod:{err:1,cond:0},signed:[],
     playerId:MYID, year:2026, seasonNo:1, discharged:false, justDischarged:false,
     useDH:true, park:'benamul', gearLevel:0, feud:null, pendingAbsent:{},
-    unhappy:{}, career:{}, teamCareer:null, milestones:[], firsts:{}, weather:'clear',
+    unhappy:{}, spark:{}, career:{}, teamCareer:null, milestones:[], firsts:{}, weather:'clear',
+    playSec:(typeof ST!=='undefined'&&ST&&ST.playSec)?ST.playSec:0,
     promise:{}, meet:null, meetRound:{}, gameStarters:[],   // 면담·약속
     trainTarget:null, trainAttend:[], trainAttendKey:null,  // 집중 훈련
     mercs:[],                                              // 이번 경기 용병
@@ -4863,7 +5044,30 @@ function renderHome(){
   if(inj.length)mood.appendChild(el('p','muted','부상: '+inj.map(p=>`${p.name}(${ST.injury[p.id].name} ${ST.injury[p.id].games}경기)`).join(', ')));
   const unh=us.players.filter(p=>ST.unhappy&&ST.unhappy[p.id]&&ST.unhappy[p.id].level>=2);
   if(unh.length)mood.appendChild(el('div','warn','불만: '+unh.map(p=>`${p.name}(${unhappyLabel(ST.unhappy[p.id].level)})`).join(', ')));
+  // 불씨 — 아직 불만은 아닌데 쌓이는 중인 것들. 터지기 전에 손 쓰라는 신호다.
+  const spk=us.players.filter(p=>{
+    const sp=sparkOf(ST,p.id);
+    return sp.n>=2 && !(ST.unhappy&&ST.unhappy[p.id]&&ST.unhappy[p.id].level>=2);
+  });
+  if(spk.length){
+    const line=el('p','muted');
+    const top=spk.slice().sort((a,b)=>sparkOf(ST,b.id).n-sparkOf(ST,a.id).n);
+    const shown=top.slice(0,3).map(p=>{
+      const sp=sparkOf(ST,p.id);
+      return `${p.name}(${sparkLabel(sp)} · ${sp.n}/${sparkFuse(p.id)})`;
+    }).join(', ');
+    line.innerHTML='<b>불만 조짐</b> — '+shown+(top.length>3?` 외 ${top.length-3}명`:'')
+      +'<br>아직 참는 중이다. 이 상태에서 또 벤치에 두거나 하위타순에 넣으면 터진다.';
+    mood.appendChild(line);
+  }
   c.appendChild(mood);
+
+  // 플레이타임
+  const ptc=el('div','card');
+  ptc.innerHTML=`<div class="card-h">플레이타임</div>
+    <div class="pt-big" id="pt-val">${fmtPlaySec(ST.playSec)}</div>
+    <p class="muted" id="pt-line">${playTimeLine(ST.playSec)}</p>`;
+  c.appendChild(ptc);
 
   // 면담에서 한 약속 — 라인업 짜기 전에 보이게 홈에 띄운다
   const proms=Object.keys(ST.promise||{}).filter(pid=>us.players.some(p=>p.id===pid));
@@ -5896,7 +6100,10 @@ const TUTORIAL=[
   b:`사회인야구다. 실력보다 <b>나오느냐</b>가 먼저다.<br><br>
      <b>출석</b> — 선수마다 출석 성향이 다르다. 38%인 사람은 정말 자주 빠진다.<br>
      <b>사기·컨디션</b> — 회식하면 사기가 오르고 컨디션이 떨어진다. 전날 마시면 더 떨어진다.<br>
-     <b>불만</b> — 계속 벤치에 두면 쌓인다. 4단계까지 가면 이적을 요구한다.<br>
+     <b>불만</b> — 한 방에 터지지 않는다. 축구 얘기·벤치·하위타순·대패 같은 게
+     <b>불씨</b>로 조용히 쌓이다가, 참는 한도를 넘긴 날 한꺼번에 터진다.
+     홈 화면의 '불만 조짐'이 그 카운터다. 터지기 전에 라인업에 넣거나 면담으로 풀어라.
+     4단계까지 가면 이적을 요구한다.<br>
      <b>면담</b> — 선수단 화면에서 아무나 불러 이야기할 수 있다.
      약속을 하면 지켜야 한다. 어기면 사기가 크게 떨어진다.<br>
      <b>카풀</b> — 차 있는 사람이 없는 사람을 태워 온다. 운전자가 빠지면 누군가는 못 온다.`},
@@ -6792,7 +6999,7 @@ function commitGame(res,usSide,thSide,uSlots){
     if(isMerc(p.id))return;
     ST.valuePrev[p.id]=playerValue(p,META[p.id],ST.bat[p.id]);
   });
-  updateUnhappy(ST, uSlots);
+  const unhMsgs = updateUnhappy(ST, uSlots, {blowout: (thSide.runs-usSide.runs)>=10, won, tie});
   const starters = (ST.gameStarters&&ST.gameStarters.length)?ST.gameStarters:uSlots.map(s=>s.id);
   const promiseMsgs = checkPromises(ST, starters, uSlots.map(s=>s.id), absentIds);
   const dpCount = res.dpCount||0;
@@ -6802,6 +7009,7 @@ function commitGame(res,usSide,thSide,uSlots){
   applyGojin(ST,res.gojin).forEach(m=>ST.kakaoPost.push(m));
   applyFriction(ST,res.friction).forEach(m=>ST.kakaoPost.push(m));
   promiseMsgs.forEach(m=>ST.kakaoPost.push(m));
+  unhMsgs.forEach(m=>ST.kakaoPost.push(m));
   ST.sentPost=false;
   ST.partyDone = !won;
   ST.mystery = rollMysteryEvent(ST, uSlots);
@@ -8001,7 +8209,12 @@ function renderMore(){
     '파일을 옮기기 번거로우면 <b>코드 복사</b>를 눌러 카톡으로 자신에게 보내고, '+
     '새 기기에서 붙여넣어도 된다.<br><br>'+
     '<b>기록이 사라진 것 같으면</b> 아래 <b>직전 저장으로 되돌리기</b>를 먼저 눌러봐라. '+
-    '자동 백업이 한 세대 남아 있다.';
+    '자동 백업이 한 세대 남아 있다.<br><br>'+
+    '<b>게임이 업데이트되면?</b><br>'+
+    '<b>링크가 그대로면 기록도 그대로다.</b> 같은 주소로 다시 열면 하던 데서 이어진다.<br>'+
+    '<b>링크가 바뀌면 기록은 안 따라온다.</b> 저장은 링크(주소)마다 따로 쌓이기 때문이다. '+
+    '새 링크를 받았으면 <b>옛날 링크에서 먼저 코드 복사</b>를 누르고, '+
+    '새 링크에서 아래에 붙여넣어라. 그러면 승패·기록·불만까지 전부 그대로 넘어온다.';
   sv.appendChild(guide);
   const stat=el('div','savestat');
   stat.textContent = lastSaveAt
@@ -8037,6 +8250,13 @@ function renderMore(){
   };
   sv.appendChild(e4);
   c.appendChild(sv);
+
+  const ptm=el('div','card');
+  ptm.innerHTML=`<div class="card-h">플레이타임</div>
+    <div class="pt-big" id="pt-val">${fmtPlaySec(ST.playSec)}</div>
+    <p class="muted" id="pt-line">${playTimeLine(ST.playSec)}</p>
+    <p class="muted">탭을 뒤로 보내두거나 폰을 잠근 시간은 세지 않는다. 실제로 보고 있던 시간만 쌓인다.</p>`;
+  c.appendChild(ptm);
 
   const pcard=el('div','card');
   pcard.appendChild(el('div','card-h','플레이 선수'));
@@ -8156,6 +8376,16 @@ function normalizeState(){
   if(!ST.caStart){ST.caStart={};us.players.forEach(p=>ST.caStart[p.id]=ST.ca[p.id]);}
   if(!ST.playerId)ST.playerId='ksh';
   if(!ST.unhappy)ST.unhappy={};
+  if(ST.playSec==null)ST.playSec=0;
+  // 불씨 — 예전 세이브에는 없다. 0에서 시작하면 된다.
+  if(!ST.spark)ST.spark={};
+  Object.keys(ST.spark).forEach(id=>{
+    const v=ST.spark[id];
+    if(!v||typeof v!=='object'){ delete ST.spark[id]; return; }
+    if(v.n==null)v.n=0;
+    if(!Array.isArray(v.why))v.why=[];
+    if(!us.players.some(p=>p.id===id))delete ST.spark[id];
+  });
   // 면담 시스템 상태. 예전 세이브의 ST.promise 는 숫자였으므로 객체로 옮겨준다.
   if(!ST.promise)ST.promise={};
   Object.keys(ST.promise).forEach(pid=>{
@@ -8235,6 +8465,11 @@ async function boot(){
   }
 
   MYID=ST.playerId||'ksh';
+  ptSavedAt=(ST.playSec||0);
+  startPlayClock();
+  // 탭을 그냥 닫거나 백그라운드로 보내면 플레이타임이 날아간다. 그때 한 번 밀어 넣는다.
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden&&ST)saveGame(true); });
+  window.addEventListener('pagehide',()=>{ if(ST)saveGame(true); });
   $$('.tab').forEach(b=>b.onclick=()=>go(b.dataset.v));
   $('#sheet-close').onclick=closeSheet;
   $('#sheet-bg').onclick=closeSheet;
