@@ -1398,7 +1398,7 @@ const TRAIT_INFO = {
   '헌신':'팀을 우선한다',
   '제3포수':'포수 뎁스',
   '노력파':'훈련 효과가 좋다',
-  '홈보살':'3루 주자 홈 쇄도 시 50% 확률로 잡아낸다',
+  '홈보살':'3루 주자가 홈으로 뛰면 10% 확률로 잡아낸다',
   '농구':'경기 전 농구를 하고 오면 주루가 오른다',
   '장교':'광복절·현충일에 각성한다',
   '좌완킬러':'좌타 상대에 강하다',
@@ -4257,7 +4257,7 @@ LiveGame.prototype.stepPA = function(){
       const of=def.slots.filter(x=>['LF','CF','RF'].includes(x.pos))
         .map(x=>def.team.players.find(p=>p.id===x.id)).filter(Boolean)
         .find(p=>META[p.id]&&META[p.id].traits.includes('홈보살'));
-      if(of && rng()<0.14){
+      if(of && rng()<0.10){
         this.bases[2]=null; pl.outs++; this.outs++;
         events.push({text:`${bat.name} 뜬공 — ${of.name} 홈 보살! 주자 아웃`,cls:'sb'});
         this.assists=(this.assists||0)+1;
