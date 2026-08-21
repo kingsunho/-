@@ -41,10 +41,17 @@ button{font-family:inherit;cursor:pointer}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* [제보] 갤럭시에서 버전이 안 보인다 — 시스템 글자 크기를 키워 쓰면
    제목이 헤더를 다 먹고 배지가 0폭으로 찌그러졌다. 배지는 안 줄인다. */
-.topbar .ver{margin-left:auto;font-size:10px;font-weight:700;color:var(--dim);
+.topbar .ver{font-size:10px;font-weight:700;color:var(--dim);
   border:1px solid var(--line);border-radius:4px;padding:2px 6px;letter-spacing:.02em;
   flex:0 0 auto;white-space:nowrap}
 .topbar .ver.new{color:#0d1015;background:var(--gold);border-color:var(--gold)}
+/* 소리 버튼 — 배지와 같이 안 줄어든다 */
+.topbar .snd{margin-left:auto;background:none;border:1px solid var(--line);border-radius:4px;
+  color:var(--dim);font-size:12px;line-height:1;padding:3px 6px;flex:0 0 auto;
+  -webkit-tap-highlight-color:transparent}
+.topbar .snd.on{color:var(--gold);border-color:rgba(201,162,39,.5)}
+.topbar .snd:active{opacity:.6}
+.topbar .ver{margin-left:6px}
 @media(max-width:360px){ .topbar span{display:none} }
 @media(max-width:300px){ .topbar h1{font-size:13px} }
 
@@ -195,6 +202,10 @@ button{font-family:inherit;cursor:pointer}
 .pod-v{flex:1;color:var(--dim);font-size:11.5px}
 .pod-t{flex:none;font-size:10px;color:var(--gold)}
 .pod-r.win .pod-t{font-weight:800}
+.snd-row{display:flex;gap:8px;margin-top:8px}
+.snd-vol{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:12px;color:var(--dim)}
+.snd-vol input[type=range]{flex:1;accent-color:var(--gold);height:22px}
+.snd-vol b{color:var(--ink);min-width:26px;text-align:right;font-variant-numeric:tabular-nums}
 .diag{background:var(--panel2);border-radius:8px;padding:4px 10px;margin-top:6px}
 .diag .ot-r{border-bottom:1px solid var(--line)}
 .diag .ot-r:last-child{border-bottom:0}
@@ -881,7 +892,7 @@ table.hl-tbl td.hl-o{color:#c98a80}
       링크와 코드를 밖으로 퍼뜨리지 마라.</p>
   </div>
 </div>
-<div class="topbar"><h1>우완좌완 야구 매니저</h1><span>안산 4부리그</span><b class="ver" id="appver"></b></div>
+<div class="topbar"><h1>우완좌완 야구 매니저</h1><span>안산 4부리그</span><button class="snd" id="sndbtn" aria-label="소리 켜기/끄기">🔊</button><b class="ver" id="appver"></b></div>
 <div id="view"></div>
 <div id="sheet">
   <div id="sheet-bg"></div>
@@ -4172,12 +4183,373 @@ function rollBossTalk(){
    내야 한다. 모자라면 회비를 걷어야 하고 그러면 단톡방이 뒤집어진다.
    다들 내긴 낸다. 사회인야구가 원래 그렇다.
    ========================================================= */
+/* =========================================================
+   BGM — 로비/오프닝 시그널
+   ---------------------------------------------------------
+   mp3 를 넣으면 파일이 몇 MB 씩 붙고, 캐시가 꼬이면 소리만
+   옛날 판으로 남는다. 그래서 Web Audio 로 그 자리에서 합성한다.
+   용량 0, 이음매 없는 무한 반복.
+
+   장르  : Symphonic Rock / Sports Brass Pop
+   구성  : 브라스 섹션 · 디스토션 기타 · 드라이빙 드럼 · 슬랩 베이스 · 스트링스
+   키    : E minor (i-VI-III-VII = Em-C-G-D)
+   템포  : 138 BPM
+   구성표: 인트로 4마디 → A 8 → B 8(기타 솔로) → C 8(총주) → 반복
+
+   [브라우저 정책] 사용자가 화면을 한 번 건드리기 전에는 소리가 안 난다.
+   그래서 첫 탭/키 입력에서 컨텍스트를 깨운다.
+   ========================================================= */
+const SND_KEY='wwzw_snd';
+const BGM=(function(){
+  const BPM=138, SPB=60/BPM, SP16=SPB/4;      // 16분음표 길이
+  const hasAudio = (typeof window!=='undefined') &&
+    (typeof window.AudioContext!=='undefined'||typeof window.webkitAudioContext!=='undefined');
+
+  let ctx=null, master=null, comp=null, bus={}, noiseBuf=null, dist=null;
+  let timer=null, playing=false, unlocked=false;
+  let step=0, nextT=0, duckAmt=1;
+  let state={on:true, vol:0.55, greeted:false};
+
+  /* ---------- 저장 ---------- */
+  function load(){
+    try{ const r=JSON.parse(localStorage.getItem(SND_KEY)||'null');
+      if(r&&typeof r==='object') state={on:r.on!==false, vol:(r.vol==null?0.55:+r.vol), greeted:!!r.greeted};
+    }catch(e){}
+  }
+  function save(){ try{ localStorage.setItem(SND_KEY,JSON.stringify(state)); }catch(e){} }
+  load();
+
+  /* ---------- 음이름 ---------- */
+  const mtof=m=>440*Math.pow(2,(m-69)/12);
+
+  /* ---------- 곡 ----------
+     0 은 쉼표. 멜로디는 8분음표 8칸, 드럼은 16분음표 16칸.        */
+  const CHORD=[                    // [베이스루트, 파워코드, 스트링스 3화음]
+    {b:40, p:[40,47], s:[64,67,71]},   // Em
+    {b:36, p:[36,43], s:[60,64,67]},   // C
+    {b:43, p:[43,50], s:[55,59,62]},   // G
+    {b:38, p:[38,45], s:[62,66,69]},   // D
+  ];
+  /* 브라스 주제 — 반복되는 리듬형에 4도·5도 도약을 얹은 중계 시그널 어법 */
+  const MEL_A=[
+    [76,0,76,74, 71,0, 0,0],
+    [72,0,72,71, 67,0, 0,0],
+    [74,0,74,76, 79,0, 0,0],
+    [78,0,76,74, 71,0, 0,0],
+    [76,0,76,74, 71,0,74,0],
+    [72,0,72,71, 67,0,71,0],
+    [74,0,76,78, 79,0,81,0],
+    [83,0, 0,0, 79,0,76,0],
+  ];
+  /* 총주 — 브라스가 길게 밀고, 기타가 유니즌으로 붙는다 */
+  const MEL_C=[
+    [83,0,0,0, 0,0,81,0],
+    [79,0,0,0, 0,0,78,0],
+    [76,0,0,0, 79,0,81,0],
+    [83,0,0,0, 0,0, 0,0],
+    [83,0,0,0, 0,0,86,0],
+    [84,0,0,0, 0,0,83,0],
+    [81,0,79,0, 78,0,76,0],
+    [76,0,0,0, 0,0, 0,0],
+  ];
+  /* 기타 솔로 — E 단5음(E G A B D) 16분 */
+  const SOLO=[
+    [64,67,69,71, 74,71,69,67, 64,0,67,69, 71,0,0,0],
+    [67,69,71,74, 76,74,71,69, 67,0,0,0, 71,0,74,0],
+    [74,76,79,76, 74,71,69,71, 74,0,0,0, 0,0,0,0],
+    [71,69,67,64, 62,64,67,69, 71,0,74,0, 76,0,79,0],
+    [79,0,78,0, 76,0,74,0, 71,0,74,76, 79,0,0,0],
+    [76,0,74,0, 71,0,67,0, 69,0,71,0, 74,0,0,0],
+    [79,81,83,81, 79,76,74,76, 79,0,83,0, 86,0,0,0],
+    [83,0,0,0, 79,0,0,0, 76,0,0,0, 71,0,74,0],
+  ];
+  /* 드럼 16칸 — K:킥 S:스네어 H:하이햇 C:크래시 */
+  const DR_MAIN='K.hHs.hHK.hHS.hK';
+  const DR_PUSH='K.hHs.hHK.hKS.KK';
+  const DR_FILL='K.hHS.hHK.SSSSSS';
+  const DR_INTRO='C.hHK.hHS.hHK.KK';
+
+  /* 마디 배열 — 각 마디가 어떤 파트를 쓰는지 */
+  function bars(){
+    const out=[];
+    // 인트로 4마디 — 브라스 팡파르 + 드럼
+    for(let i=0;i<4;i++) out.push({sec:'I', ch:CHORD[i%4], mel:[[76,0,0,0,79,0,83,0],[81,0,0,0,79,0,76,0],[74,0,0,0,78,0,81,0],[83,0,81,0,79,0,78,0]][i], dr:i===3?DR_FILL:DR_INTRO, gtr:i>=2, str:true, solo:null});
+    // A 8마디
+    for(let i=0;i<8;i++) out.push({sec:'A', ch:CHORD[i%4], mel:MEL_A[i], dr:i===7?DR_FILL:DR_MAIN, gtr:true, str:true, solo:null});
+    // B 8마디 — 기타 솔로, 브라스는 뒤로 빠진다
+    for(let i=0;i<8;i++) out.push({sec:'B', ch:CHORD[i%4], mel:null, dr:i===7?DR_FILL:DR_PUSH, gtr:true, str:true, solo:SOLO[i]});
+    // C 8마디 — 총주
+    for(let i=0;i<8;i++) out.push({sec:'C', ch:CHORD[i%4], mel:MEL_C[i], dr:i===7?DR_FILL:DR_PUSH, gtr:true, str:true, solo:null});
+    return out;
+  }
+  const BARS=bars();
+  const TOTAL=BARS.length*16;                 // 전체 16분음표 칸 수
+
+  /* ---------- 오디오 그래프 ---------- */
+  function makeDistCurve(k){
+    const n=1024, c=new Float32Array(n);
+    for(let i=0;i<n;i++){ const x=i*2/n-1; c[i]=(1+k)*x/(1+k*Math.abs(x)); }
+    return c;
+  }
+  function build(){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    ctx=new AC();
+    master=ctx.createGain(); master.gain.value=0;
+    comp=ctx.createDynamicsCompressor();
+    comp.threshold.value=-16; comp.knee.value=22; comp.ratio.value=5;
+    comp.attack.value=0.004; comp.release.value=0.22;
+    comp.connect(master); master.connect(ctx.destination);
+
+    const mk=(v,pan)=>{ const g=ctx.createGain(); g.gain.value=v;
+      if(ctx.createStereoPanner&&pan){ const p=ctx.createStereoPanner(); p.pan.value=pan; g.connect(p); p.connect(comp); }
+      else g.connect(comp);
+      return g; };
+    bus.brass=mk(0.30, 0);
+    bus.gtr  =mk(0.20, 0.18);
+    bus.bass =mk(0.34, 0);
+    bus.str  =mk(0.13,-0.20);
+    bus.drum =mk(0.42, 0);
+
+    dist=ctx.createWaveShaper(); dist.curve=makeDistCurve(26); dist.oversample='2x';
+    const gtrTone=ctx.createBiquadFilter();
+    gtrTone.type='lowpass'; gtrTone.frequency.value=3200; gtrTone.Q.value=0.8;
+    dist.connect(gtrTone); gtrTone.connect(bus.gtr);
+
+    // 노이즈 (드럼용)
+    const len=Math.floor(ctx.sampleRate*0.6);
+    noiseBuf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const dta=noiseBuf.getChannelData(0);
+    let seed=12345;
+    for(let i=0;i<len;i++){ seed=(seed*1103515245+12345)&0x7fffffff; dta[i]=(seed/0x3fffffff)-1; }
+  }
+
+  function noise(t,dur,type,freq,q,gain,out){
+    const src=ctx.createBufferSource(); src.buffer=noiseBuf;
+    const f=ctx.createBiquadFilter(); f.type=type; f.frequency.value=freq; if(q)f.Q.value=q;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(gain,t);
+    g.gain.exponentialRampToValueAtTime(0.0008,t+dur);
+    src.connect(f); f.connect(g); g.connect(out||bus.drum);
+    src.start(t); src.stop(t+dur+0.02);
+  }
+
+  /* ---------- 악기 ---------- */
+  function brass(t,midi,dur,gain){
+    const f=mtof(midi);
+    const flt=ctx.createBiquadFilter(); flt.type='lowpass'; flt.Q.value=1.4;
+    flt.frequency.setValueAtTime(f*1.2,t);
+    flt.frequency.linearRampToValueAtTime(f*7,t+0.035);          // 브라스 특유의 밝은 어택
+    flt.frequency.exponentialRampToValueAtTime(Math.max(500,f*2.4),t+dur);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain,t+0.022);
+    g.gain.setValueAtTime(gain*0.85,t+dur*0.65);
+    g.gain.exponentialRampToValueAtTime(0.0006,t+dur);
+    flt.connect(g); g.connect(bus.brass);
+    [-9,0,9].forEach(d=>{                                        // 3겹 디튠 = 섹션 느낌
+      const o=ctx.createOscillator(); o.type='sawtooth';
+      o.frequency.value=f; o.detune.value=d;
+      o.connect(flt); o.start(t); o.stop(t+dur+0.03);
+    });
+    const sq=ctx.createOscillator(); sq.type='square';           // 트롬본 두께
+    sq.frequency.value=f/2;
+    const sg=ctx.createGain(); sg.gain.value=0.18;
+    sq.connect(sg); sg.connect(flt); sq.start(t); sq.stop(t+dur+0.03);
+  }
+  function guitar(t,midi,dur,gain){
+    const f=mtof(midi);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain,t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0006,t+dur);
+    g.connect(dist);
+    [0,7].forEach((d,i)=>{
+      const o=ctx.createOscillator(); o.type='sawtooth';
+      o.frequency.value=f; o.detune.value=(i?7:-7);
+      o.connect(g); o.start(t); o.stop(t+dur+0.02);
+    });
+  }
+  function bass(t,midi,dur,gain){
+    const f=mtof(midi);
+    const flt=ctx.createBiquadFilter(); flt.type='lowpass'; flt.Q.value=6;
+    flt.frequency.setValueAtTime(f*10,t);                        // 슬랩 — 빠른 필터 스윕
+    flt.frequency.exponentialRampToValueAtTime(Math.max(120,f*2.2),t+0.09);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain,t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0006,t+dur);
+    const o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
+    const sub=ctx.createOscillator(); sub.type='sine'; sub.frequency.value=f/2;
+    const sg=ctx.createGain(); sg.gain.value=0.55;
+    o.connect(flt); sub.connect(sg); sg.connect(flt);
+    flt.connect(g); g.connect(bus.bass);
+    o.start(t); o.stop(t+dur+0.02); sub.start(t); sub.stop(t+dur+0.02);
+  }
+  function strings(t,notes,dur,gain){
+    notes.forEach(m=>{
+      const f=mtof(m);
+      const flt=ctx.createBiquadFilter(); flt.type='lowpass'; flt.frequency.value=2400;
+      const g=ctx.createGain();
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.linearRampToValueAtTime(gain,t+0.22);               // 느린 어택 = 현
+      g.gain.setValueAtTime(gain,t+dur*0.7);
+      g.gain.exponentialRampToValueAtTime(0.0006,t+dur);
+      flt.connect(g); g.connect(bus.str);
+      [-6,6].forEach(d=>{
+        const o=ctx.createOscillator(); o.type='sawtooth';
+        o.frequency.value=f; o.detune.value=d;
+        o.connect(flt); o.start(t); o.stop(t+dur+0.05);
+      });
+    });
+  }
+  function kick(t){
+    const o=ctx.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(150,t);
+    o.frequency.exponentialRampToValueAtTime(46,t+0.09);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(1.0,t);
+    g.gain.exponentialRampToValueAtTime(0.0008,t+0.24);
+    o.connect(g); g.connect(bus.drum); o.start(t); o.stop(t+0.26);
+    noise(t,0.02,'highpass',2200,1,0.35);                        // 비터 어택
+  }
+  function snare(t,soft){
+    noise(t, soft?0.05:0.14, 'bandpass', 1900, 0.9, soft?0.22:0.75);
+    const o=ctx.createOscillator(); o.type='triangle';
+    o.frequency.setValueAtTime(betterRnd(180,200),t);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(soft?0.10:0.30,t);
+    g.gain.exponentialRampToValueAtTime(0.0008,t+0.07);
+    o.connect(g); g.connect(bus.drum); o.start(t); o.stop(t+0.08);
+  }
+  function hat(t,open){ noise(t, open?0.16:0.035, 'highpass', 8200, 1, open?0.16:0.11); }
+  function crash(t){ noise(t, 1.1, 'highpass', 5200, 0.6, 0.34); }
+  let rs=99;
+  function betterRnd(a,b){ rs=(rs*1103515245+12345)&0x7fffffff; return a+(rs/0x7fffffff)*(b-a); }
+
+  /* ---------- 스케줄러 ----------
+     setInterval 로 조금 앞을 미리 예약한다. 타이머 지터가 있어도
+     소리는 오디오 클럭에 붙어 있어서 박자가 안 흔들린다.          */
+  function schedule(i,t){
+    const bi=Math.floor(i/16)%BARS.length, s=i%16;
+    const B=BARS[bi], C=B.ch;
+
+    // 드럼
+    const c=B.dr[s];
+    if(c==='K')kick(t);
+    else if(c==='S')snare(t,false);
+    else if(c==='s')snare(t,true);
+    else if(c==='H')hat(t,true);
+    else if(c==='h')hat(t,false);
+    else if(c==='C'){ crash(t); kick(t); }
+
+    // 베이스 — 8분 기본에 16분 슬랩을 섞는다
+    if(s%4===0) bass(t,C.b,SP16*3.2,0.9);
+    else if(s%4===2) bass(t,C.b+((s%8===6)?7:0),SP16*1.6,0.55);
+    else if(s===15) bass(t,C.b+12,SP16*1.2,0.5);
+
+    // 파워코드 — 8분 다운피킹
+    if(B.gtr && s%2===0){
+      const g=(B.sec==='C')?0.30:0.22;
+      C.p.forEach(m=>guitar(t,m+12,SP16*1.8,g));
+    }
+    // 기타 솔로
+    if(B.solo && B.solo[s]) guitar(t,B.solo[s],SP16*1.9,0.34);
+
+    // 스트링스 — 마디 머리에서 길게
+    if(B.str && s===0) strings(t,C.s,SPB*4*0.98,0.30);
+
+    // 브라스 주제 (8분 격자)
+    if(B.mel && s%2===0){
+      const m=B.mel[s/2];
+      if(m){
+        const long=(B.sec==='C');
+        brass(t,m,long?SPB*0.95:SP16*3.0,long?0.55:0.5);
+        brass(t,m-12,long?SPB*0.9:SP16*2.6,0.22);                // 아래 옥타브 = 트롬본
+        // 총주·인트로에서는 위 옥타브를 얇게 얹는다. 그래야 화면이 번쩍인다.
+        if(long||B.sec==='I') brass(t,m+12,long?SPB*0.8:SP16*2.4,0.13);
+      }
+    }
+  }
+  function tick(){
+    if(!ctx) return;
+    while(nextT < ctx.currentTime+0.12){
+      schedule(step,nextT);
+      step=(step+1)%TOTAL;
+      nextT+=SP16;
+    }
+  }
+
+  /* ---------- 제어 ---------- */
+  function applyVol(){
+    if(!master||!ctx) return;
+    const v = state.on ? state.vol*duckAmt : 0;
+    master.gain.cancelScheduledValues(ctx.currentTime);
+    master.gain.setTargetAtTime(v, ctx.currentTime, 0.08);
+  }
+  function start(){
+    if(!hasAudio||playing) return;
+    if(!ctx){ try{ build(); }catch(e){ return; } }
+    if(ctx.state==='suspended'){ try{ ctx.resume(); }catch(e){} }
+    step=0; nextT=ctx.currentTime+0.08;
+    timer=setInterval(tick,25);
+    playing=true; applyVol();
+  }
+  function stop(){
+    if(timer){ clearInterval(timer); timer=null; }
+    playing=false;
+    if(master&&ctx) master.gain.setTargetAtTime(0,ctx.currentTime,0.05);
+  }
+  function unlock(){
+    if(unlocked||!hasAudio) return;
+    unlocked=true;
+    if(state.on){
+      start();
+      if(!state.greeted){
+        state.greeted=true; save();
+        setTimeout(()=>{ if(typeof toast==='function')
+          toast('🔊 BGM 재생 중 — 상단 스피커를 누르면 끈다'); },900);
+      }
+    }
+  }
+  return {
+    get on(){ return state.on; },
+    get vol(){ return state.vol; },
+    get ready(){ return hasAudio; },
+    get playing(){ return playing; },
+    unlock,
+    toggle(){
+      state.on=!state.on; save();
+      if(state.on){ if(!playing)start(); else applyVol(); } else stop();
+      return state.on;
+    },
+    setVol(v){ state.vol=Math.max(0,Math.min(1,+v||0)); save(); applyVol(); },
+    /* 경기 중에는 뒤로 물린다 */
+    duck(x){ duckAmt=(x==null?1:x); applyVol(); },
+  };
+})();
+
+/* 상단 스피커 버튼 */
+function paintSndBtn(){
+  const b=document.getElementById('sndbtn'); if(!b) return;
+  const on=BGM.on && BGM.ready;
+  b.textContent = on?'🔊':'🔇';
+  b.classList.toggle('on',!!on);
+  b.title = BGM.ready ? (BGM.on?'소리 끄기 (M)':'소리 켜기 (M)') : '이 브라우저는 소리를 지원하지 않는다';
+}
+function toggleSound(){
+  if(!BGM.ready){ if(typeof toast==='function')toast('이 브라우저에서는 소리가 안 난다'); return; }
+  const on=BGM.toggle();
+  paintSndBtn();
+  if(typeof toast==='function') toast(on?'🔊 소리 켬':'🔇 소리 끔');
+  if(typeof curView!=='undefined'&&curView==='more'&&typeof renderMore==='function') renderMore();
+}
+
 /* ================= 버전 =================
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.9.0';
-const APP_VERSION_NOTE = '타자상·투수상 wRC+/WAR · 시즌 종합왕 · 불만 업데이트';
+const APP_VERSION = '2.0.0';
+const APP_VERSION_NOTE = '로비 BGM — 상단 스피커로 끄고 켠다 (한 번 끄면 계속 꺼짐)';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -9023,6 +9395,9 @@ const TUTORIAL=[
      한 장에 뜬다. 능력치 옆의 흐린 칸이 잠재치다.<br><br>
      <b>플레이타임</b> — 홈과 설정에 누적 시간이 뜬다. 탭을 뒤로 보내면 안 센다.<br><br>
      <b>기록실</b> — 리그 전체 타격·투수 순위를 볼 수 있다. 우리 팀이 몇 등인지 확인해라.<br><br>
+     <b>소리</b> — 상단 <b>🔊</b> 를 누르면 로비 BGM 을 끄고 켠다.
+     한 번 끄면 다음에 열어도 꺼진 채로 열린다. 음량은 <b>더보기 → 사운드</b>에서 조절한다.
+     경기 화면에서는 저절로 작아진다.<br><br>
      <b>진기록</b> — 사이클링 히트·노히트 노런·만루홈런 같은 게 나오면
      기록실 <b>진기록</b> 탭과 전시장에 영구 보관된다. 아직 안 나온 목록도 같이 뜬다.<br><br>
      <b>수상 근거</b> — 전시장에서 트로피를 누르면 무슨 기준으로,
@@ -11448,6 +11823,39 @@ function renderMore(){
   gc.appendChild(gb);
   c.appendChild(gc);
 
+  /* ---- 사운드 ---- */
+  const sc=el('div','card');
+  sc.appendChild(el('div','card-h','사운드'));
+  if(!BGM.ready){
+    sc.appendChild(el('p','muted','이 브라우저는 Web Audio 를 지원하지 않는다. 소리 없이 그대로 돌아간다.'));
+  } else {
+    sc.appendChild(el('p','muted',
+      'KBS 스포츠 중계 시그널 결의 로비 BGM 이다. 브라스 섹션 · 디스토션 기타 · '+
+      '드라이빙 드럼 · 슬랩 베이스 · 스트링스, E단조 138 BPM.<br>'+
+      '음원 파일이 아니라 그때그때 합성해서 소리를 만든다 — 그래서 용량이 안 붙고 끊김 없이 이어진다.'));
+    const row=el('div','snd-row');
+    const tb=el('button','btn'+(BGM.on?' primary':''), BGM.on?'🔊 소리 켜짐':'🔇 소리 꺼짐');
+    tb.onclick=()=>{ toggleSound(); };
+    row.appendChild(tb);
+    sc.appendChild(row);
+
+    const vr=el('div','snd-vol');
+    vr.innerHTML=`<span>음량</span><input type="range" id="sndvol" min="0" max="100" step="5"
+      value="${Math.round(BGM.vol*100)}"><b id="sndvolv">${Math.round(BGM.vol*100)}</b>`;
+    sc.appendChild(vr);
+    setTimeout(()=>{
+      const r=document.getElementById('sndvol'), lab=document.getElementById('sndvolv');
+      if(!r) return;
+      const apply=()=>{ BGM.setVol(r.value/100); if(lab)lab.textContent=r.value; };
+      r.oninput=apply; r.onchange=apply;
+    },0);
+    sc.appendChild(el('p','muted',
+      '한 번 끄면 다음에 열어도 꺼진 채로 열린다. 켜두면 계속 켜진다. '+
+      '상단 스피커 버튼이나 PC 에서는 M 키로도 바꿀 수 있다.<br>'+
+      '경기 화면에서는 중계에 안 묻히게 저절로 작아진다.'));
+  }
+  c.appendChild(sc);
+
   const vc=el('div','card');
   vc.innerHTML=`<div class="card-h">버전</div>
     <div class="pt-big">v${APP_VERSION}</div>
@@ -11612,6 +12020,8 @@ const VIEWS={home:renderHome,squad:renderSquad,lineup:renderLineup,kakao:renderK
 function go(v){
   clearInterval(playTimer);
   curView=v;
+  /* 경기 화면에서는 BGM 을 뒤로 물린다. 중계 소리에 안 묻히게. */
+  try{ BGM.duck(v==='game'?0.32:1); }catch(e){}
   $$('.tab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   window.scrollTo(0,0);
   (VIEWS[v]||renderHome)();
@@ -11919,6 +12329,17 @@ async function boot(){
   $$('.tab').forEach(b=>b.onclick=()=>go(b.dataset.v));
   $('#sheet-close').onclick=closeSheet;
   $('#sheet-bg').onclick=closeSheet;
+  /* 소리 — 브라우저 정책상 사용자가 한 번 건드려야 난다 */
+  paintSndBtn();
+  const sb=$('#sndbtn'); if(sb) sb.onclick=(e)=>{ e.stopPropagation(); toggleSound(); };
+  ['pointerdown','keydown','touchstart'].forEach(ev=>
+    document.addEventListener(ev, ()=>BGM.unlock(), {once:true, passive:true}));
+  document.addEventListener('keydown', e=>{
+    if(e.key==='m'||e.key==='M'){
+      const t=e.target; if(t&&/INPUT|TEXTAREA/.test(t.tagName)) return;
+      toggleSound();
+    }
+  });
   $('#loading').style.display='none';
   go(saved?'home':'pick');
   if(!saved) ST.tutPending=true;      // 선수 고르고 나면 튜토리얼로 보낸다
