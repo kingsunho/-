@@ -171,7 +171,7 @@ button{font-family:inherit;cursor:pointer}
 .pcs-today{background:rgba(201,162,39,.10);border:1px solid rgba(201,162,39,.25);
   border-radius:8px;padding:8px 10px;margin:0 4px 10px;font-size:12px}
 .pcs-today b{font-size:13px}
-.award.king .aw-l{color:var(--gold)}
+.award.king .aw-l{color:var(--gold);font-weight:800}
 .cotag{font-style:normal;font-size:9px;background:rgba(201,162,39,.2);color:var(--gold);
   border-radius:4px;padding:1px 4px;margin-left:5px}
 .featcard{border:1px solid rgba(201,162,39,.35)}
@@ -189,9 +189,12 @@ button{font-family:inherit;cursor:pointer}
 .aw-top{display:flex;gap:12px;align-items:center;padding:4px 4px 12px;
   border-bottom:1px solid var(--line);margin-bottom:8px}
 .aw-i{font-size:34px;flex:none}
-.aw-l{font-size:11px;color:var(--dim)}
-.aw-n{font-size:17px;font-weight:800}
-.aw-v{font-size:12.5px;color:var(--gold);font-weight:700;margin-top:2px}
+/* [버그 이력] 트로피 시트 머리글이 시상식 행(.award .aw-*)과 이름이 겹쳐서
+   스타일시트 뒤쪽 규칙에 덮였다 — 라벨이 66px 로 눌리고 색이 반대로 나왔다.
+   특이도로 이길 수도 있지만 이름 자체를 갈라두는 편이 헷갈리지 않는다.  */
+.awh-l{font-size:11px;color:var(--dim)}
+.awh-n{font-size:17px;font-weight:800}
+.awh-v{font-size:12.5px;color:var(--gold);font-weight:700;margin-top:2px}
 .pod{margin:2px 0 4px}
 .pod-r{display:flex;align-items:center;gap:8px;padding:8px 4px;
   border-bottom:1px solid var(--line);font-size:12.5px}
@@ -350,7 +353,6 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .ev-choice{display:flex;flex-direction:column;gap:6px;margin-top:9px}
 .ev-choice .btn{margin-top:0;padding:10px;font-size:12.5px}
 
-.train-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 .train{text-align:left;padding:11px;background:var(--panel2);border:1px solid var(--line);
   border-radius:10px;color:var(--ink)}
 .train b{display:block;font-size:13px;margin-bottom:3px}
@@ -417,8 +419,6 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .ordb{width:26px;height:17px;background:var(--panel2);border:1px solid var(--line);
   color:var(--dim);border-radius:4px;font-size:8px;padding:0}
 .pos-badge.unfit{border-color:#4a2b28;color:#e08078}
-.bench-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid var(--line)}
-.bench-row:first-of-type{border-top:0}
 .bn{font-size:13.5px;font-weight:700}
 .bs{font-size:10.5px;color:var(--dim);margin-left:auto;text-align:right}
 
@@ -431,7 +431,6 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .tacb.on{background:rgba(201,162,39,.14);color:var(--gold);border-color:#4a3f1e}
 .tac-d{font-size:10.5px;color:#6f7986;margin-top:5px}
 
-.kakao{background:#8fa8bd;border-radius:12px;padding:12px 10px;margin-bottom:10px}
 .kk{margin-bottom:9px}
 .kk-who{font-size:10.5px;color:#2c3a47;margin-bottom:3px;font-weight:700}
 .kk-bubble{display:inline-block;background:#fff;color:#111;padding:9px 11px;border-radius:3px 12px 12px 12px;
@@ -1689,10 +1688,7 @@ const TRAIT_INFO = {
   '장교':'광복절·현충일에 각성한다',
   '좌완킬러':'좌타 상대에 강하다',
   '전역':'군 복무를 마치고 돌아왔다',
-  '좁은범위':'자기 앞 타구는 다 막지만 범위가 좁다',
-  '더위약함':'폭염에 2이닝을 넘기면 구위가 급락한다',
-  '포수부담':'포수로 나가면 타격이 떨어진다',
-  '외야미숙':'외야 수비가 크게 떨어진다',
+  /* 같은 키를 두 번 적어두면 뒤엣것만 살아남는다. 하나로 합쳤다. */
   '좁은범위':'자기한테 오는 건 다 막지만 수비 범위가 좁다',
   '더위약함':'폭염 경기에서 2이닝을 넘기면 구위가 급락한다',
   '외야미숙':'외야에 서면 수비가 떨어진다',
@@ -1772,11 +1768,6 @@ function posFit(pid, pos){
   if(!add) return base;
   return Math.min(cap, base+add);
 }
-/* 훈련으로 얼마나 올렸는지 (UI 표시용) */
-function posTrained(pid,pos){
-  return (typeof ST!=='undefined'&&ST&&ST.posTrain&&ST.posTrain[pid])?(ST.posTrain[pid][pos]||0):0;
-}
-function canPlay(pid, pos){ return pos==='DH' || posFit(pid,pos)>0; }
 
 /* ---------- 몸값 (현실 단위: 만원) ----------
    리그비 팀당 350만원 = 리그 전체 8,050만원
@@ -2019,14 +2010,6 @@ function speechTo(from, to){
   if(A.born === B.born) return 'ban';                     // 동갑
   if(A.born < B.born) return 'ban';                       // 손위 → 손아래
   return 'jon';                                           // 손아래 → 손위
-}
-/* 상대를 부르는 호칭. 쌍둥이는 서로 '형'이라 부르지 않는다. */
-function callName(from, to){
-  const nm=nameOf(to);
-  if(!META[from]||!META[to]) return nm;
-  if(META[from].rival===to) return nm;                    // 쌍둥이 → 이름만
-  if(META[from].born > META[to].born) return nm.slice(-2)+'형';
-  return nm;
 }
 
 /* =========================================================
@@ -4662,8 +4645,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.1.1';
-const APP_VERSION_NOTE = '대기화면에 이안·지우 · 구단 통산 1위 부문 항상 표시';
+const APP_VERSION = '2.1.2';
+const APP_VERSION_NOTE = '세이브 용량 13% 감소 · 수상 화면 스타일 충돌 수정';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -4781,7 +4764,6 @@ function gearSlot(id){
 }
 function gearLv(id){ const g=gearSlot(id); return g?g.lv:0; }
 function gearWear(id){ const g=gearSlot(id); return g?g.wear:0; }
-function gearOwned(id){ return gearLv(id)>0; }
 function gearDef(id){ return GEAR_ITEMS.find(g=>g.id===id); }
 /* 다음 등급 값 — 올릴수록 비싸진다 */
 function gearCost(id){
@@ -6989,6 +6971,36 @@ const STORE = (typeof window.storage!=='undefined') ? window.storage : {
    저장이 깨졌을 때를 대비해 '직전 세이브'를 따로 남긴다.
    저장 전 현재 값을 백업으로 밀어 넣는 방식이라 항상 한 세대 전이 남는다. */
 let lastSaveAt=null, lastSaveOk=true;
+/* ================= 세이브 다이어트 =================
+   리그 기록(ST.lgBat/lgPit)은 23팀 전원분이라 266명 + 83명이다.
+   그중 상당수는 한 타석도 안 서고 한 개도 안 던진다 — 0만 잔뜩 저장됐다.
+   구간 시상용 스냅샷(awardSnap)은 그걸 통째로 한 벌 더 복사해 두기까지 해서
+   세이브의 3분의 1을 먹고 있었다.
+
+   기록이 0인 항목은 저장에서 뺀다. 불러올 때 normalizeState() 가
+   빈 값으로 다시 채우고, snapDiff() 도 없는 항목을 0으로 읽는다.
+   그래서 결과는 완전히 같고 용량만 준다.                              */
+function trimForSave(st){
+  const zeroBat=b=>!b||(!b.pa&&!b.g);
+  const zeroPit=q=>!q||(!q.outs&&!q.g&&!q.bf);
+  const prune=(src,isZero)=>{
+    if(!src)return src;
+    const r={}; for(const k in src){ if(!isZero(src[k])) r[k]=src[k]; }
+    return r;
+  };
+  const o={...st};
+  o.lgBat=prune(st.lgBat,zeroBat);
+  o.lgPit=prune(st.lgPit,zeroPit);
+  if(st.awardSnap){
+    o.awardSnap={...st.awardSnap,
+      lg :prune(st.awardSnap.lg ,zeroBat),
+      lgp:prune(st.awardSnap.lgp,zeroPit),
+      bat:prune(st.awardSnap.bat,zeroBat),
+      pit:prune(st.awardSnap.pit,zeroPit)};
+  }
+  return o;
+}
+function serializeState(){ return JSON.stringify(trimForSave(ST)); }
 async function saveGame(silent){
   try{
     // 직전에 저장돼 있던 내용을 백업 슬롯으로 옮긴다
@@ -6996,7 +7008,7 @@ async function saveGame(silent){
       const prev=await STORE.get('wwzw_v5',false);
       if(prev&&prev.value) await STORE.set('wwzw_v5_bak',prev.value,false);
     }catch(e){/* 백업 실패는 본 저장을 막지 않는다 */}
-    await STORE.set('wwzw_v5',JSON.stringify(ST),false);
+    await STORE.set('wwzw_v5',serializeState(),false);
     lastSaveAt=Date.now(); lastSaveOk=true;
     if(!silent)toast('저장 완료');
   }catch(e){
@@ -7102,7 +7114,7 @@ function decodeSave(txt){
 
 /* ---------- 내보내기 / 불러오기 ---------- */
 async function exportSave(){
-  const data=JSON.stringify(ST);
+  const data=serializeState();
   const st=ST.stand['wwzw'];
   const fname=`우완좌완_${st.w}승${st.l}패_${ST.round}차전.json`;
   /* 아티팩트 안에서는 <a download> 가 막혀 있다. 호스트가 주는 저장 통로를 먼저 써본다. */
@@ -7126,7 +7138,7 @@ async function exportSave(){
   toast('세이브 파일 저장됨');
 }
 function copySave(){
-  const data=packSave(JSON.stringify(ST));
+  const data=packSave(serializeState());
   const ta=document.createElement('textarea');
   ta.value=data; ta.style.position='fixed'; ta.style.left='-9999px';
   document.body.appendChild(ta); ta.select();
@@ -7149,7 +7161,7 @@ function importFromText(txt){
 /* 카톡 같은 데로 바로 보내기. 되는 기기에서만 버튼이 뜬다. */
 function canShareSave(){ return typeof navigator!=='undefined' && !!navigator.share; }
 async function shareSave(){
-  const data=packSave(JSON.stringify(ST));
+  const data=packSave(serializeState());
   const st=ST.stand&&ST.stand['wwzw'];
   try{
     await navigator.share({title:'우완좌완 세이브',
@@ -8244,21 +8256,6 @@ function trainAdvice(p){
 }
 
 const DRINK_LABEL=['안 마신다','가끔 마신다','자주 마신다','끝까지 남는다'];
-function personaLines(pid){
-  const m=META[pid]; if(!m)return [];
-  const out=[];
-  out.push(['출석', `${Math.round((m.attend!=null?m.attend:0.85)*100)}%`
-    + (m.attend<0.6?' — 자주 빠진다':m.attend>=0.85?' — 웬만하면 나온다':'')]);
-  out.push(['회식', DRINK_LABEL[Math.min(3,m.drink||0)]]);
-  out.push(['이동', m.car?'차가 있다. 다른 선수를 태우고 온다':'차가 없다. 누군가 태워줘야 한다']);
-  if(m.school) out.push(['출신', m.school]);
-  if(pid===(ST.playerId||MYID)) out.push(['나와의 관계','나']);
-  else {
-    const bd=bondOf(pid);
-    out.push(['나와의 관계', `${bondLabel(bd)} (${Math.round(bd)})`]);
-  }
-  return out;
-}
 
 /* ================= 전시장 =================
    내가 고른 선수가 받은 상을 트로피로 늘어놓는다. 스크린샷 찍으라고 만든 화면이다. */
@@ -8383,9 +8380,9 @@ function openAward(idx){
 
   const top=el('div','aw-top');
   top.innerHTML=`<div class="aw-i">${TROPHY_ICON[h.kind]||'🏆'}</div>
-    <div><div class="aw-l">${h.label}</div>
-      <div class="aw-n">${h.name||nameOf(h.pid)}</div>
-      <div class="aw-v">${h.value||''}</div>
+    <div><div class="awh-l">${h.label}</div>
+      <div class="awh-n">${h.name||nameOf(h.pid)}</div>
+      <div class="awh-v">${h.value||''}</div>
       <div class="pcs-n2">${h.scope==='구간'?`${h.at}경기 구간`:'시즌'} · ${h.year||2026}</div></div>`;
   body.appendChild(top);
 
