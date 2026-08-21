@@ -1387,6 +1387,29 @@ function simPA(bat,pit,offTeam,defTeam,rng,tac,cond,park,mods){
   return {type:'1B'};
 }
 
+/* ================= 승리·패전투수 =================
+   [버그 이력] 예전에는 '이긴 팀 선발' 과 '경기 끝날 때 던지던 투수' 를
+   그대로 승/패투수로 박았다. 9실점하고 내려간 선발 대신
+   1이닝 무실점으로 마무리한 구원이 패전투수가 되는 일이 흔했다.
+
+   야구 규칙대로 간다 — 이긴 팀이 '끝까지 지킨 리드를 처음 잡은 순간'
+   (결승점)을 찾아서, 그때 마운드에 있던 두 투수에게 승/패를 준다.
+
+   scoreLog 는 득점이 날 때마다 {d:내준 투수, f:득점한 팀의 그때 투수,
+   a:원정 점수, h:홈 점수} 를 쌓는다.                                */
+function decidePitchers(log, awayWin){
+  if(!log||!log.length) return {wp:null, lp:null};
+  const ahead=(a,h)=>awayWin ? a>h : h>a;      // 이긴 팀이 앞서 있나
+  let k=-1;
+  for(let i=0;i<log.length;i++){
+    const pa = i===0 ? 0 : log[i-1].a;
+    const ph = i===0 ? 0 : log[i-1].h;
+    if(!ahead(pa,ph) && ahead(log[i].a,log[i].h)) k=i;   // 리드를 잡은 순간
+  }
+  if(k<0) return {wp:null, lp:null};
+  return {wp:log[k].f, lp:log[k].d};
+}
+
 /* ---------- 경기 ---------- */
 function newBox(){return {pa:0,ab:0,h:0,d2:0,d3:0,hr:0,bb:0,hbp:0,k:0,rbi:0,r:0,sb:0,cs:0};}
 function newPit(){return {outs:0,h:0,r:0,er:0,bb:0,k:0,hbp:0,sbA:0,bf:0};}
@@ -1394,7 +1417,7 @@ function newPit(){return {outs:0,h:0,r:0,er:0,bb:0,k:0,hbp:0,sbA:0,bf:0};}
 function simGame(home,away,opts){
   const rng=opts.rng||makeRng((Date.now()*7919)>>>0);
   const INN=opts.innings||7;
-  const log=[],box={},pbox={};
+  const log=[],box={},pbox={},scoreLog=[];
 
   const S=[
     {team:away,slots:opts.awayLineup,rot:opts.awayRotation,home:false,
@@ -1476,7 +1499,9 @@ function simGame(home,away,opts){
 
         const res=simPA(bat,pit,off.team,def.team,rng,off.tac,off.cond[bat.id],opts.park);
         const bl=box[bat.id]; bl.pa++;
-        const score=(rid,e)=>{if(!rid)return;box[rid].r++;off.runs++;ir++;pl.r++;if(e)pl.er++;};
+        const score=(rid,e)=>{if(!rid)return;box[rid].r++;off.runs++;ir++;pl.r++;if(e)pl.er++;
+          scoreLog.push({d:pit.id, f:(off.rot[off.pIdx]||off.rot[0]),
+            a:S[0].runs, h:S[1].runs});};
         const adv=(n,e)=>{for(let b=2;b>=0;b--){if(bases[b]){const nb=b+n;
           if(nb>=3){score(bases[b],e);bl.rbi++;}else bases[nb]=bases[b];bases[b]=null;}}};
 
@@ -1543,8 +1568,7 @@ function simGame(home,away,opts){
     box,pbox,log,tie,
     winner:tie?null:(awayWin?away.id:home.id),
     loser:tie?null:(awayWin?home.id:away.id),
-    wp:tie?null:win.rot[0],
-    lp:tie?null:lose.rot[Math.min(lose.pIdx,lose.rot.length-1)],
+    ...(tie?{wp:null,lp:null}:decidePitchers(scoreLog, S[0].runs>S[1].runs)),
     innings:inn, mercy, injuries,
   };
 }
@@ -5479,8 +5503,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.6.0';
-const APP_VERSION_NOTE = '튜토리얼 새로 쓰고, 업데이트되면 안내역이 알려준다';
+const APP_VERSION = '2.7.0';
+const APP_VERSION_NOTE = '승리·패전투수를 야구 규칙대로 · 회비 스폰서 금액 누락 수정';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -5501,6 +5525,11 @@ function browserTag(){
    업그레이드되면 이안·지우가 나와서 무엇이 바뀌었는지 알려준다.
    새 버전을 올릴 때 여기 한 줄 추가하는 걸 잊지 마라.        */
 const CHANGELOG=[
+  {v:'2.7.0', t:'승리·패전투수가 제대로 정해진다', items:[
+    '9실점하고 내려간 선발 대신 마무리가 패전투수가 되던 걸 고쳤다',
+    '이긴 팀이 끝까지 지킨 리드를 잡은 순간(결승점) 기준으로 승·패를 준다',
+    '회비를 걷을 때 "스폰서로 메웠다"던 금액이 실제로는 안 들어오던 걸 고쳤다',
+  ]},
   {v:'2.6.0', t:'튜토리얼 새로 쓰고, 업데이트 안내가 생겼다', items:[
     '튜토리얼이 그동안 늘어난 기능까지 전부 담았다',
     '새 버전이 올라오면 이 화면이 뜬다',
@@ -5726,7 +5755,11 @@ function collectDues(need){
   const cut=Math.round(need*relief);
   const per=Math.ceil(Math.max(1,need-cut)/n);
   const total=per*n;
-  ST.budget+=total;
+  /* [버그 이력] 예전에는 걷은 돈(total)만 더했다. 그런데 안내문에는
+     "cut 만원은 초청·스폰서로 메웠다" 고 써놨다. 그 돈이 실제로는
+     안 들어와서, 회비를 걷어도 가입비에 늘 모자랐다.
+     메웠다고 했으면 들어와야 한다.                                */
+  ST.budget+=total+cut;
   ST.duesCount=(ST.duesCount||0)+1;
   const msgs=[{who:'lg',type:'notice',
     text:`회비 ${per}만원씩 걷습니다 (${n}명 · ${total}만원)`
@@ -5749,7 +5782,7 @@ function collectDues(need){
     if((ST.duesCount||0)>=3) addSpark(ST,p.id,'회비',1);
   });
   msgs.push({who:'lg',type:'notice',
-    text:`전원 사기 -${drop} · 걷은 돈 ${total}만원`
+    text:`전원 사기 -${drop} · 걷은 돈 ${total}만원`+(cut>0?` (+스폰서 ${cut}만원)`:'')
       +((ST.duesCount||0)>=3?'\n또 걷었다. 슬슬 눈치가 보인다':'')});
   return {per,n,total,drop,msgs,cut};
 }
@@ -6765,6 +6798,7 @@ function LiveGame(cfg){
   this.gojinWake = {};   // 각성 예약 {pid:true} — 두 명이 동시에 예약될 수 있다
   this.highlights = [];  // 이닝별 주요 장면 (2루타·3루타·홈런·도루자·병살타)
   this.feats = [];       // 박스스코어만으로는 못 잡는 진기록 (만루홈런·끝내기)
+  this.scoreLog = [];    // 승/패투수 판정용 — 득점이 날 때마다 그 순간을 남긴다
   this.friction = {log:[],hbp:false,cleared:false,drunk:null,by:null,up:false,pending:false};
   this.drunkIds = cfg.drunkIds||[];   // 전날 마신 사람들
   this.fricUs = 1;       // 마찰 여파로 붙는 우리 BABIP 배수
@@ -7095,7 +7129,9 @@ LiveGame.prototype.stepPA = function(){
   // 번트 앤 런은 주자가 한 베이스 더 간다
   const advOdds = (off.isUser && this._buntRun) ? 0.62 : 0.35;
 
-  const score=(rid,e)=>{ if(!rid)return; this.box[rid].r++; off.runs++; this.curIR=(this.curIR||0)+1; pl.r++; if(e)pl.er++; };
+  const score=(rid,e)=>{ if(!rid)return; this.box[rid].r++; off.runs++; this.curIR=(this.curIR||0)+1; pl.r++; if(e)pl.er++;
+    this.scoreLog.push({d:pit.id, f:this.curPitcher(off).id,
+      a:this.away.runs, h:this.home.runs}); };
   const adv=(n,e)=>{ for(let b=2;b>=0;b--){ if(this.bases[b]){ const nb=b+n;
     if(nb>=3){score(this.bases[b],e);bl.rbi++;} else this.bases[nb]=this.bases[b]; this.bases[b]=null; } } };
 
@@ -7324,8 +7360,7 @@ LiveGame.prototype.finish = function(){
     home:{team:this.home.team,runs:this.home.runs,hits:this.home.hits,errs:this.home.errs,bbs:this.home.bbs,sbAllowed:this.home.sbAllowed,line:this.home.line,used:this.home.used||[],slots:this.home.slots,rot:this.home.rot},
     box:this.box, pbox:this.pbox, log:this.log, tie,
     winner:tie?null:(awayWin?this.away.team.id:this.home.team.id),
-    wp:tie?null:win.rot[0],
-    lp:tie?null:lose.rot[Math.min(lose.pIdx,lose.rot.length-1)],
+    ...(tie?{wp:null,lp:null}:decidePitchers(this.scoreLog, awayWin)),
     innings:this.inning, mercy:this.mercy, injuries:this.injuries,
     dpCount:this.dpCount||0, assists:this.assists||0, assistBy:this.assistBy||null,
     selfHurt:(this.mgr&&this.mgr.selfHurt)||null,

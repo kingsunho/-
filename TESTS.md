@@ -53,15 +53,16 @@ node soaktest.js
 | `namecheck` | AI 투수 이름 생성 |
 | `savediet` | 세이브 감량이 무손실인지 |
 | `perftest` | 화면 렌더 · 경기 시뮬 속도 (참고용) |
+| `wintest` | 승리·패전투수 판정 (결승점 기준) |
 
 ## 가끔 실패하는 것
 
 확률 기반 단정문이 들어 있어 간헐적으로 실패한다. **3회 재실행해서 판단한다.**
 
-`advtest` `traintest2` `wltest` `recruittest`
+`advtest` `traintest2` `wltest` `recruittest` `fintest`
 
-## 현재 깨져 있는 것
+## 구버전 테스트
 
-v1.5.1 에서 추가된 '라인업 발표' 게이트를 안 타는 구버전 테스트다.
-
-`finaltest` `hltest` `fintest`
+`finaltest` `hltest` `fintest` 는 v1.5.1 의 '라인업 발표' 게이트를 안 타서
+한동안 깨져 있었다. 지금은 고쳐서 다 돈다.
+`enterGame()` 헬퍼로 경기 화면을 거쳐서 시작한다.
