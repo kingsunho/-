@@ -3233,6 +3233,7 @@ function buildKakaoPre(ST){
   if(!ST.dropouts)ST.dropouts=[];
   resolveStarterField();          // 발표 전에 투수/야수 중복을 없앤다
   const idx=id=>ST.lineup.findIndex(s=>s.id===id);
+  let lowSaid=0;                 // 컨디션 낮다는 말은 경기당 두 명까지
   const park=PARKS.find(p=>p.id===ST.park)||PARKS[0];
   const opp=TBYID[ST.schedule[ST.round].opp];
   const wx=WEATHERS.find(w=>w.id===ST.weather)||WEATHERS[0];
@@ -3320,8 +3321,7 @@ function buildKakaoPre(ST){
           '분석은 내가 다 하는데','ㅇㅋ 구경이나 할게','언제까지 이럴 거냐'],rng),mood:'angry'});
         ST.morale[p.id]=Math.max(15,ST.morale[p.id]-12);
       } else if(un>=2){
-        uniqPush(msgs,{who:p.id,text:jon?pickOne(['저는 계속 벤치인가요?','언제쯤 나갈 수 있을까요'],rng)
-          :pickOne(['나 계속 벤치냐','언제 나가냐 진짜'],rng),mood:'angry'});
+        uniqPush(msgs,{who:p.id,text:say(p.id,...pickFresh(PRE_BENCH_UN,'PRE_BENCH_UN',rng)),mood:'angry'});
         ST.morale[p.id]=Math.max(15,ST.morale[p.id]-9);
       } else if(rng()< (m.traits.includes('과묵')?0.06:0.32)){
         uniqPush(msgs,{who:p.id,text:jon
@@ -3351,16 +3351,11 @@ function buildKakaoPre(ST){
     } else if(drop<=-3){
       uniqPush(msgs,{who:p.id,text:say(p.id,`${i+1}번 고맙다 잘해볼게`,`${i+1}번 감사합니다 잘해보겠습니다`),mood:'happy'});
       ST.morale[p.id]=Math.min(100,ST.morale[p.id]+8);
-    } else if(ST.cond[p.id]<45){
-      const LOWB=['컨디션이 좀 별론데 나갈게','몸이 좀 무겁다','어제 잠을 못 잤다',
-        '오늘 살살 하자','일단 나가보고 안 되면 빼줘','허리가 좀 뻐근하네',
-        '다리가 안 올라간다','어깨가 좀 뻐근한데 던질 수는 있다','몸살 기운이 있다',
-        '어제 무리했나 보다','일단 뛰어는 본다','파스 붙이고 왔다'];
-      const LOWJ=['컨디션이 좀 안 좋은데 나가겠습니다','몸이 좀 무겁습니다','어제 잠을 못 잤습니다',
-        '일단 나가보겠습니다','안 되면 빼주세요','몸이 덜 풀렸습니다',
-        '다리가 잘 안 올라갑니다','어깨가 뻐근한데 던질 수는 있습니다','몸살 기운이 있습니다',
-        '어제 무리했나 봅니다','일단 뛰어보겠습니다','파스 붙이고 왔습니다'];
-      uniqPush(msgs,{who:p.id,text:pickOne(jon?LOWJ:LOWB,rng),mood:'flat'});
+    } else if(ST.cond[p.id]<45 && lowSaid<2){
+      /* 컨디션 낮은 사람이 전부 한마디씩 하면 매주 같은 소리가 줄줄이 뜬다.
+         경기당 두 명까지만 말한다. */
+      lowSaid++;
+      uniqPush(msgs,{who:p.id,text:say(p.id,...pickFresh(PRE_LOWCOND,'PRE_LOWCOND',rng)),mood:'flat'});
     } else if(rng()< (m.traits.includes('과묵')?0.04:0.20)){
       const BAN=['ㅇㅋ','오늘 이기자','늦지들 마라','ㄱㄱ','ㅇㅇ','간다','몇 시까지지',
         '오늘 날씨 좋네','그라운드 상태 어떻냐','배트 하나 빌려줄 사람','스파이크 챙겼나',
@@ -3539,6 +3534,57 @@ function buildKakaoPre(ST){
       uniqPush(msgs,{who:'swm',text:'인원 빠듯하다. 아무도 더 빠지지 마라',mood:'flat'});
   }
 
+  /* ---- 확장분 ---- 같은 라인업 발표라도 상황에 따라 다른 말이 붙는다 ---- */
+  const alive=us.players.filter(p=>isAvailable(p.id)&&!isMerc(p.id));
+  const someone=(ex)=>{ const c=alive.filter(p=>p.id!==ex); return c.length?pickOne(c,rng).id:null; };
+
+  /* 1) 오늘 선발한테 한마디 */
+  const spId=(gameRotation()||[])[0]||ST.rotation[0];
+  if(spId && isAvailable(spId) && rng()<0.7){
+    const w2=someone(spId);
+    if(w2){
+      uniqPush(msgs,{who:w2,text:sayTo(w2,spId,...pickFresh(PRE_STARTER,'PRE_STARTER',rng)),mood:'ok'});
+      if(rng()<0.7)
+        uniqPush(msgs,{who:spId,text:say(spId,...pickFresh(PRE_STARTER_REPLY,'PRE_SP_REPLY',rng)),mood:'ok'});
+    }
+  }
+
+  /* 2) 지난 경기 결과를 끌고 온다 */
+  const done=ST.schedule.filter(x=>x.played&&x.result);
+  if(done.length && rng()<0.55){
+    const last=done[done.length-1];
+    const w3=someone(null);
+    if(w3){
+      const pool=(last.result.us>last.result.them)?PRE_AFTER_WIN:PRE_AFTER_LOSS;
+      uniqPush(msgs,{who:w3,text:say(w3,...pickFresh(pool,'PRE_AFTER',rng)),
+        mood:(last.result.us>last.result.them)?'happy':'flat'});
+    }
+  }
+
+  /* 3) 날씨 */
+  const wxp=PRE_WX[ST.weather];
+  if(wxp && rng()<0.5){
+    const w4=someone(null);
+    if(w4) uniqPush(msgs,{who:w4,text:say(w4,...pickFresh(wxp,'PRE_WX_'+ST.weather,rng)),mood:'flat'});
+  }
+
+  /* 4) 시즌 첫 경기 · 마지막 경기 */
+  const total=regGames();
+  if(done.length===0 && !((ST.schedule[ST.round]||{}).po)){
+    const w5=someone(null);
+    if(w5) uniqPush(msgs,{who:w5,text:say(w5,...pickFresh(PRE_FIRST,'PRE_FIRST',rng)),mood:'happy'});
+  } else if(total-done.length===1 && !((ST.schedule[ST.round]||{}).po)){
+    uniqPush(msgs,{who:'lg',text:say('lg',...pickFresh(PRE_FINAL,'PRE_FINAL',rng)),mood:'flat'});
+  }
+
+  /* 5) 회식에서 레슨 얘기가 나왔으면 이어서 */
+  if(ST.lessonTalk){
+    ST.lessonTalk=false;
+    const w6=someone(null);
+    if(w6) uniqPush(msgs,{who:w6,text:say(w6,
+      '어제 말한 레슨 진짜 받아볼까','어제 말씀하신 레슨 진짜 받아볼까요'),mood:'flat'});
+  }
+
   ST.lastOrder={};
   ST.lineup.forEach((s,i)=>ST.lastOrder[s.id]=i);
   return msgs;
@@ -3647,6 +3693,14 @@ function kakaoOptions(ST, phase){
                '장비는 누가 챙기나요','비 오면 안 하는 거죠'];
         }
       }
+      else if(REACT_EXTRA[mood]||REACT_PRE_EXTRA[mood]){
+        /* 새로 생긴 상황별 답변들. 성격에 따라 톤만 살짝 바꾼다. */
+        const pair=pickFresh(REACT_EXTRA[mood]||REACT_PRE_EXTRA[mood],'REACT_'+mood,rng);
+        if(tr.includes('과묵')&&rng()<0.5){ ban=['ㅇㅇ','...','(읽음)']; jon=['네','...','(읽음)']; }
+        else { ban=[pair[0]]; jon=[pair[1]]; }
+        mo = /forget|close|ctl|clutch|scold/.test(mood) ? 'flat'
+           : (/nevergive|featday|keepgoing/.test(mood) ? 'happy' : 'ok');
+      }
       else return;
 
       out.push({who:p.id, text:line(p.id, me, ban, jon, rng),
@@ -3656,7 +3710,7 @@ function kakaoOptions(ST, phase){
   };
 
   if(phase==='pre'){
-    return [
+    const pre=[
       {id:'fire',label:T('오늘 무조건 이겨봐요','오늘 무조건 이기자'),
        desc:'사기 높은 선수는 오르고, 낮은 선수는 부담을 느낀다',
        run:()=>{ us.players.forEach(p=>{
@@ -3677,27 +3731,126 @@ function kakaoOptions(ST, phase){
        desc:'전원 사기 상승',
        run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.min(100,ST.morale[p.id]+5));
          return react('praise'); }},
-      {id:'quiet',label:'아무 말 안 한다',desc:'변화 없음',run:()=>[]},
     ];
+    /* ---- 상황별로만 뜨는 것 ---- */
+    const done0=ST.schedule.filter(x=>x.played&&x.result);
+    const last0=done0[done0.length-1];
+    const oppT=TBYID[(ST.schedule[ST.round]||{}).opp];
+    const lowN=us.players.filter(p=>isAvailable(p.id)&&(ST.cond[p.id]||70)<50).length;
+    const availN=us.players.filter(p=>isAvailable(p.id)).length;
+
+    if(last0 && last0.result.us<last0.result.them)
+      pre.push({id:'revenge',label:T('지난주 갚으러 가시죠','지난주 갚으러 가자'),
+        desc:'지난 경기를 진 날 전용 · 전원 사기 상승 · 컨디션 소폭 하락',
+        run:()=>{ us.players.forEach(p=>{ ST.morale[p.id]=Math.min(100,ST.morale[p.id]+6);
+            ST.cond[p.id]=Math.max(20,ST.cond[p.id]-2); });
+          return react('revenge'); }});
+    if(last0 && last0.result.us>last0.result.them)
+      pre.push({id:'nocomplacency',label:T('이겼다고 방심하지 마요','이겼다고 방심하지 마라'),
+        desc:'지난 경기를 이긴 날 전용 · 실책 감소 · 사기 소폭 하락',
+        run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-2));
+          ST.teamBuff={err:0.90,label:'긴장 유지'};
+          return react('nocomplacency'); }});
+    if(oppT && oppT.ops>=1.05)
+      pre.push({id:'underdog',label:T('어차피 지는 경기 아니에요','어차피 지는 경기 아니다'),
+        desc:'강팀을 만난 날 전용 · 전원 사기 크게 상승',
+        run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.min(100,ST.morale[p.id]+8));
+          return react('underdog'); }});
+    if(lowN>=3)
+      pre.push({id:'pace',label:T('무리하지 말고 가시죠','무리하지 말고 가자'),
+        desc:`컨디션 낮은 ${lowN}명 전용 · 전원 컨디션 +5 · 사기는 안 오른다`,
+        run:()=>{ us.players.forEach(p=>ST.cond[p.id]=Math.min(100,ST.cond[p.id]+5));
+          return react('pace'); }});
+    if(availN<=10)
+      pre.push({id:'thin',label:T('인원 빠듯하니 다치지 마요','인원 빠듯하니 다치지 마라'),
+        desc:'출전 인원이 빠듯한 날 전용 · 부상 확률 감소',
+        run:()=>{ ST.careful=true;
+          us.players.forEach(p=>ST.morale[p.id]=Math.min(100,ST.morale[p.id]+2));
+          return react('thin'); }});
+    if(ST.weather==='hot'||ST.weather==='humid')
+      pre.push({id:'water',label:T('물 많이 챙기세요','물 많이 챙겨라'),
+        desc:'더운 날 전용 · 전원 컨디션 +4',
+        run:()=>{ us.players.forEach(p=>ST.cond[p.id]=Math.min(100,ST.cond[p.id]+4));
+          return react('water'); }});
+    pre.push({id:'quiet',label:'아무 말 안 한다',desc:'변화 없음',run:()=>[]});
+    return pre;
   }
 
-  const opts=[
-    {id:'thanks',label:T('다들 고생하셨어요','다들 고생했다'),desc:'전원 사기 소폭 상승',
-     run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.min(100,ST.morale[p.id]+4));
-       return react('thanks'); }},
-    {id:'review',label:T('다음 주엔 수비 훈련해요','다음 주엔 수비 훈련하자'),
-     desc:'훈련을 수비로 고정 · 사기 소폭 하락',
-     run:()=>{ ST.trainFocus='field';
-       us.players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-3));
-       return react('review'); }},
-    {id:'scold',label:T('오늘 집중력이 없었어요','오늘 집중력이 없었다'),
-     desc:'전원 사기 하락 · 예민한 선수는 크게 삐진다',
-     run:()=>{ us.players.forEach(p=>ST.morale[p.id]=Math.max(10,ST.morale[p.id]-7));
-       const c=us.players.find(p=>META[p.id]&&META[p.id].traits.includes('불만러'));
-       if(c&&ST.unhappy&&ST.unhappy[c.id])ST.unhappy[c.id].level=Math.min(4,ST.unhappy[c.id].level+1);
-       return react('scold'); }},
-    {id:'quiet2',label:'조용히 넘어간다',desc:'변화 없음',run:()=>[]},
-  ];
+  /* ---- 경기 후 답변 ----
+     매번 똑같은 네 개면 두 번째 시즌부터는 아무도 안 누른다.
+     그날 무슨 일이 있었는지를 읽어서 그 상황에만 뜨는 선택지를 섞는다. */
+  const sc=ST.lastResult||{};
+  const won=!!sc.won, tie=!!sc.tie, diff=sc.diff||0;
+  const opts=[];
+  const bump=(v,filt)=>us.players.forEach(p=>{
+    if(filt&&!filt(p))return;
+    ST.morale[p.id]=Math.max(10,Math.min(100,ST.morale[p.id]+v));
+  });
+
+  /* 항상 있는 것 */
+  opts.push({id:'thanks',label:T('다들 고생하셨어요','다들 고생했다'),desc:'전원 사기 소폭 상승',
+    run:()=>{ bump(4); return react('thanks'); }});
+
+  /* 이겼을 때만 */
+  if(won){
+    opts.push({id:'keepgoing',label:T('이 분위기 이어가시죠','이 분위기 이어가자'),
+      desc:'전원 사기 상승 · 다음 경기 집중력 소폭 상승',
+      run:()=>{ bump(6); ST.teamBuff={babip:1.03,label:'분위기'}; return react('keepgoing'); }});
+    if(diff>=7) opts.push({id:'humble',label:T('오늘은 운이 좋았어요','오늘은 운이 좋았다'),
+      desc:'방심 방지 · 사기는 조금만 오른다',
+      run:()=>{ bump(2); ST.teamBuff={err:0.94,label:'긴장 유지'}; return react('humble'); }});
+    if(sc.comeback) opts.push({id:'nevergive',label:T('끝까지 안 놓은 게 컸어요','끝까지 안 놓은 게 컸다'),
+      desc:'역전한 날 전용 · 전원 사기 크게 상승',
+      run:()=>{ bump(9); return react('nevergive'); }});
+  }
+  /* 졌을 때만 */
+  if(!won&&!tie){
+    if(diff>=8) opts.push({id:'forget',label:T('오늘은 잊고 다음 주에 봐요','오늘은 잊고 다음 주에 보자'),
+      desc:'대패한 날 전용 · 사기 하락을 절반으로 줄인다',
+      run:()=>{ bump(6); return react('forget'); }});
+    else opts.push({id:'close',label:T('아까웠어요 다음엔 잡죠','아까웠다 다음엔 잡자'),
+      desc:'접전 패배 전용 · 전원 사기 소폭 상승',
+      run:()=>{ bump(5); return react('close'); }});
+    opts.push({id:'scold',label:T('오늘 집중력이 없었어요','오늘 집중력이 없었다'),
+      desc:'전원 사기 하락 · 예민한 선수는 크게 삐진다',
+      run:()=>{ bump(-7);
+        const c=us.players.find(p=>META[p.id]&&META[p.id].traits.includes('불만러'));
+        if(c&&ST.unhappy&&ST.unhappy[c.id])ST.unhappy[c.id].level=Math.min(4,ST.unhappy[c.id].level+1);
+        return react('scold'); }});
+  }
+  if(tie) opts.push({id:'tie',label:T('비긴 것도 나쁘지 않아요','비긴 것도 나쁘지 않다'),
+    desc:'무승부 전용 · 전원 사기 소폭 상승',
+    run:()=>{ bump(3); return react('tie'); }});
+
+  /* 그날 있었던 일에만 뜨는 것 */
+  if((sc.errs||0)>=3) opts.push({id:'gloves',label:T('수비 훈련 좀 하시죠','수비 훈련 좀 하자'),
+    desc:`실책 ${sc.errs}개 나온 날 전용 · 다음 주 훈련 수비 고정 · 사기 소폭 하락`,
+    run:()=>{ ST.trainFocus='field'; bump(-3); ST.teamBuff={err:0.88,label:'수비 집중'};
+      return react('review'); }});
+  if((sc.bbAllowed||0)>=8) opts.push({id:'ctl',label:T('사사구부터 줄여야 해요','사사구부터 줄이자'),
+    desc:`사사구 ${sc.bbAllowed}개 나온 날 전용 · 다음 주 훈련 투구 고정`,
+    run:()=>{ ST.trainFocus='pitch'; bump(-2); return react('ctl'); }});
+  if((sc.lob||0)>=8) opts.push({id:'clutch',label:T('찬스에서 한 방이 필요해요','찬스에서 한 방이 필요하다'),
+    desc:'잔루가 많았던 날 전용 · 다음 주 훈련 타격 고정',
+    run:()=>{ ST.trainFocus='bat'; bump(-2); return react('clutch'); }});
+  if(sc.feat) opts.push({id:'feat',label:T('오늘 기록은 남겨둬야죠','오늘 기록은 남겨둬야지'),
+    desc:'진기록이 나온 날 전용 · 전원 사기 크게 상승',
+    run:()=>{ bump(8); return react('featday'); }});
+  if((sc.injured||0)>0) opts.push({id:'health',label:T('다친 사람부터 챙기죠','다친 사람부터 챙기자'),
+    desc:'부상자가 나온 날 전용 · 전원 사기 상승 · 다친 선수 회복 하루 단축',
+    run:()=>{ bump(5);
+      Object.keys(ST.injury||{}).forEach(id=>{ const iv=ST.injury[id];
+        if(iv&&iv.games>1)iv.games--; });
+      return react('health'); }});
+  const unhN=us.players.filter(p=>ST.unhappy&&ST.unhappy[p.id]&&ST.unhappy[p.id].level>=2).length;
+  if(unhN>0) opts.push({id:'listen',label:T('불만 있으면 말해주세요','불만 있으면 말해라'),
+    desc:`불만 있는 ${unhN}명 전용 · 그 사람들 불만 한 단계 감소`,
+    run:()=>{ us.players.forEach(p=>{
+        const u=ST.unhappy&&ST.unhappy[p.id];
+        if(u&&u.level>=2){ u.level=Math.max(0,u.level-1); ST.morale[p.id]=Math.min(100,ST.morale[p.id]+6); } });
+      return react('listen'); }});
+
+  opts.push({id:'quiet2',label:'조용히 넘어간다',desc:'변화 없음',run:()=>[]});
   if(ST.canParty&&!ST.partyDone){
     opts.unshift({id:'party',label:T('오늘 회식 가시죠','오늘 회식 가자'),
       desc:`운영비 ${PARTY_COST}만원 · 사기 크게 상승 · 컨디션 하락 · 갈등 해소 가능`,
@@ -3732,6 +3885,8 @@ const POST_CLOSEWIN=[
   ['이겨놓고도 손이 떨린다','이겨놓고도 손이 떨리네요'],
   ['이런 걸 이겨야 시즌이 풀린다','이런 걸 이겨야 시즌이 풀립니다'],
   ['수명 줄어드는 소리 났다','수명 줄어드는 소리 났습니다'],
+  ['마지막 타구 잡힐 때 소리 질렀다','마지막 타구 잡힐 때 소리 질렀습니다'],
+  ['이런 게 진짜 야구다','이런 게 진짜 야구죠'],
 ];
 const POST_COMEBACK=[
   ['뒤집었다 ㅋㅋㅋ 이 맛에 야구한다','뒤집었네요 ㅋㅋㅋ 이 맛에 야구하죠'],
@@ -3752,6 +3907,9 @@ const POST_BLOWOUT=[
   ['이런 날은 회식도 안 당긴다','이런 날은 회식도 안 당기네요'],
   ['영상은 안 올리는 걸로 하자','영상은 안 올리는 걸로 하시죠'],
   ['다 같이 못했으니까 누구 탓은 하지 말자','다 같이 못했으니까 누구 탓은 하지 마시죠'],
+  ['오늘 온 사람들한테 미안하다','오늘 오신 분들한테 죄송합니다'],
+  ['이런 날은 빨리 잊는 게 낫다','이런 날은 빨리 잊는 게 낫습니다'],
+  ['그래도 끝까지 뛴 사람은 인정','그래도 끝까지 뛰신 분은 인정합니다'],
 ];
 const POST_CLOSELOSS=[
   ['한 점이 이렇게 크다','한 점이 이렇게 크네요'],
@@ -3786,6 +3944,9 @@ const POST_MULTI=[
   ['타순이 앞이라 기회가 많았다','타순이 앞이라 기회가 많았습니다'],
   ['오늘은 배트에 맞는 소리가 달랐다','오늘은 배트에 맞는 소리가 달랐습니다'],
   ['이게 얼마 만이냐 진짜','이게 얼마 만인지 모르겠습니다'],
+  ['상대 투수가 계속 같은 코스로 왔다','상대 투수가 계속 같은 코스로 왔습니다'],
+  ['노림수가 맞았다','노림수가 맞았습니다'],
+  ['오늘은 배트를 짧게 잡았다','오늘은 배트를 짧게 잡았습니다'],
 ];
 const POST_HR=[
   ['넘어갔다 ㅋㅋㅋ','넘어갔습니다 ㅋㅋㅋ'],
@@ -3794,6 +3955,10 @@ const POST_HR=[
   ['공 못 찾았으면 어쩔 뻔했냐','공 못 찾았으면 어쩔 뻔했습니까'],
   ['담장 넘긴 게 몇 년 만이냐','담장 넘긴 게 몇 년 만인지 모르겠습니다'],
   ['베이스 도는데 실감이 안 났다','베이스 도는데 실감이 안 났습니다'],
+  ['배트 부러진 줄 알았다','배트 부러진 줄 알았습니다'],
+  ['이거 공 어디 갔냐 찾아야 되는데','이거 공 어디 갔나요 찾아야 되는데'],
+  ['홈에서 다 기다리고 있더라','홈에서 다 기다리고 계시더라고요'],
+  ['이 맛에 야구한다','이 맛에 야구합니다'],
 ];
 const POST_HITLESS=[
   ['오늘 하나도 못 쳤다 미안하다','오늘 하나도 못 쳤습니다 죄송합니다'],
@@ -3803,6 +3968,10 @@ const POST_HITLESS=[
   ['공이 안 보이더라 진짜','공이 안 보이더라고요 진짜'],
   ['눈이 나빠진 것 같다','눈이 나빠진 것 같습니다'],
   ['오늘은 그냥 나온 걸로 만족한다','오늘은 그냥 나온 걸로 만족합니다'],
+  ['첫 타석부터 꼬였다','첫 타석부터 꼬였습니다'],
+  ['다음 주엔 다를 거다','다음 주엔 다를 겁니다'],
+  ['스윙이 자꾸 커진다','스윙이 자꾸 커집니다'],
+  ['치려고 하면 안 맞는다','치려고 하면 안 맞습니다'],
 ];
 const POST_ERR=[
   ['아까 그거 내가 잡았어야 했다','아까 그건 제가 잡았어야 했습니다'],
@@ -3811,6 +3980,9 @@ const POST_ERR=[
   ['땅이 이상했다고 하고 싶다','땅이 이상했다고 하고 싶습니다'],
   ['투수한테 제일 미안하다','투수분한테 제일 죄송합니다'],
   ['글러브를 새로 사야 하나','글러브를 새로 사야 하나요'],
+  ['눈앞에서 갑자기 튀었다','눈앞에서 갑자기 튀었습니다'],
+  ['해 때문에 안 보였다','해 때문에 안 보였습니다'],
+  ['오늘 그거 하나가 계속 걸린다','오늘 그거 하나가 계속 걸립니다'],
 ];
 const POST_SB=[
   ['오늘 다리가 좀 살아 있더라','오늘 다리가 좀 살아 있었습니다'],
@@ -3831,6 +4003,10 @@ const POST_GEM=[
   ['포수 리드가 좋았다','포수분 리드가 좋았습니다'],
   ['어깨가 오랜만에 안 아프다','어깨가 오랜만에 안 아픕니다'],
   ['제구가 되니까 야구가 쉽더라','제구가 되니까 야구가 쉽더라고요'],
+  ['오늘 변화구가 잘 들어갔다','오늘 변화구가 잘 들어갔습니다'],
+  ['타자들이 다 밀려 나가더라','타자들이 다 밀려 나가더라고요'],
+  ['던지면서도 기분이 좋았다','던지면서도 기분이 좋았습니다'],
+  ['다음에도 이렇게만 나오면 좋겠다','다음에도 이렇게만 나오면 좋겠습니다'],
 ];
 const POST_WILD=[
   ['볼넷이 너무 많았다 미안하다','볼넷이 너무 많았습니다 죄송합니다'],
@@ -3839,6 +4015,10 @@ const POST_WILD=[
   ['오늘은 마운드가 유독 높게 느껴졌다','오늘은 마운드가 유독 높게 느껴졌습니다'],
   ['다음엔 야수로 나가겠다','다음엔 야수로 나가겠습니다'],
   ['팔이 안 따라오더라','팔이 안 따라왔습니다'],
+  ['릴리스가 자꾸 빨라진다','릴리스가 자꾸 빨라집니다'],
+  ['한복판에 넣자니 맞을 것 같고','한복판에 넣자니 맞을 것 같고요'],
+  ['오늘은 그냥 안 되는 날이었다','오늘은 그냥 안 되는 날이었습니다'],
+  ['다음엔 스트라이크부터 넣겠다','다음엔 스트라이크부터 넣겠습니다'],
 ];
 /* 연승·연패 */
 const POST_STREAK_W=[
@@ -3976,6 +4156,95 @@ const POST_SMALLTALK=[
   ['배트 하나 새로 살까 고민된다','배트 하나 새로 살까 고민됩니다'],
   ['어깨에 파스 붙이고 왔다','어깨에 파스 붙이고 왔습니다'],
   ['프로 경기 보면 다 쉬워 보이는데','프로 경기 보면 다 쉬워 보이는데요'],
+  ['공 하나 잃어버렸다 미안','공 하나 잃어버렸습니다 죄송합니다'],
+  ['다음 주 비 온다던데','다음 주 비 온다던데요'],
+  ['우리 유니폼 언제 새로 맞추냐','우리 유니폼 언제 새로 맞추나요'],
+  ['오늘 심판 스트존 진짜 넓더라','오늘 심판 스트존 진짜 넓더라고요'],
+  ['화장실이 너무 멀다','화장실이 너무 멉니다'],
+  ['그늘막 하나 사자 진짜','그늘막 하나 사시죠 진짜'],
+  ['오늘 몇 개 던졌는지 세는 사람 없냐','오늘 몇 개 던졌는지 세신 분 없나요'],
+  ['스파이크 밑창이 다 닳았다','스파이크 밑창이 다 닳았습니다'],
+  ['어깨 아이싱 하고 가야겠다','어깨 아이싱 하고 가야겠습니다'],
+  ['내년에도 이 팀 하는 거지?','내년에도 이 팀 하는 거죠?'],
+  ['우리 팀 로고 좀 바꾸면 안 되냐','우리 팀 로고 좀 바꾸면 안 될까요'],
+  ['오늘 상대 유니폼 예쁘더라','오늘 상대 유니폼 예쁘더라고요'],
+];
+/* 벤치에 앉은 사람 (불만 2단계 이상) */
+const PRE_BENCH_UN=[
+  ['나 계속 벤치냐','저는 계속 벤치인가요?'],
+  ['언제 나가냐 진짜','언제쯤 나갈 수 있을까요'],
+  ['이번에도 안 넣어주네','이번에도 안 넣어주시네요'],
+  ['나올 거면 쓰기라도 해라','나올 거면 쓰기라도 해주세요'],
+  ['이럴 거면 안 나와도 되냐','이럴 거면 안 나와도 될까요'],
+  ['내가 뭐가 부족한지 말이라도 해줘라','제가 뭐가 부족한지 말씀이라도 해주세요'],
+  ['한 타석이라도 좀','한 타석이라도 좀 주세요'],
+  ['오늘도 구경만 하다 간다','오늘도 구경만 하다 갑니다'],
+];
+/* 컨디션이 낮은 채로 나가는 사람 */
+const PRE_LOWCOND=[
+  ['컨디션이 좀 별론데 나갈게','컨디션이 좀 안 좋은데 나가겠습니다'],
+  ['몸이 좀 무겁다','몸이 좀 무겁습니다'],
+  ['어제 잠을 못 잤다','어제 잠을 못 잤습니다'],
+  ['오늘 살살 하자','일단 나가보겠습니다'],
+  ['일단 나가보고 안 되면 빼줘','안 되면 빼주세요'],
+  ['허리가 좀 뻐근하네','몸이 덜 풀렸습니다'],
+  ['다리가 안 올라간다','다리가 잘 안 올라갑니다'],
+  ['어깨가 좀 뻐근한데 던질 수는 있다','어깨가 뻐근한데 던질 수는 있습니다'],
+  ['몸살 기운이 있다','몸살 기운이 있습니다'],
+  ['어제 무리했나 보다','어제 무리했나 봅니다'],
+  ['일단 뛰어는 본다','일단 뛰어보겠습니다'],
+  ['파스 붙이고 왔다','파스 붙이고 왔습니다'],
+  ['커피 두 잔 마시고 왔다','커피 두 잔 마시고 왔습니다'],
+  ['몸 풀면 좀 나아질 것 같다','몸 풀면 좀 나아질 것 같습니다'],
+  ['오늘은 수비만 잘하겠다','오늘은 수비만 잘하겠습니다'],
+];
+/* ---- 경기 전 단톡 (확장분) ---- */
+const PRE_STARTER=[   /* 오늘 선발한테 하는 말 */
+  ['오늘 잘 부탁한다','오늘 잘 부탁드립니다'],
+  ['수비는 우리가 할 테니까 편하게 던져라','수비는 저희가 할 테니까 편하게 던지세요'],
+  ['어깨 잘 풀고 나와라','어깨 잘 풀고 나오세요'],
+  ['볼넷만 안 주면 이긴다','볼넷만 안 주시면 이깁니다'],
+  ['오늘 몇 이닝 갈 수 있냐','오늘 몇 이닝 가실 수 있어요'],
+  ['타선이 도와줄게','타선이 도와드리겠습니다'],
+];
+const PRE_STARTER_REPLY=[
+  ['최대한 길게 던져보겠다','최대한 길게 던져보겠습니다'],
+  ['오늘 공 괜찮은 것 같다','오늘 공 괜찮은 것 같습니다'],
+  ['어깨가 좀 무거운데 해보겠다','어깨가 좀 무거운데 해보겠습니다'],
+  ['뒤에서 잘 잡아줘라','뒤에서 잘 잡아주세요'],
+  ['점수만 좀 내주면 된다','점수만 좀 내주시면 됩니다'],
+];
+const PRE_AFTER_WIN=[   /* 지난 경기를 이겼다 */
+  ['지난주 분위기 이어가자','지난주 분위기 이어가시죠'],
+  ['이번에도 이기면 연승이다','이번에도 이기면 연승입니다'],
+  ['저번처럼만 하면 된다','저번처럼만 하면 됩니다'],
+];
+const PRE_AFTER_LOSS=[  /* 지난 경기를 졌다 */
+  ['오늘은 갚자','오늘은 갚읍시다'],
+  ['지난주는 잊고 가자','지난주는 잊고 가시죠'],
+  ['오늘 못 이기면 진짜 답이 없다','오늘 못 이기면 진짜 답이 없습니다'],
+];
+const PRE_WX={
+  hot:[['오늘 더우니까 물 많이 챙겨라','오늘 더우니까 물 많이 챙기세요'],
+    ['그늘에서 대기하자','그늘에서 대기하시죠']],
+  cold:[['오늘 춥다 언더셔츠 입어라','오늘 춥습니다 언더셔츠 입으세요'],
+    ['손 시려서 배트 놓칠 것 같다','손 시려서 배트 놓칠 것 같습니다']],
+  wind:[['바람 방향 보고 수비 위치 잡자','바람 방향 보고 수비 위치 잡으시죠'],
+    ['오늘 뜬공 조심해야 한다','오늘 뜬공 조심해야 합니다']],
+  dust:[['먼지 심하다 마스크 챙겨라','먼지 심합니다 마스크 챙기세요']],
+  humid:[['습해서 공이 미끄럽겠다','습해서 공이 미끄럽겠습니다']],
+  drizzle:[['비 오는데 하긴 하는 거지?','비 오는데 하긴 하는 거죠?'],
+    ['미끄러우니까 슬라이딩 조심해라','미끄러우니까 슬라이딩 조심하세요']],
+};
+const PRE_FIRST=[   /* 시즌 첫 경기 */
+  ['드디어 시즌 시작이다','드디어 시즌 시작입니다'],
+  ['올해는 좀 해보자','올해는 좀 해봅시다'],
+  ['겨우내 몸 만들었다','겨우내 몸 만들었습니다'],
+];
+const PRE_FINAL=[   /* 시즌 마지막 경기 */
+  ['오늘이 마지막이다 후회 없이 하자','오늘이 마지막입니다 후회 없이 하시죠'],
+  ['한 시즌 다들 고생했다','한 시즌 다들 고생하셨습니다'],
+  ['끝나고 회식 예약해뒀다','끝나고 회식 예약해뒀습니다'],
 ];
 /* 마일스톤 반응 — 하드코딩 한 줄이면 시즌에 수십 번 같은 말이 나온다 */
 const MILE_CHEER=[
@@ -4021,6 +4290,73 @@ const FORM_COLD_LINES=[
   ['한 번만 맞으면 풀릴 것 같은데','한 번만 맞으면 풀릴 것 같은데요'],
   ['폼을 좀 바꿔봐야 하나','폼을 좀 바꿔봐야 하나요'],
 ];
+/* 경기 전 새 답변에 대한 반응 */
+const REACT_PRE_EXTRA={
+  revenge:[['오늘은 진짜 갚는다','오늘은 진짜 갚겠습니다'],
+    ['저번 생각하면 아직도 열받는다','저번 생각하면 아직도 열받습니다'],
+    ['오늘 각오 다르다','오늘 각오 다릅니다']],
+  nocomplacency:[['맞다 방심이 제일 무섭다','맞습니다 방심이 제일 무섭습니다'],
+    ['한 번 이겼다고 되는 게 아니지','한 번 이겼다고 되는 게 아니죠'],
+    ['정신 차리고 하겠다','정신 차리고 하겠습니다']],
+  underdog:[['해볼 만하다','해볼 만합니다'],
+    ['어차피 잃을 것도 없다','어차피 잃을 것도 없습니다'],
+    ['오늘 사고 한번 쳐보자','오늘 사고 한번 쳐보시죠']],
+  pace:[['그 말 들으니까 낫다','그 말씀 들으니까 낫습니다'],
+    ['살살 하겠다','살살 하겠습니다'],
+    ['다치면 다음 주가 없으니까','다치면 다음 주가 없으니까요']],
+  thin:[['알겠다 조심하겠다','알겠습니다 조심하겠습니다'],
+    ['오늘은 무조건 완주다','오늘은 무조건 완주입니다'],
+    ['9명이면 빠질 수가 없지','9명이면 빠질 수가 없죠']],
+  water:[['얼음물 사왔다','얼음물 사왔습니다'],
+    ['이 날씨에 야구하는 우리가 대단하다','이 날씨에 야구하는 우리가 대단합니다'],
+    ['그늘에 좀 있다 나가겠다','그늘에 좀 있다 나가겠습니다']],
+};
+/* 물통 차다 본인이 다쳤을 때 */
+const BOTTLE_TEASE=[
+  ['물통이 이겼네 ㅋㅋㅋ','물통이 이겼네요 ㅋㅋㅋ'],
+  ['그거 차서 뭐가 달라지냐','그거 차서 뭐가 달라집니까'],
+  ['다음엔 빈 통으로 차라','다음엔 빈 통으로 차세요'],
+  ['이건 진짜 자업자득이다','이건 진짜 자업자득입니다'],
+  ['우리보다 감독이 먼저 나갔다','우리보다 감독님이 먼저 나가셨네요'],
+  ['웃으면 안 되는데 웃긴다','웃으면 안 되는데 웃깁니다'],
+  ['물통값도 물어내야 하는 거 아니냐','물통값도 물어내셔야 하는 거 아닙니까'],
+  ['괜찮냐 진짜로','괜찮으세요 진짜로'],
+];
+/* 감독 답변에 대한 팀 반응 — 새 선택지들 */
+const REACT_EXTRA={
+  keepgoing:[['이 분위기면 계속 간다','이 분위기면 계속 갑니다'],
+    ['다음 주도 이대로 가자','다음 주도 이대로 가시죠'],
+    ['연승 한번 해보자','연승 한번 해보시죠']],
+  humble:[['운이었다는 말이 제일 무섭다','운이었다는 말씀이 제일 무섭습니다'],
+    ['방심하지 말자는 얘기지','방심하지 말자는 말씀이시죠'],
+    ['맞다 다음 주가 진짜다','맞습니다 다음 주가 진짜죠']],
+  nevergive:[['진짜 안 놓길 잘했다','진짜 안 놓길 잘했습니다'],
+    ['벤치에서 소리 지른 보람이 있다','벤치에서 소리 지른 보람이 있습니다'],
+    ['이런 경기가 팀을 만든다','이런 경기가 팀을 만듭니다']],
+  forget:[['그래 오늘은 잊자','그래 오늘은 잊겠습니다'],
+    ['이런 날도 있는 거지','이런 날도 있는 거죠'],
+    ['다음 주에 갚겠다','다음 주에 갚겠습니다']],
+  close:[['한 개만 더 쳤으면 됐는데','한 개만 더 쳤으면 됐는데요'],
+    ['다음엔 진짜 잡는다','다음엔 진짜 잡겠습니다'],
+    ['아깝긴 하다','아깝긴 합니다']],
+  tie:[['비긴 것도 나쁘진 않다','비긴 것도 나쁘진 않습니다'],
+    ['다음엔 끝내자','다음엔 끝내시죠']],
+  ctl:[['볼넷부터 줄이겠다','볼넷부터 줄이겠습니다'],
+    ['제구 연습 하겠다','제구 연습 하겠습니다'],
+    ['맞고 나가는 게 낫다','맞고 나가는 게 낫습니다']],
+  clutch:[['찬스에서 힘이 들어간다','찬스에서 힘이 들어갑니다'],
+    ['다음엔 가볍게 치겠다','다음엔 가볍게 치겠습니다'],
+    ['주자 있을 때가 제일 어렵다','주자 있을 때가 제일 어렵습니다']],
+  featday:[['오늘 건 진짜 남는다','오늘 건 진짜 남습니다'],
+    ['액자에 걸어야 된다','액자에 걸어야 됩니다'],
+    ['이런 날 또 오려나','이런 날 또 오려나요']],
+  health:[['챙겨줘서 고맙다','챙겨주셔서 감사합니다'],
+    ['다치면 다음 주가 없다','다치면 다음 주가 없죠'],
+    ['무리하지 말자','무리하지 마시죠']],
+  listen:[['그렇게 말해주니까 낫다','그렇게 말씀해주시니까 낫습니다'],
+    ['사실 좀 서운했다','사실 좀 서운했습니다'],
+    ['얘기라도 들어주면 된다','얘기라도 들어주시면 됩니다']],
+};
 /* 그날의 수훈 선수 놀리기·받아치기 */
 const MVP_TEASE=[
   ['오늘은 운이었다 ㅋㅋ','오늘은 운이 좋으셨네요 ㅋㅋ'],
@@ -4325,7 +4661,69 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
   return msgs;
 }
 
-/* ================= 회식 ================= */
+/* ================= 회식 =================
+   회식은 사회인야구의 절반이다. 그런데 여기서 나오는 얘기가 두 개뿐이면
+   두 번째 시즌부터는 아무도 안 누른다. 에피소드를 늘렸다.        */
+const PARTY_OPEN=[
+  ['오늘 수고했다 한 잔 하자','오늘 수고하셨습니다 한 잔 하시죠'],
+  ['고기 먹으러 가자 내가 예약했다','고기 드시러 가시죠 제가 예약했습니다'],
+  ['씻고 30분 뒤에 그 집에서 보자','씻고 30분 뒤에 그 집에서 뵙겠습니다'],
+  ['오늘은 안 마시면 섭섭하다','오늘은 안 드시면 섭섭합니다'],
+  ['자리 잡아놨다 천천히 와라','자리 잡아놨습니다 천천히 오세요'],
+];
+const PARTY_SCENE=[
+  {k:'order', line:['이모 여기 소주 두 병 더요','이모님 여기 소주 두 병 더 주세요'],
+   note:'주문이 계속 들어간다'},
+  {k:'replay', line:['아까 그 타구 진짜 넘어간 줄 알았다','아까 그 타구 진짜 넘어간 줄 알았습니다'],
+   note:'경기를 처음부터 다시 복기한다'},
+  {k:'phone', line:['영상 찍은 거 지금 다 같이 보자','영상 찍은 거 지금 다 같이 보시죠'],
+   note:'폰을 돌려가며 본다'},
+  {k:'oldstory', line:['그때 그 경기 기억나냐 진짜','그때 그 경기 기억나세요 진짜'],
+   note:'또 옛날 얘기가 나온다'},
+  {k:'promise', line:['다음 주부터 새벽에 뛰기로 했다','다음 주부터 새벽에 뛰기로 했습니다'],
+   note:'아무도 안 지킬 다짐을 한다'},
+  {k:'bill', line:['오늘은 내가 낸다 다음에 사라','오늘은 제가 내겠습니다 다음에 사주세요'],
+   note:'계산대 앞에서 실랑이가 붙는다'},
+  {k:'second', line:['2차 갈 사람 손','2차 가실 분 손'],
+   note:'2차 얘기가 나온다'},
+  {k:'recruit', line:['회사에 야구 하던 사람 있는데 데려와도 되냐','회사에 야구 하시던 분 있는데 데려와도 될까요'],
+   note:'새 사람 얘기가 나온다'},
+  {k:'gear', line:['배트 하나 같이 사자 나눠 내고','배트 하나 같이 사시죠 나눠 내고'],
+   note:'장비 얘기로 흐른다'},
+  {k:'coach', line:['우리 레슨 한 번 받아볼까','우리 레슨 한 번 받아볼까요'],
+   note:'레슨 얘기가 나온다'},
+  {k:'nickname', line:['별명 하나 지어주자','별명 하나 지어드리시죠'],
+   note:'별명 얘기가 나온다'},
+  {k:'nextpark', line:['다음 주 구장 어디더라','다음 주 구장 어디였죠'],
+   note:'다음 일정을 확인한다'},
+  {k:'uniform', line:['유니폼 새로 맞추는 거 어떻게 됐냐','유니폼 새로 맞추는 거 어떻게 됐나요'],
+   note:'유니폼 얘기가 나온다'},
+];
+const PARTY_REACT=[
+  ['ㅋㅋㅋㅋ 그건 아니지','ㅋㅋㅋㅋ 그건 아니죠'],
+  ['그 얘기 몇 번째냐','그 얘기 몇 번째신가요'],
+  ['맞다 맞다 나도 봤다','맞습니다 저도 봤습니다'],
+  ['그건 좀 인정','그건 좀 인정합니다'],
+  ['내일 출근인데 큰일이다','내일 출근인데 큰일입니다'],
+  ['한 잔만 더 하고 가겠다','한 잔만 더 하고 가겠습니다'],
+  ['그건 진짜 기억난다','그건 진짜 기억납니다'],
+  ['사진 있으면 보내줘라','사진 있으시면 보내주세요'],
+  ['배부르다 진짜','배부릅니다 진짜'],
+  ['이모 여기 물 좀요','이모님 여기 물 좀 주세요'],
+  ['내일 아침이 걱정된다','내일 아침이 걱정됩니다'],
+];
+const PARTY_END=[
+  ['다들 조심히 들어가라','다들 조심히 들어가세요'],
+  ['오늘 좋았다 다음 주에 보자','오늘 좋았습니다 다음 주에 뵙겠습니다'],
+  ['대리 불렀다 먼저 간다','대리 불렀습니다 먼저 가겠습니다'],
+  ['내일 다들 살아 있어라','내일 다들 살아 계세요'],
+];
+const PARTY_LATE=[
+  ['어제 몇 시에 들어갔냐','어제 몇 시에 들어가셨어요'],
+  ['어제 기억이 중간부터 없다','어제 기억이 중간부터 없습니다'],
+  ['머리 깨질 것 같다','머리 깨질 것 같습니다'],
+  ['해장하러 갈 사람','해장하러 가실 분'],
+];
 function doAfterParty(ST){
   const us=TBYID['wwzw'];
   const joined=[], msgs=[];
@@ -4359,6 +4757,45 @@ function doAfterParty(ST){
         msgs.push({who:b,text:sayTo(b,a,`${nameOf(a)} 내 차에 토했다 진짜`,`${nameOf(a)}님이 제 차에 토하셨습니다...`),mood:'angry'});
         msgs.push({who:a,text:sayTo(a,b,'미안하다 세차비 줄게','죄송합니다 세차비 드리겠습니다'),mood:'sad'});
       }
+    }
+  }
+  /* ---- 회식 장면 ---- 몇 개를 골라 이야기가 흘러가게 만든다 ---- */
+  if(joined.length>=2){
+    const avail=joined.filter(id=>isAvailable(id));
+    const pick2=(ex)=>{ const c=avail.filter(x=>x!==ex); return c.length?pickOne(c):null; };
+    const host=avail.find(id=>id==='lg')||avail[0];
+    if(host) msgs.unshift({who:host,text:say(host,...pickFresh(PARTY_OPEN,'PARTY_OPEN')),mood:'happy'});
+
+    /* 장면 2~3개 */
+    const nScene=2+((Math.random()*2)|0);
+    const used={};
+    for(let i=0;i<nScene;i++){
+      const sc=pickFresh(PARTY_SCENE,'PARTY_SCENE');
+      if(!sc||used[sc.k])continue; used[sc.k]=true;
+      const who=pick2(null); if(!who)continue;
+      msgs.push({who,text:say(who,sc.line[0],sc.line[1]),mood:'happy'});
+      const re=pick2(who);
+      if(re&&Math.random()<0.7)
+        msgs.push({who:re,text:say(re,...pickFresh(PARTY_REACT,'PARTY_REACT')),mood:'happy'});
+      /* 장면에 따라 실제로 뭔가 일어난다 */
+      if(sc.k==='promise'){ avail.forEach(id=>ST.morale[id]=Math.min(100,(ST.morale[id]||70)+2)); }
+      else if(sc.k==='bill'){ ST.budget=Math.max(0,(ST.budget||0)-6); }
+      else if(sc.k==='second'){
+        const more=avail.filter(id=>META[id]&&META[id].drink>=2);
+        more.forEach(id=>{ ST.cond[id]=Math.max(18,(ST.cond[id]||70)-7);
+          ST.morale[id]=Math.min(100,(ST.morale[id]||70)+4); });
+        if(more.length) msgs.push({who:'lg',type:'notice',
+          text:`2차까지 갔다 — ${more.length}명 컨디션 −7 · 사기 +4`});
+      }
+      else if(sc.k==='coach'){ ST.lessonTalk=true; }
+    }
+    const bye=pick2(host);
+    if(bye) msgs.push({who:bye,text:say(bye,...pickFresh(PARTY_END,'PARTY_END')),mood:'happy'});
+    /* 다음 날 아침 */
+    if(Math.random()<0.55){
+      const hz=avail.filter(id=>META[id]&&META[id].drink>=2);
+      const a=hz.length?pickOne(hz):pick2(null);
+      if(a) msgs.push({who:a,text:say(a,...pickFresh(PARTY_LATE,'PARTY_LATE')),mood:'sad'});
     }
   }
   ST.partyDone=true;
@@ -4934,8 +5371,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.4.0';
-const APP_VERSION_NOTE = '단톡방 대사·상황 대폭 확장 — 같은 말 반복 안 하게';
+const APP_VERSION = '2.5.0';
+const APP_VERSION_NOTE = '답변이 상황마다 달라진다 · 감독 액션 상시 · 물통 차다 다칠 수 있음';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -6734,6 +7171,7 @@ LiveGame.prototype.finish = function(){
     lp:tie?null:lose.rot[Math.min(lose.pIdx,lose.rot.length-1)],
     innings:this.inning, mercy:this.mercy, injuries:this.injuries,
     dpCount:this.dpCount||0, assists:this.assists||0, assistBy:this.assistBy||null,
+    selfHurt:(this.mgr&&this.mgr.selfHurt)||null,
     wpCount:this.wp||0,          // 폭투 수. wp(승리투수 id)와 키가 겹치면 안 된다
     gojin:this.gojin,
     friction:this.friction,
@@ -6855,16 +7293,53 @@ LiveGame.prototype.mgrAction = function(kind){
   let text='', sub='', d=0;
 
   if(kind==='bottle'){
-    // 물통 차기 — 지고 있을 때 효과가 크고, 이기고 있으면 역효과
-    const good = diff<0 ? 0.62 : (diff===0?0.45:0.25);
-    if(rng()<good){
-      d=+0.06; this.mgr.boost=(this.mgr.boost||1)*1.06;
-      text=pickOne(['감독이 물통을 걷어찼다','감독이 물통을 발로 날렸다','감독이 아이스박스를 쳤다'],rng);
-      sub=pickOne(['벤치가 조용해지더니 눈빛이 달라졌다','선수들이 정신을 차렸다','더그아웃 공기가 팽팽해졌다'],rng);
-    } else {
-      d=-0.04; this.mgr.boost=(this.mgr.boost||1)*0.96;
-      text=pickOne(['감독이 물통을 걷어찼다','감독이 헬멧 통을 밀어버렸다'],rng);
-      sub=pickOne(['다들 눈치만 본다. 분위기가 더 굳었다','선수들이 위축됐다','심판이 이쪽을 쳐다본다'],rng);
+    /* 물통 차기 — 지고 있을 때 효과가 크고, 이기고 있으면 역효과.
+       그리고 3% 는 본인 발이 나간다. 감독은 내가 고른 선수다.
+       내 캐릭터라고 다치지 않는 건 말이 안 된다.                    */
+    const kicker = this.myId || (typeof MYID!=='undefined'?MYID:null);
+    if(rng()<0.03 && kicker){
+      d=-0.05; this.mgr.boost=(this.mgr.boost||1)*0.95;
+      this.mgr.selfHurt = kicker;                      // commitGame 에서 실제 부상으로 바꾼다
+      const nm=this.nameOf(kicker);
+      text=pickOne([`${nm}이(가) 물통을 걷어차다 발등을 찍었다`,
+        `${nm}이(가) 물통을 차고 그대로 주저앉았다`,
+        `${nm}이(가) 아이스박스를 차다 발이 미끄러졌다`],rng);
+      sub=pickOne(['물통이 생각보다 단단했다. 절뚝거리며 벤치로 들어간다',
+        '다들 웃다가 표정이 굳었다. 진짜 아픈 것 같다',
+        '"괜찮다"고 하는데 걸음이 이상하다'],rng);
+      /* 이 경기에서 바로 빠진다 */
+      const s0=this.userSide();
+      const inLineup=s0.slots.some(x=>x.id===kicker);
+      if(inLineup){
+        const bench=(this.benchPool||[]).filter(id=>!s0.slots.some(x=>x.id===id));
+        const i=s0.slots.findIndex(x=>x.id===kicker);
+        if(bench.length&&i>=0){
+          const pos=s0.slots[i].pos;
+          const inId=bench.find(id=>(typeof posFit==='function')?posFit(id,pos)>0:true)||bench[0];
+          s0.slots[i]={id:inId,pos};
+          if(!this.box[inId]) this.box[inId]=newBoxL();
+          this.noteSub(s0,i,inId,kicker,pos,'부상 교체');
+          this.log.push({t:'sub',text:`부상 교체 · ${nm} → ${this.nameOf(inId)} (${POSNAMES[pos]||pos})`});
+        } else {
+          this.log.push({t:'sub',text:`${nm} 절뚝거리는데 바꿔줄 사람이 없다. 그대로 뛴다`});
+        }
+      }
+      this.injuries.push({id:kicker, roll:rng(), why:'물통'});
+    }
+    else {
+      const good = diff<0 ? 0.62 : (diff===0?0.45:0.25);
+      if(rng()<good){
+        d=+0.06; this.mgr.boost=(this.mgr.boost||1)*1.06;
+        text=pickOne(['감독이 물통을 걷어찼다','감독이 물통을 발로 날렸다','감독이 아이스박스를 쳤다',
+          '감독이 배트를 벽에 세게 세웠다','감독이 더그아웃 펜스를 손바닥으로 쳤다'],rng);
+        sub=pickOne(['벤치가 조용해지더니 눈빛이 달라졌다','선수들이 정신을 차렸다','더그아웃 공기가 팽팽해졌다',
+          '아무도 말을 안 하는데 집중은 올라갔다','다음 타자가 헬멧을 고쳐 썼다'],rng);
+      } else {
+        d=-0.04; this.mgr.boost=(this.mgr.boost||1)*0.96;
+        text=pickOne(['감독이 물통을 걷어찼다','감독이 헬멧 통을 밀어버렸다','감독이 장비 가방을 발로 밀었다'],rng);
+        sub=pickOne(['다들 눈치만 본다. 분위기가 더 굳었다','선수들이 위축됐다','심판이 이쪽을 쳐다본다',
+          '물통이 굴러가서 주우러 갔다. 좀 민망하다','상대 벤치에서 웃는 소리가 났다'],rng);
+      }
     }
   }
   else if(kind==='clap'){
@@ -9896,6 +10371,9 @@ const TUTORIAL=[
      표 <b>헤더를 누르면 정렬</b>이 바뀌고, 같은 헤더를 다시 누르면 오름차순이 된다.<br><br>
      <b>구단</b> 탭에는 통산 부문별 1위(최다 안타·홈런·탈삼진…)와 진기록이 모여 있다.
      시즌을 넘겨도 계속 쌓인다.<br><br>
+     <b>감독 액션</b> — 직접 지휘로 경기를 보면 화면 아래 <b>⚡ 감독 액션</b> 버튼이 계속 있다.
+     물통 차기·박수·심판 어필. 경기당 3번.
+     물통은 지고 있을 때 잘 먹히는데, <b>3% 확률로 본인 발을 다친다</b>. 다치면 그 자리에서 빠진다.<br><br>
      <b>구간 시상</b>과 <b>시즌 종합왕</b>은 <b>리그 23팀 전체</b>와 겨뤄서 뽑는다. 우리 팀끼리가 아니다.
      트로피를 누르면 남의 팀 선수까지 포함된 후보 순위가 나온다.
      감독상·팀 공헌상만 팀 내부 상이다.
@@ -10503,8 +10981,22 @@ function flushLog(){
   feed.scrollTop=feed.scrollHeight;
 }
 
+/* 감독 액션 상시 버튼 — 직접 지휘 중이면 판단창이 없어도 항상 눌 수 있다.
+   [제보] "물통차기 구현 안 된 것 같다" — 판단창이 떠야만 보여서
+   자동 진행으로만 하면 평생 못 본다. 밖으로 뺐다.                  */
+function paintLiveCtl(){
+  const lc=$('#livectl'); if(!lc||!LIVE||LIVE.over) return;
+  lc.innerHTML='';
+  if(!LIVE.manual) return;
+  const b=el('button','btn','⚡ 감독 액션'+(LIVE.mgr.left>0?` (${LIVE.mgr.left})`:' 소진'));
+  if(LIVE.mgr.left<=0) b.disabled=true;
+  else b.onclick=()=>openMgrSheet(null);
+  lc.appendChild(b);
+}
+
 function runLive(){
   clearInterval(playTimer);
+  paintLiveCtl();
   if(!LIVE.manual){
     // 자동 진행: 즉시 계산
     let guard=0;
@@ -10523,7 +11015,7 @@ function runLive(){
       if(d){clearInterval(playTimer);showDecision(d);return;}
     } else if(LIVE.pending){ LIVE.applyDecision('change'); }
     LIVE.step();
-    flushLog(); updateLiveUI();
+    flushLog(); updateLiveUI(); paintLiveCtl();
     if(LIVE.over){clearInterval(playTimer);showResult();}
   },speed);
 }
@@ -10538,7 +11030,13 @@ function decDone(box){
 function mgrBtn(box){
   const b=el('button','decb wide alt');
   b.innerHTML=`<b>감독 액션 (남은 ${LIVE.mgr.left}회)</b><span>물통 차기 · 박수 · 심판 어필</span>`;
-  b.onclick=()=>{
+  b.onclick=()=>openMgrSheet(box);
+  return b;
+}
+
+/* box 가 있으면 판단창에서 부른 것, 없으면 상시 버튼에서 부른 것 */
+function openMgrSheet(box){
+  {
     const body=$('#sheet-body'); body.innerHTML='';
     $('#sheet-title').textContent='감독 액션';
     const us=LIVE.userSide(), th=LIVE.oppSide();
@@ -10548,7 +11046,9 @@ function mgrBtn(box){
       (diff<0?'지고 있을 때는 물통을 차는 게 먹힐 확률이 높다.'
              :'이기고 있을 때 화를 내면 오히려 위축된다.')+
       ` 남은 횟수 ${LIVE.mgr.left}회.`));
-    [['bottle','물통을 걷어찬다',`분위기 반전. 지고 있으면 62% 성공, 이기고 있으면 25%`],
+    [['bottle','물통을 걷어찬다',
+      `분위기 반전. 지고 있으면 62% 성공, 이기고 있으면 25%<br>`+
+      `<b>3% 확률로 본인 발을 다친다.</b> 다치면 그 자리에서 교체되고 다음 경기도 못 나간다`],
      ['clap','크게 박수를 친다','무난하게 사기 +3%'],
      ['umpire','심판에게 어필한다','40% 유리 / 20% 경고'],
      ['watch','조용히 지켜본다','횟수를 쓰지 않는다']].forEach(([k,n,d2])=>{
@@ -10558,13 +11058,13 @@ function mgrBtn(box){
       if(LIVE.mgr.left>0||k==='watch')r.onclick=()=>{
         const res=LIVE.mgrAction(k);
         closeSheet(); toast(res.text.length>40?res.text.slice(0,40)+'…':res.text);
-        decDone(box);
+        if(box) decDone(box);
+        else { flushLog(); updateLiveUI(); paintLiveCtl(); }
       };
       body.appendChild(r);
     });
     $('#sheet').classList.add('open');
-  };
-  return b;
+  }
 }
 
 /* '투수 교체' 상시 버튼 — 공격 중에도 미리 예고해 둘 수 있다 */
@@ -10972,11 +11472,26 @@ function commitGame(res,usSide,thSide,uSlots){
 
   if(!ST.notices)ST.notices=[];
   (res.injuries||[]).forEach(iv=>{
-    const inj=rollInjury(iv.id,iv.roll);
+    /* 물통을 차서 다친 거면 다리 부상으로 고정한다. 어깨가 나갈 리가 없다. */
+    const inj = iv.why==='물통'
+      ? pickOne([{name:'발등 타박상',games:2,sev:2},{name:'발가락 염좌',games:2,sev:2},
+                 {name:'발목 접질림',games:3,sev:2},{name:'정강이 타박상',games:1,sev:1}])
+      : rollInjury(iv.id,iv.roll);
     ST.injury[iv.id]=inj;
     ST.injCount=(ST.injCount||0)+1;
     ST.notices.push({type:'injury',title:`${nameOf(iv.id)} 부상`,
-      body:`경기 중 ${inj.name}이(가) 발생했다.`,effect:`${inj.games}경기 결장`});
+      body:iv.why==='물통'
+        ? `물통을 걷어차다 ${inj.name}이(가) 났다. 본인이 찼다.`
+        : `경기 중 ${inj.name}이(가) 발생했다.`,
+      effect:`${inj.games}경기 결장`});
+    if(iv.why==='물통'){
+      ST.kakaoPost=ST.kakaoPost||[];
+      ST.kakaoPost.push({who:'lg',type:'notice',
+        text:`${nameOf(iv.id)} ${inj.name} — ${inj.games}경기 결장\n물통 차다 그랬다`});
+      const wit=TBYID['wwzw'].players.find(p=>p.id!==iv.id&&isAvailable(p.id));
+      if(wit) ST.kakaoPost.push({who:wit.id,
+        text:sayTo(wit.id,iv.id,...pickFresh(BOTTLE_TEASE,'BOTTLE_TEASE')),mood:'happy'});
+    }
   });
 
   TBYID['wwzw'].pitchers.forEach(p=>{ST.rest[p.id]=Math.min(4,(ST.rest[p.id]||3)+1);});
@@ -11012,6 +11527,29 @@ function commitGame(res,usSide,thSide,uSlots){
   const feats = detectFeats(ST,res,usSide,thSide,uIds,gRot,dpCount);
   ST.lastFeats = feats;
   const featMsgs = recordFeats(ST, feats);
+  /* 경기 후 답변 선택지가 읽는 요약. 그날 무슨 일이 있었는지에 따라
+     다른 선택지가 뜨게 하려고 남긴다. */
+  {
+    let comeback=false, u2=0, t2=0;
+    for(let i=0;i<Math.max(usSide.line.length,thSide.line.length);i++){
+      u2+=(usSide.line[i]||0); t2+=(thSide.line[i]||0);
+      if(t2-u2>=3) comeback=true;
+    }
+    const teamBB=gRot.reduce((a,pid)=>a+(((res.pbox[pid]||{}).bb||0)+((res.pbox[pid]||{}).hbp||0)),0);
+    const ourBB=uIds.reduce((a,id)=>a+(((res.box[id]||{}).bb||0)+((res.box[id]||{}).hbp||0)),0);
+    const ourH=usSide.hits||0;
+    ST.lastResult={
+      won:usSide.runs>thSide.runs, tie:usSide.runs===thSide.runs,
+      diff:Math.abs(usSide.runs-thSide.runs),
+      comeback:comeback&&usSide.runs>thSide.runs,
+      errs:usSide.errs||0, bbAllowed:teamBB,
+      lob:Math.max(0,ourH+ourBB-usSide.runs),
+      feat:(feats&&feats.length)?feats.length:0,
+      injured:(res.injuries||[]).length,
+      mercy:!!res.mercy,
+    };
+  }
+
   ST.canParty = won;
   ST.kakaoPost = buildKakaoPost(ST,res,usSide,thSide,uUniq,miles);
   featMsgs.forEach(m=>ST.kakaoPost.push(m));
