@@ -576,6 +576,7 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .ot-bar>i.t0{background:#2b3a4e}
 .ot-note{font-size:10.5px;color:var(--dm);line-height:1.55;padding:4px 9px 6px;margin:0}
 .ot-adv{padding:6px 9px;border-left:2px solid var(--or);margin:6px 9px 8px;background:rgba(232,118,44,.05)}
+.ot-cut{font-style:normal;font-size:11px;color:#8e9bb0;margin-left:4px}
 .ot-adv b{display:block;font-size:12px;color:var(--or2)}
 .ot-adv span{display:block;font-size:11px;color:var(--dm);line-height:1.5;margin-top:2px}
 .ot-tr{display:flex;gap:8px;align-items:baseline;padding:4px 9px;font-size:11px}
@@ -3882,8 +3883,8 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.4.0';
-const APP_VERSION_NOTE = '세이브 코드 5배 압축 · 카톡으로 바로 보내기';
+const APP_VERSION = '1.5.0';
+const APP_VERSION_NOTE = '내 선수 성장 속도 하향 · 켜두기만 하면 안 크게';
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
   const a=String(v||'0.0.0').split('.').map(x=>parseInt(x,10)||0);
@@ -5815,23 +5816,32 @@ function blankPit(){return {g:0,gs:0,w:0,l:0,outs:0,h:0,r:0,er:0,bb:0,k:0,hbp:0,
    경기에 나가고, 훈련에 나가고, 실제로 붙잡고 있은 시간만큼만 열린다.
    바로 캐리하면 금방 질리니까 천천히, 대신 끝까지 간다.
 
-   투자 1점당 잠재치 +0.16. 능력치 상한(80)까지 가려면 대략:
-     한 시즌 개근(22경기 + 훈련 22회) = 약 35점 → +5.6
-   즉 두세 시즌을 꾸준히 굴려야 리그 최상위에 닿는다.
-   게다가 열린 잠재치를 실제 능력치로 바꾸려면 훈련을 또 몰아줘야 한다.  */
+   투자 1점당 잠재치 +0.06. 능력치 상한(80)까지 가려면 대략:
+     한 시즌 개근(22경기 + 훈련 22회 + 플레이타임) = 약 40점 → +2.4
+   즉 대여섯 시즌을 꾸준히 굴려야 리그 최상위에 닿는다.
+   게다가 열린 잠재치를 실제 능력치로 바꾸려면 훈련을 또 몰아줘야 한다.
+   플레이타임 점수는 경기·훈련 점수의 절반까지만 인정한다 — 켜두기만 해서는 크지 않는다.  */
 const DEV_PER_GAME  = 1.0;    // 라인업에 들어 경기를 뛰면
-const DEV_PER_TRAIN = 0.6;    // 훈련에 나오면
-const DEV_PER_20MIN = 0.15;   // 실제로 붙잡고 있은 시간 20분마다
-const DEV_TO_PA     = 0.16;   // 투자 1점 → 잠재치
+const DEV_PER_TRAIN = 0.5;    // 훈련에 나오면
+const DEV_PER_20MIN = 0.10;   // 실제로 붙잡고 있은 시간 20분마다
+const DEV_TO_PA     = 0.06;   // 투자 1점 → 잠재치
+const DEV_TIME_CAP  = 0.5;    // 플레이타임은 경기·훈련 점수의 이만큼까지만
 
 function devSlot(){
-  if(!ST.dev)ST.dev={pts:0,games:0,trains:0,minTick:0};
+  if(!ST.dev)ST.dev={pts:0,tpts:0,games:0,trains:0,minTick:0};
+  if(ST.dev.tpts==null)ST.dev.tpts=0;
   return ST.dev;
 }
+/* 인정되는 플레이타임 점수 — 나간 만큼만 쳐준다 */
+function devTimePts(d){
+  if(!d)return 0;
+  return Math.min(d.tpts||0, (d.pts||0)*DEV_TIME_CAP);
+}
+function devTotal(d){ return d ? (d.pts||0)+devTimePts(d) : 0; }
 function devBonus(pid){
   if(pid!==(ST.playerId||MYID))return 0;
   const d=(ST&&ST.dev)?ST.dev:null;
-  return d ? d.pts*DEV_TO_PA : 0;
+  return d ? devTotal(d)*DEV_TO_PA : 0;
 }
 /* 경기·훈련·플레이타임을 투자 점수로 환산한다 */
 function devEarn(kind){
@@ -5839,12 +5849,12 @@ function devEarn(kind){
   if(kind==='game'){ d.games++; d.pts+=DEV_PER_GAME; }
   else if(kind==='train'){ d.trains++; d.pts+=DEV_PER_TRAIN; }
 }
-/* 플레이타임은 20분 단위로 끊어서 준다 */
+/* 플레이타임은 20분 단위로 끊어서 따로 쌓고, 인정은 위 상한까지만 */
 function devTickTime(){
   const d=devSlot();
   const ticks=Math.floor((ST.playSec||0)/1200);
   if(ticks>(d.minTick||0)){
-    d.pts += (ticks-(d.minTick||0))*DEV_PER_20MIN;
+    d.tpts=(d.tpts||0) + (ticks-(d.minTick||0))*DEV_PER_20MIN;
     d.minTick=ticks;
   }
 }
@@ -7541,18 +7551,21 @@ function renderPlayer(){
 
   /* ---- 내 선수 성장 투자 ---- */
   if(p.id===meId){
-    const d=(ST.dev||{pts:0,games:0,trains:0,minTick:0});
+    const d=(ST.dev||{pts:0,tpts:0,games:0,trains:0,minTick:0});
     const bonus=devBonus(p.id);
     const raw=calcPA(p,m);
     const room=Math.max(0, 80-Math.min(80,raw+bonus));
     const need=Math.ceil(room/DEV_TO_PA);
+    const tOwn=(d.tpts||0), tUse=devTimePts(d);
+    const tCut=tOwn-tUse>0.05 ? ` <i class="ot-cut">상한 ${tUse.toFixed(1)}까지만</i>` : '';
     add(otSec('성장 투자',
       `<p class="ot-note">내 선수는 한계가 따로 없다. 대신 그냥 오르지 않는다.
-        경기에 나가고, 훈련에 나가고, 실제로 붙잡고 있은 시간만큼만 열린다.</p>
+        경기에 나가고, 훈련에 나가고, 실제로 붙잡고 있은 시간만큼만 열린다.
+        켜두기만 한 시간은 나간 만큼(출전·훈련 점수의 절반)까지만 쳐준다.</p>
        ${otRow('출전', `${d.games||0}경기 · +${((d.games||0)*DEV_PER_GAME).toFixed(1)}`)}
        ${otRow('훈련 참석', `${d.trains||0}회 · +${((d.trains||0)*DEV_PER_TRAIN).toFixed(1)}`)}
-       ${otRow('플레이타임', `${fmtPlaySec(ST.playSec)} · +${((d.minTick||0)*DEV_PER_20MIN).toFixed(1)}`)}
-       ${otRow('투자 합계', `${(d.pts||0).toFixed(1)}점`, true)}
+       ${otRow('플레이타임', `${fmtPlaySec(ST.playSec)} · +${tOwn.toFixed(1)}${tCut}`)}
+       ${otRow('투자 합계', `${devTotal(d).toFixed(1)}점`, true)}
        ${otRow('열린 잠재치', `기본 ${raw.toFixed(0)} + ${bonus.toFixed(1)} = ${Math.min(80,raw+bonus).toFixed(1)}`, true)}
        ${room>0?otRow('상한까지', `투자 ${need}점 더`):otRow('상한 도달','더 올릴 곳이 없다',true)}`,
       '꾸준히 할수록'));
@@ -8251,13 +8264,16 @@ const TUTORIAL=[
      내 선수는 계속 열린다.<br><br>
      대신 그냥 오르지 않는다. <b>투자한 만큼만</b> 열린다.<br>
      <span class="tut-g">경기 출전 1회 = 1.0점</span><br>
-     <span class="tut-g">훈련 참석 1회 = 0.6점</span><br>
-     <span class="tut-g">실제 플레이 20분 = 0.15점</span><br>
-     투자 1점당 잠재치가 <b>0.16</b>씩 열린다.<br><br>
-     한 시즌을 개근하면 대략 35점, 잠재치 +5~6 정도다.
-     즉 <b>두세 시즌은 꾸준히 굴려야</b> 리그 최상위에 닿는다.
+     <span class="tut-g">훈련 참석 1회 = 0.5점</span><br>
+     <span class="tut-g">실제 플레이 20분 = 0.1점</span><br>
+     투자 1점당 잠재치가 <b>0.06</b>씩 열린다.<br><br>
+     켜두기만 한 시간은 <b>출전·훈련 점수의 절반까지만</b> 쳐준다.
+     안 나가고 앱만 띄워두면 안 큰다는 뜻이다.<br><br>
+     한 시즌을 개근하면 경기·훈련으로 33점, 플레이타임까지 더해 40점 남짓 —
+     잠재치로는 <b>+2.4</b> 정도다.
+     즉 <b>대여섯 시즌은 꾸준히 굴려야</b> 리그 최상위에 닿는다.
      열린 잠재치를 실제 능력치로 바꾸려면 훈련을 또 몰아줘야 한다.
-     바로 캐리하면 금방 질리니까 일부러 이렇게 잡았다.<br><br>
+     바로 캐리하면 금방 질리니까 일부러 느리게 잡았다.<br><br>
      투자 현황은 <b>내 선수 프로필 → 성장 투자</b>에서 볼 수 있다.
      집중 훈련 대상으로 걸어두면 열린 잠재치를 제일 빨리 채운다.`},
  {who:'ian', say:'마지막으로 알아두면 좋은 것들이에요.',
@@ -10742,9 +10758,15 @@ function normalizeState(){
   if(!ST.awardBonus)ST.awardBonus={};
   if(ST.awardSnap===undefined)ST.awardSnap=null;
   if(ST.awardReply===undefined)ST.awardReply=null;
-  if(!ST.dev)ST.dev={pts:0,games:0,trains:0,minTick:Math.floor((ST.playSec||0)/1200)};
+  if(!ST.dev)ST.dev={pts:0,tpts:0,games:0,trains:0,minTick:Math.floor((ST.playSec||0)/1200)};
   if(ST.dev.pts==null)ST.dev.pts=0;
   if(ST.dev.minTick==null)ST.dev.minTick=Math.floor((ST.playSec||0)/1200);
+  /* 예전 세이브는 플레이타임 점수가 pts에 섞여 있다 — 출전·훈련분만 남기고 분리한다 */
+  if(ST.dev.tpts==null){
+    const act=(ST.dev.games||0)*DEV_PER_GAME + (ST.dev.trains||0)*DEV_PER_TRAIN;
+    ST.dev.tpts=Math.max(0, (ST.dev.pts||0)-act);
+    ST.dev.pts=act;
+  }
   if(ST.duesCount==null)ST.duesCount=0;
   if(ST.gearMeeting===undefined)ST.gearMeeting=null;
   if(ST.feeDue==null)ST.feeDue=false;
