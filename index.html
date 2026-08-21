@@ -3882,8 +3882,8 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.3.3';
-const APP_VERSION_NOTE = '새 버전 자동 알림 · 김상훈 투수 너프';
+const APP_VERSION = '1.4.0';
+const APP_VERSION_NOTE = '세이브 코드 5배 압축 · 카톡으로 바로 보내기';
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
   const a=String(v||'0.0.0').split('.').map(x=>parseInt(x,10)||0);
@@ -6111,6 +6111,76 @@ async function restoreBackup(){
   toast(`백업 복구 완료 — ${d.round}차전 시점`);
   return true;
 }
+/* ================= 세이브 압축 =================
+   기기를 옮길 때 붙여넣는 코드가 너무 길었다(46KB).
+   가변 폭 LZW 로 압축하고 base64 로 감싸서 1/5 로 줄인다.
+   외부 라이브러리 없이 이 파일 안에서 다 돌아간다.
+   예전에 뽑아둔 날것 JSON 코드도 그대로 불러올 수 있게 둘 다 받는다.   */
+const SAVE_TAG = 'WWZW1:';
+function packSave(str){
+  const src=new TextEncoder().encode(str);
+  const dict=new Map(); let next=256, width=9;
+  let acc=0, accN=0; const outBytes=[];
+  const push=(code)=>{
+    acc=(acc<<width)|code; accN+=width;
+    while(accN>=8){ accN-=8; outBytes.push((acc>>accN)&255); }
+    acc&=(1<<accN)-1;
+  };
+  let w=-1;
+  for(let i=0;i<src.length;i++){
+    const c=src[i];
+    if(w<0){ w=c; continue; }
+    const k=w*256+c, hit=dict.get(k);
+    if(hit!==undefined){ w=hit; continue; }
+    push(w);
+    if(next<65536){ dict.set(k,next++); if(next>(1<<width) && width<16) width++; }
+    w=c;
+  }
+  if(w>=0) push(w);
+  if(accN>0) outBytes.push((acc<<(8-accN))&255);
+  const buf=Uint8Array.from(outBytes);
+  let bin=''; const CH=0x8000;
+  for(let i=0;i<buf.length;i+=CH) bin+=String.fromCharCode.apply(null,buf.subarray(i,i+CH));
+  return SAVE_TAG+btoa(bin);
+}
+function unpackSave(code){
+  const b64=String(code).trim().slice(SAVE_TAG.length);
+  const bin=atob(b64);
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  const dict=[]; for(let i=0;i<256;i++) dict.push([i]);
+  let width=9, acc=0, accN=0, bi=0;
+  const read=()=>{
+    while(accN<width){ if(bi>=bytes.length) return -1; acc=(acc<<8)|bytes[bi++]; accN+=8; }
+    accN-=width; const v=(acc>>accN)&((1<<width)-1); acc&=(1<<accN)-1; return v;
+  };
+  const out=[];
+  const c0=read(); if(c0<0) return '';
+  let prev=dict[c0].slice();
+  for(let j=0;j<prev.length;j++) out.push(prev[j]);
+  for(;;){
+    if(dict.length+1>(1<<width) && width<16) width++;
+    const c=read(); if(c<0) break;
+    let entry;
+    if(c<dict.length) entry=dict[c];
+    else if(c===dict.length) entry=prev.concat(prev[0]);
+    else break;
+    for(let j=0;j<entry.length;j++) out.push(entry[j]);
+    if(dict.length<65536) dict.push(prev.concat(entry[0]));
+    prev=entry;
+  }
+  return new TextDecoder().decode(Uint8Array.from(out));
+}
+/* 코드 문자열 → 세이브 객체. 압축본과 날것 JSON 둘 다 받는다. */
+function decodeSave(txt){
+  const t=String(txt||'').trim();
+  if(!t) return null;
+  try{
+    if(t.slice(0,SAVE_TAG.length)===SAVE_TAG) return JSON.parse(unpackSave(t));
+    return JSON.parse(t);
+  }catch(e){ return null; }
+}
+
 /* ---------- 내보내기 / 불러오기 ---------- */
 async function exportSave(){
   const data=JSON.stringify(ST);
@@ -6137,24 +6207,35 @@ async function exportSave(){
   toast('세이브 파일 저장됨');
 }
 function copySave(){
-  const data=JSON.stringify(ST);
+  const data=packSave(JSON.stringify(ST));
   const ta=document.createElement('textarea');
   ta.value=data; ta.style.position='fixed'; ta.style.left='-9999px';
   document.body.appendChild(ta); ta.select();
   let ok=false;
   try{ ok=document.execCommand('copy'); }catch(e){}
   document.body.removeChild(ta);
-  if(ok){ toast('세이브 코드 복사됨'); }
+  if(ok){ toast(`세이브 코드 복사됨 (${(data.length/1024).toFixed(1)}KB)`); }
   else if(navigator.clipboard){ navigator.clipboard.writeText(data).then(()=>toast('세이브 코드 복사됨'),()=>toast('복사 실패')); }
   else toast('복사 실패 — 파일 저장을 써라');
 }
 function importFromText(txt){
+  const d=decodeSave(txt);
+  if(!d){ toast('코드를 읽지 못했다 — 통째로 복사했는지 확인해라'); return false; }
+  if(d.v!==5){ toast('세이브 형식이 맞지 않는다'); return false; }
+  ST=d; normalizeState(); saveGame(true); go('home');
+  const st=ST.stand&&ST.stand['wwzw'];
+  toast(st?`불러왔다 — ${ST.round}차전 · ${st.w}승 ${st.l}패`:'불러오기 완료');
+  return true;
+}
+/* 카톡 같은 데로 바로 보내기. 되는 기기에서만 버튼이 뜬다. */
+function canShareSave(){ return typeof navigator!=='undefined' && !!navigator.share; }
+async function shareSave(){
+  const data=packSave(JSON.stringify(ST));
+  const st=ST.stand&&ST.stand['wwzw'];
   try{
-    const d=JSON.parse(txt);
-    if(!d||d.v!==5){ toast('세이브 형식이 맞지 않는다'); return false; }
-    ST=d; normalizeState(); saveGame(true); go('home'); toast('불러오기 완료');
-    return true;
-  }catch(e){ toast('불러오기 실패 — 코드를 확인해라'); return false; }
+    await navigator.share({title:'우완좌완 세이브',
+      text:`우완좌완 세이브 (${ST.round}차전${st?` · ${st.w}승 ${st.l}패`:''})\n아래를 통째로 복사해서 새 기기에 붙여넣어라\n\n`+data});
+  }catch(e){ /* 취소는 조용히 넘어간다 */ }
 }
 function importSaveFile(file){
   const r=new FileReader();
@@ -10364,11 +10445,11 @@ function renderMore(){
   guide.innerHTML=
     '<b>저장은 자동이다.</b> 경기가 끝날 때마다 이 브라우저에 알아서 저장된다. 아무것도 안 눌러도 된다.<br><br>'+
     '<b>폰을 바꾸거나 다른 브라우저에서 이어 하려면</b><br>'+
-    '&nbsp;&nbsp;1. 여기서 <b>파일로 저장</b>을 누른다 (다운로드 폴더에 들어간다)<br>'+
-    '&nbsp;&nbsp;2. 새 기기에서 이 게임을 연다<br>'+
-    '&nbsp;&nbsp;3. 아래 <b>세이브 파일 불러오기</b>로 그 파일을 고른다<br><br>'+
-    '파일을 옮기기 번거로우면 <b>코드 복사</b>를 눌러 카톡으로 자신에게 보내고, '+
-    '새 기기에서 붙여넣어도 된다.<br><br>'+
+    '&nbsp;&nbsp;1. 여기서 <b>카톡으로 보내기</b>(없으면 <b>코드 복사</b>)를 누른다<br>'+
+    '&nbsp;&nbsp;2. 나에게 보내기로 쏜다<br>'+
+    '&nbsp;&nbsp;3. 새 기기에서 이 게임을 열고 아래 칸에 붙여넣는다<br><br>'+
+    '코드는 압축돼 있어서 예전보다 <b>5배 짧다.</b> 한 덩어리라 통째로 복사하면 된다.<br>'+
+    '파일이 편하면 <b>파일로 저장</b> → <b>세이브 파일 불러오기</b>도 그대로 된다.<br><br>'+
     '<b>기록이 사라진 것 같으면</b> 아래 <b>직전 저장으로 되돌리기</b>를 먼저 눌러봐라. '+
     '자동 백업이 한 세대 남아 있다.<br><br>'+
     '<b>게임이 업데이트되면?</b><br>'+
@@ -10383,6 +10464,10 @@ function renderMore(){
     : '아직 이번 접속에서 자동 저장이 일어나지 않았다';
   if(!lastSaveOk){ stat.classList.add('bad'); stat.textContent='자동 저장이 실패했다. 파일로 저장해 두는 게 안전하다.'; }
   sv.appendChild(stat);
+  if(canShareSave()){
+    const sh=el('button','btn primary','카톡으로 보내기');
+    sh.onclick=shareSave; sv.appendChild(sh);
+  }
   const r1=el('div','btn-row');
   const e1=el('button','btn','파일로 저장'); e1.onclick=exportSave;
   const e2=el('button','btn','코드 복사'); e2.onclick=copySave;
@@ -10396,10 +10481,13 @@ function renderMore(){
   fileWrap.appendChild(fi);
   sv.appendChild(fileWrap);
 
-  const ta=document.createElement('textarea');
-  ta.className='savebox'; ta.placeholder='여기에 세이브 코드를 붙여넣고 아래 버튼을 눌러라';
-  sv.appendChild(ta);
   const e3=el('button','btn','코드로 불러오기');
+  const ta=document.createElement('textarea');
+  ta.className='savebox'; ta.placeholder='여기에 세이브 코드를 붙여넣고 아래 버튼을 눌러라 (WWZW1: 로 시작한다)';
+  ta.oninput=()=>{ const d=decodeSave(ta.value);
+    e3.textContent = d ? (d.v===5?`코드로 불러오기 — ${d.round}차전 · ${(d.stand&&d.stand['wwzw'])?d.stand['wwzw'].w+'승 '+d.stand['wwzw'].l+'패':''}`:'형식이 맞지 않는 코드다')
+      : (ta.value.trim()?'아직 코드를 다 못 읽었다':'코드로 불러오기'); };
+  sv.appendChild(ta);
   e3.onclick=()=>{ if(!ta.value.trim()){toast('코드를 붙여넣어라');return;} importFromText(ta.value.trim()); };
   sv.appendChild(e3);
   const e4=el('button','btn','직전 저장으로 되돌리기');
