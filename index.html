@@ -4499,8 +4499,70 @@ const BGM=(function(){
     playing=false;
     if(master&&ctx) master.gain.setTargetAtTime(0,ctx.currentTime,0.05);
   }
+  /* ================= iOS 대응 =================
+     [제보] PC 는 나는데 아이폰 사파리에서 소리가 안 난다.
+     아이폰은 조건이 두 개 더 있다.
+     1) 벨/무음 스위치가 무음이면 Web Audio 소리를 통째로 죽인다.
+        navigator.audioSession 을 'playback' 으로 잡으면 음악 취급이라
+        무음 스위치를 무시한다 (Safari 16.4+).
+        그게 없는 구버전은 무음 <audio> 를 하나 재생해서 미디어 세션을 연다.
+     2) 제스처 '안에서' 실제로 소리가 한 번 나야 오디오가 열린다.
+        resume() 만으로는 안 열리는 기기가 있어서 무음 버퍼를 한 방 쏜다.
+     그리고 첫 탭에서 실패하면 다음 탭에서 다시 시도해야 한다 —
+     예전에는 {once:true} 라 한 번 놓치면 영영 안 열렸다.        */
+  let silentEl=null;
+  function silentWavURL(){
+    // 8bit 8kHz 무음 0.2초짜리 WAV 를 그 자리에서 만든다
+    const n=1600, hdr=44, buf=new Uint8Array(hdr+n);
+    const wr=(o,str)=>{ for(let i=0;i<str.length;i++) buf[o+i]=str.charCodeAt(i); };
+    const w32=(o,v)=>{ buf[o]=v&255; buf[o+1]=(v>>8)&255; buf[o+2]=(v>>16)&255; buf[o+3]=(v>>24)&255; };
+    const w16=(o,v)=>{ buf[o]=v&255; buf[o+1]=(v>>8)&255; };
+    wr(0,'RIFF'); w32(4,36+n); wr(8,'WAVE'); wr(12,'fmt ');
+    w32(16,16); w16(20,1); w16(22,1); w32(24,8000); w32(28,8000); w16(32,1); w16(34,8);
+    wr(36,'data'); w32(40,n);
+    for(let i=0;i<n;i++) buf[hdr+i]=128;                 // 8bit 무음 = 128
+    let bin=''; for(let i=0;i<buf.length;i++) bin+=String.fromCharCode(buf[i]);
+    return 'data:audio/wav;base64,'+btoa(bin);
+  }
+  const isIOS = (typeof navigator!=='undefined') &&
+    (/iP(hone|ad|od)/.test(navigator.platform||'') ||
+     /iP(hone|ad|od)/.test(navigator.userAgent||'') ||
+     ((navigator.maxTouchPoints||0)>1 && /Mac/.test(navigator.platform||'')));
+  function openAudioSession(){
+    // 무음 스위치를 넘기는 공식 경로 (Safari 16.4+)
+    let official=false;
+    try{ if(navigator.audioSession){ navigator.audioSession.type='playback'; official=true; } }catch(e){}
+    // 구버전 아이폰 폴백 — 무음 트랙을 하나 물려서 미디어 세션을 연다.
+    // 다른 플랫폼에서는 굳이 안 만든다 (안드로이드는 재생 알림이 뜬다).
+    if(official || !isIOS) return;
+    try{
+      if(!silentEl){
+        silentEl=document.createElement('audio');
+        silentEl.src=silentWavURL();
+        silentEl.loop=true; silentEl.volume=0.001;
+        silentEl.setAttribute('playsinline','');
+        silentEl.setAttribute('webkit-playsinline','');
+        silentEl.style.display='none';
+        document.body.appendChild(silentEl);
+      }
+      const pr=silentEl.play(); if(pr&&pr.catch) pr.catch(()=>{});
+    }catch(e){}
+  }
+  function kick(){
+    // 제스처 안에서 실제로 소리를 한 번 낸다 (0.001초 무음)
+    try{
+      const b=ctx.createBuffer(1,1,22050);
+      const src=ctx.createBufferSource();
+      src.buffer=b; src.connect(ctx.destination); src.start(0);
+    }catch(e){}
+  }
   function unlock(){
-    if(unlocked||!hasAudio) return;
+    if(!hasAudio) return;
+    if(!ctx){ try{ build(); }catch(e){ return; } }
+    openAudioSession();
+    kick();
+    if(ctx.state!=='running'){ try{ const p=ctx.resume(); if(p&&p.catch)p.catch(()=>{}); }catch(e){} }
+    if(unlocked) { if(state.on&&!playing) start(); return; }
     unlocked=true;
     if(state.on){
       start();
@@ -4511,11 +4573,19 @@ const BGM=(function(){
       }
     }
   }
+  /* 정말로 열렸는지 — 진단 패널에 그대로 띄운다 */
+  function status(){
+    if(!hasAudio) return '미지원';
+    if(!ctx) return '아직 안 켬';
+    return `${ctx.state}${playing?' · 재생중':''}${state.on?'':' · 꺼짐'}`;
+  }
   return {
     get on(){ return state.on; },
     get vol(){ return state.vol; },
     get ready(){ return hasAudio; },
     get playing(){ return playing; },
+    get live(){ return !!(ctx && ctx.state==='running'); },
+    status,
     unlock,
     toggle(){
       state.on=!state.on; save();
@@ -4538,6 +4608,7 @@ function paintSndBtn(){
 }
 function toggleSound(){
   if(!BGM.ready){ if(typeof toast==='function')toast('이 브라우저에서는 소리가 안 난다'); return; }
+  BGM.unlock();                       // 이 클릭 자체가 제스처다 — 아이폰은 여기서 열린다
   const on=BGM.toggle();
   paintSndBtn();
   if(typeof toast==='function') toast(on?'🔊 소리 켬':'🔇 소리 끔');
@@ -4548,8 +4619,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.0.0';
-const APP_VERSION_NOTE = '로비 BGM — 상단 스피커로 끄고 켠다 (한 번 끄면 계속 꺼짐)';
+const APP_VERSION = '2.0.1';
+const APP_VERSION_NOTE = '아이폰에서 BGM 이 안 나오던 문제 수정 (무음 스위치 확인)';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -9693,8 +9764,20 @@ function renderKakao(){
 /* ---------- 경기 ---------- */
 function renderGame(){
   const c=$('#view'); c.innerHTML='';
-  if(ST.seasonOver){c.appendChild(el('div','card','시즌이 끝났다.'));return;}
-  if(!ST.weekDone){c.appendChild(el('div','card','홈에서 이번 주를 먼저 시작해라.'));return;}
+  if(ST.seasonOver){
+    const e0=el('div','card');
+    e0.innerHTML='<div class="card-h">시즌 종료</div>'+
+      '<p class="muted">더 치를 경기가 없다. 홈에서 시상식을 보고 새 시즌을 시작해라.</p>';
+    c.appendChild(e0);
+    const hb=el('button','btn primary','홈으로'); hb.onclick=()=>go('home'); c.appendChild(hb);
+    const rb=el('button','btn','기록 보기'); rb.onclick=()=>go('records'); c.appendChild(rb);
+    return;
+  }
+  if(!ST.weekDone){
+    c.appendChild(el('div','card','이번 주가 아직 안 열렸다. 홈에서 먼저 주를 시작해라.'));
+    const hb=el('button','btn primary','홈으로'); hb.onclick=()=>go('home'); c.appendChild(hb);
+    return;
+  }
   if(!ST.announced){
     c.appendChild(el('div','card','단톡방에 라인업을 먼저 발표해야 한다.'));
     const kb=el('button','btn primary','단톡방으로'); kb.onclick=()=>go('kakao');
@@ -9705,7 +9788,11 @@ function renderGame(){
     const lb=el('button','btn primary','라인업으로'); lb.onclick=()=>go('lineup');
     c.appendChild(lb); return;
   }
-  if(ST.events&&ST.events.some(e=>e.type==='rain'||e.type==='postpone')){c.appendChild(el('div','card','우천 취소된 주다.'));return;}
+  if(ST.events&&ST.events.some(e=>e.type==='rain'||e.type==='postpone')){
+    c.appendChild(el('div','card','우천 취소된 주다. 이번 주는 경기가 없다.'));
+    const hb=el('button','btn primary','홈으로'); hb.onclick=()=>go('home'); c.appendChild(hb);
+    return;
+  }
 
   const avail=TBYID['wwzw'].players.filter(p=>isAvailable(p.id)).length;
   const bad=ST.lineup.filter(s=>!isAvailable(s.id));
@@ -11829,10 +11916,6 @@ function renderMore(){
   if(!BGM.ready){
     sc.appendChild(el('p','muted','이 브라우저는 Web Audio 를 지원하지 않는다. 소리 없이 그대로 돌아간다.'));
   } else {
-    sc.appendChild(el('p','muted',
-      'KBS 스포츠 중계 시그널 결의 로비 BGM 이다. 브라스 섹션 · 디스토션 기타 · '+
-      '드라이빙 드럼 · 슬랩 베이스 · 스트링스, E단조 138 BPM.<br>'+
-      '음원 파일이 아니라 그때그때 합성해서 소리를 만든다 — 그래서 용량이 안 붙고 끊김 없이 이어진다.'));
     const row=el('div','snd-row');
     const tb=el('button','btn'+(BGM.on?' primary':''), BGM.on?'🔊 소리 켜짐':'🔇 소리 꺼짐');
     tb.onclick=()=>{ toggleSound(); };
@@ -11853,6 +11936,18 @@ function renderMore(){
       '한 번 끄면 다음에 열어도 꺼진 채로 열린다. 켜두면 계속 켜진다. '+
       '상단 스피커 버튼이나 PC 에서는 M 키로도 바꿀 수 있다.<br>'+
       '경기 화면에서는 중계에 안 묻히게 저절로 작아진다.'));
+    const st=BGM.status();
+    if(/suspended|아직/.test(st)){
+      sc.appendChild(el('div','warn',
+        '소리가 아직 안 열렸다. 화면을 한 번 누르면 열린다.'));
+    }
+    sc.appendChild(el('p','muted',
+      '<b>아이폰에서 소리가 안 나면</b> — 옆면 <b>벨/무음 스위치</b>가 무음으로 내려가 있는지 먼저 봐라. '+
+      '무음이면 소리가 통째로 죽는다. 그다음 화면을 한 번 누르고, 그래도 안 나면 '+
+      '위 스피커를 껐다 켜봐라.'));
+    sc.lastChild.innerHTML=sc.lastChild.textContent
+      .replace('아이폰에서 소리가 안 나면','<b>아이폰에서 소리가 안 나면</b>')
+      .replace('벨/무음 스위치','<b>벨/무음 스위치</b>');
   }
   c.appendChild(sc);
 
@@ -11894,6 +11989,7 @@ function renderMore(){
     row('세이브에 적힌 판', ST.appVer||'-', ST.appVer&&ST.appVer!==APP_VERSION) +
     row('업데이트 확인', upd, !!(lastUpdCheck&&!lastUpdCheck.ok)) +
     row('저장소', store, store!=='정상') +
+    row('소리', BGM.status(), /suspended|미지원/.test(BGM.status())) +
     row('마지막 저장', lastSaveOk?(lastSaveAt?'성공':'아직 없음'):'실패', !lastSaveOk) +
     row('화면 폭', `${window.innerWidth}px · 배율 ${(window.devicePixelRatio||1).toFixed(1)}`) +
     row('주소', location.protocol.replace(':','')) +
@@ -12332,8 +12428,19 @@ async function boot(){
   /* 소리 — 브라우저 정책상 사용자가 한 번 건드려야 난다 */
   paintSndBtn();
   const sb=$('#sndbtn'); if(sb) sb.onclick=(e)=>{ e.stopPropagation(); toggleSound(); };
-  ['pointerdown','keydown','touchstart'].forEach(ev=>
-    document.addEventListener(ev, ()=>BGM.unlock(), {once:true, passive:true}));
+  /* 첫 탭에서 실패해도 다음 탭에서 다시 시도한다.
+     열린 게 확인되면 그때 리스너를 뗀다. */
+  const armEvents=['pointerdown','touchend','click','keydown'];
+  const armed=()=>{
+    BGM.unlock();
+    if(BGM.live) armEvents.forEach(e=>document.removeEventListener(e,armed,true));
+  };
+  armEvents.forEach(e=>document.addEventListener(e,armed,true));
+  /* 탭을 뒤로 보냈다 돌아오면 iOS 는 컨텍스트를 재운다 */
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden && BGM.on) BGM.unlock();
+  });
+  window.addEventListener('pageshow',()=>{ if(BGM.on) BGM.unlock(); });
   document.addEventListener('keydown', e=>{
     if(e.key==='m'||e.key==='M'){
       const t=e.target; if(t&&/INPUT|TEXTAREA/.test(t.tagName)) return;
