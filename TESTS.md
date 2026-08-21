@@ -17,7 +17,7 @@ for f in lintcheck verify vernotetest mgrtest kakaotest careertest nametest \
          awardtest kingtest savediet loadtest sorttest phototest bgmtest \
          iostest galaxytest compattest boxtest pcardtest feattest \
          unhappytest hometest namecheck smoketest fixtest recruittest \
-         traintest2 vartest wltest advtest; do
+         traintest2 vartest wltest advtest dectest2; do
   printf "%-13s " $f
   if [ "$f" = "verify" ]; then node verify.js index.html >/dev/null 2>&1 && echo OK || echo FAIL
   else node $f.js >/dev/null 2>&1 && echo OK || echo FAIL; fi
@@ -38,6 +38,7 @@ node soaktest.js
 | `pcardtest` | 선수 카드 (타자/투수 구분) |
 | `feattest` | 진기록 16종 판정 · 보관 |
 | `awardtest` `kingtest` | 구간 시상 · 시즌 종합왕 · 포디움 |
+| `dectest2` | 직접 지휘 — 지시없음이 판단 횟수를 안 먹는지 · 투수 교체 상시 버튼 |
 | `careertest` | 통산 연도별/총합 · 시즌 로그 |
 | `sorttest` | 표 정렬 · 구단 통산 1위 |
 | `unhappytest` | 불만 규칙 (등판 면제 · 본인 면제 · 라이벌) |
