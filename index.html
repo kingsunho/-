@@ -4619,8 +4619,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.0.2';
-const APP_VERSION_NOTE = '김한규 사진 추가';
+const APP_VERSION = '2.1.0';
+const APP_VERSION_NOTE = '기록 표 정렬 · 구단 통산 1위 · 구단 진기록 모아보기';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -9466,7 +9466,10 @@ const TUTORIAL=[
   b:`<b>선수 프로필</b> — 선수단에서 선수를 누르면 능력치·가능 포지션·훈련 방향·성격이
      한 장에 뜬다. 능력치 옆의 흐린 칸이 잠재치다.<br><br>
      <b>플레이타임</b> — 홈과 설정에 누적 시간이 뜬다. 탭을 뒤로 보내면 안 센다.<br><br>
-     <b>기록실</b> — 리그 전체 타격·투수 순위를 볼 수 있다. 우리 팀이 몇 등인지 확인해라.<br><br>
+     <b>기록실</b> — 리그 전체 타격·투수 순위를 볼 수 있다. 우리 팀이 몇 등인지 확인해라.
+     표 <b>헤더를 누르면 정렬</b>이 바뀌고, 같은 헤더를 다시 누르면 오름차순이 된다.<br><br>
+     <b>구단</b> 탭에는 통산 부문별 1위(최다 안타·홈런·탈삼진…)와 진기록이 모여 있다.
+     시즌을 넘겨도 계속 쌓인다.<br><br>
      <b>소리</b> — 상단 <b>🔊</b> 를 누르면 로비 BGM 을 끄고 켠다.
      한 번 끄면 다음에 열어도 꺼진 채로 열린다. 음량은 <b>더보기 → 사운드</b>에서 조절한다.
      경기 화면에서는 저절로 작아진다.<br><br>
@@ -11368,6 +11371,30 @@ function renderStand(){
 let statTab='team';
 let lgBatSort='avg';     // 리그 타자 순위 정렬 키
 let lgPitSort='era';     // 리그 투수 순위 정렬 키
+let myBatSort='ops';     // 우리 타격 정렬 키
+let myPitSort='era';     // 우리 투수 정렬 키
+let carBatSort='h';      // 통산 타격 정렬 키
+let carPitSort='pk';     // 통산 투구 정렬 키
+/* 헤더를 누르면 내림차순, 같은 헤더를 다시 누르면 오름차순 */
+let sortAsc={};
+function sortPick(key, cur, set){
+  if(cur===key) sortAsc[key]=!sortAsc[key];
+  else sortAsc[key]=false;      // 처음 누르면 내림차순
+  set(key);
+}
+/* 비교 함수에 곱해 쓴다. 내림차순이 1, 오름차순이 -1 */
+function sortMul(key){ return sortAsc[key]?-1:1; }
+/* 정렬기 하나로 통일 — f 는 '클수록 위' 인 점수.
+   f 가 null 을 주면 '기록 없음' 으로 보고 방향과 상관없이 항상 맨 뒤로 보낸다.
+   안 그러면 오름차순으로 뒤집었을 때 한 번도 안 던진 투수가
+   ERA 1위로 올라온다.                                              */
+function sortBy(list, f, key){
+  const m=sortMul(key);
+  const has=[], none=[];
+  list.forEach(x=>{ const v=f(x); (v==null||Number.isNaN(v))?none.push(x):has.push([x,v]); });
+  has.sort((a,b)=>(b[1]-a[1])*m);
+  return has.map(a=>a[0]).concat(none);
+}
 
 /* ---------- 세부 지표 ---------- */
 function iso(b){ return slg(b)-avg(b); }                      // 순수 장타력
@@ -11456,11 +11483,11 @@ function opsPlus(b, base){
 
 /* 정렬 가능한 헤더 한 줄을 만든다.
    cols: [[key, 라벨, 정렬가능?], ...]  cur: 현재 정렬 키                */
-function sortHead(cols, cur, onPick){
+function sortHead(cols, cur, onPick, asc){
   const tr=el('tr');
   cols.forEach(([k,label,sortable])=>{
     const th=el('th', sortable?'sortable'+(cur===k?' on':''):'');
-    th.textContent = label + (sortable&&cur===k?' ▾':'');
+    th.textContent = label + (sortable&&cur===k?(asc?' ▴':' ▾'):'');
     if(sortable) th.onclick=()=>onPick(k);
     tr.appendChild(th);
   });
@@ -11483,10 +11510,30 @@ function renderStats(){
   /* ── 우리 타격 ── */
   if(statTab==='team'){
     const card=el('div','card'); card.appendChild(el('div','card-h','타격 기록'));
+    card.appendChild(el('p','muted','헤더를 누르면 정렬이 바뀐다. 같은 헤더를 다시 누르면 오름차순.'));
     const t=el('table','box wide');
-    t.innerHTML='<tr><th>선수</th><th>G</th><th>타수</th><th>안타</th><th>2B</th><th>HR</th><th>타점</th><th>도루</th>'+
-      '<th>타율</th><th>출루</th><th>장타</th><th>OPS</th><th>ISO</th><th>BB/K</th><th>OPS+</th><th>wRC+</th><th>WAR</th></tr>';
-    us.players.slice().sort((x,y)=>ops(ST.bat[y.id]||blankBat())-ops(ST.bat[x.id]||blankBat())).forEach(p=>{
+    const BK={ g:p=>(ST.bat[p.id]||blankBat()).g, ab:p=>(ST.bat[p.id]||blankBat()).ab,
+      h:p=>(ST.bat[p.id]||blankBat()).h, d2:p=>(ST.bat[p.id]||blankBat()).d2,
+      hr:p=>(ST.bat[p.id]||blankBat()).hr, rbi:p=>(ST.bat[p.id]||blankBat()).rbi,
+      sb:p=>(ST.bat[p.id]||blankBat()).sb,
+      /* 비율 지표는 타석이 있어야 의미가 있다. 없으면 맨 뒤. */
+      avg:p=>{const b=ST.bat[p.id]||blankBat();return b.ab?avg(b):null;},
+      obp:p=>{const b=ST.bat[p.id]||blankBat();return b.pa?obp(b):null;},
+      slg:p=>{const b=ST.bat[p.id]||blankBat();return b.ab?slg(b):null;},
+      ops:p=>{const b=ST.bat[p.id]||blankBat();return b.pa?ops(b):null;},
+      iso:p=>{const b=ST.bat[p.id]||blankBat();return b.ab?iso(b):null;},
+      bbk:p=>{const b=ST.bat[p.id]||blankBat();return b.pa?bbk(b):null;},
+      opsp:p=>{const b=ST.bat[p.id]||blankBat();return b.pa?opsPlus(b,base):null;},
+      wrc:p=>{const b=ST.bat[p.id]||blankBat();return b.pa?wrcPlus(b,lgw):null;},
+      war:p=>{const b=ST.bat[p.id]||blankBat();return b.pa?warOf(p.id,b,lgw):null;},
+      name:p=>0 };
+    t.appendChild(sortHead([
+      ['name','선수',false],['g','G',true],['ab','타수',true],['h','안타',true],['d2','2B',true],
+      ['hr','HR',true],['rbi','타점',true],['sb','도루',true],['avg','타율',true],['obp','출루',true],
+      ['slg','장타',true],['ops','OPS',true],['iso','ISO',true],['bbk','BB/K',true],
+      ['opsp','OPS+',true],['wrc','wRC+',true],['war','WAR',true],
+    ], myBatSort, k=>sortPick(k,myBatSort,v=>{myBatSort=v;renderStats();}), sortAsc[myBatSort]));
+    sortBy(us.players, BK[myBatSort]||BK.ops, myBatSort).forEach(p=>{
       const b=ST.bat[p.id]||blankBat();
       const tr=el('tr');
       tr.innerHTML=`<td class="nm">${nmLink(p.id,p.name)}</td><td>${b.g}</td><td>${b.ab}</td><td>${b.h}</td><td>${b.d2}</td>`+
@@ -11504,10 +11551,23 @@ function renderStats(){
   /* ── 우리 투수 ── */
   else if(statTab==='pitch'){
     const card=el('div','card'); card.appendChild(el('div','card-h','투수 기록'));
+    card.appendChild(el('p','muted','헤더를 누르면 정렬이 바뀐다. 같은 헤더를 다시 누르면 오름차순.'));
     const t=el('table','box wide');
-    t.innerHTML='<tr><th>투수</th><th>G</th><th>승</th><th>패</th><th>이닝</th><th>피안타</th><th>자책</th>'+
-      '<th>볼넷</th><th>삼진</th><th>ERA</th><th>WHIP</th><th>K/9</th><th>WAR</th></tr>';
-    us.pitchers.forEach(p=>{
+    const PKf={ g:p=>(ST.pit[p.id]||blankPit()).g, w:p=>(ST.pit[p.id]||blankPit()).w,
+      l:p=>(ST.pit[p.id]||blankPit()).l, ip:p=>(ST.pit[p.id]||blankPit()).outs,
+      h:p=>(ST.pit[p.id]||blankPit()).h, er:p=>(ST.pit[p.id]||blankPit()).er,
+      bb:p=>(ST.pit[p.id]||blankPit()).bb, k:p=>(ST.pit[p.id]||blankPit()).k,
+      /* ERA·WHIP 은 낮을수록 좋다. 안 던진 사람은 null 로 빼서 항상 맨 뒤로. */
+      era:p=>{const s2=ST.pit[p.id]||blankPit();return s2.outs?-era(s2):null;},
+      whip:p=>{const s2=ST.pit[p.id]||blankPit();return s2.outs?-whip(s2):null;},
+      k9:p=>{const s2=ST.pit[p.id]||blankPit();return s2.outs?k9(s2):null;},
+      war:p=>warPit(ST.pit[p.id]||blankPit(),lgEra), name:p=>0 };
+    t.appendChild(sortHead([
+      ['name','투수',false],['g','G',true],['w','승',true],['l','패',true],['ip','이닝',true],
+      ['h','피안타',true],['er','자책',true],['bb','볼넷',true],['k','삼진',true],
+      ['era','ERA',true],['whip','WHIP',true],['k9','K/9',true],['war','WAR',true],
+    ], myPitSort, k=>sortPick(k,myPitSort,v=>{myPitSort=v;renderStats();}), sortAsc[myPitSort]));
+    sortBy(us.pitchers, PKf[myPitSort]||PKf.era, myPitSort).forEach(p=>{
       const s2=ST.pit[p.id]||blankPit();
       const tr=el('tr');
       tr.innerHTML=`<td class="nm">${nmLink(p.id,p.name)}</td><td>${s2.g}</td><td>${s2.w}</td><td>${s2.l}</td><td>${ipStr(s2)}</td>`+
@@ -11535,7 +11595,7 @@ function renderStats(){
       opsp:r=>opsPlus(r.b,base), wrc:r=>wrcPlus(r.b,lgw),
     };
     const f=KEY[lgBatSort]||KEY.avg;
-    rows.sort((x,y)=>f(y)-f(x));
+    rows.sort((x,y)=>(f(y)-f(x))*sortMul(lgBatSort));
 
     const card=el('div','card');
     card.appendChild(el('div','card-h','리그 타자 순위'));
@@ -11546,7 +11606,7 @@ function renderStats(){
       ['avg','타율',true],['obp','출루',true],['slg','장타',true],['ops','OPS',true],
       ['iso','ISO',true],['bbk','BB/K',true],['opsp','OPS+',true],['wrc','wRC+',true],
       ['hr','HR',true],['rbi','타점',true],['sb','도루',true],
-    ], lgBatSort, k=>{lgBatSort=k;renderStats();}));
+    ], lgBatSort, k=>sortPick(k,lgBatSort,v=>{lgBatSort=v;renderStats();}), sortAsc[lgBatSort]));
     rows.slice(0,60).forEach((r,i)=>{
       const tr=el('tr',r.me?'me':'');
       tr.innerHTML=`<td>${i+1}</td><td class="nm">${nmLink(r.id,r.name)}</td><td class="tm">${r.team}</td>`+
@@ -11573,7 +11633,7 @@ function renderStats(){
       w:r=>r.s.w, bb:r=>-r.s.bb,
     };
     const f=KEY[lgPitSort]||KEY.era;
-    rows.sort((x,y)=>f(y)-f(x));
+    rows.sort((x,y)=>(f(y)-f(x))*sortMul(lgPitSort));
 
     const card=el('div','card');
     card.appendChild(el('div','card-h','리그 투수 순위'));
@@ -11584,7 +11644,7 @@ function renderStats(){
       ['#','#',false],['name','투수',false],['team','팀',false],
       ['era','ERA',true],['ip','이닝',true],['w','승',true],
       ['k','삼진',true],['k9','K/9',true],['whip','WHIP',true],['bb','볼넷',true],
-    ], lgPitSort, k=>{lgPitSort=k;renderStats();}));
+    ], lgPitSort, k=>sortPick(k,lgPitSort,v=>{lgPitSort=v;renderStats();}), sortAsc[lgPitSort]));
     rows.slice(0,60).forEach((r,i)=>{
       const tr=el('tr',r.me?'me':'');
       tr.innerHTML=`<td>${i+1}</td><td class="nm">${nmLink(r.id,r.name)}</td><td class="tm">${r.team}</td>`+
@@ -11775,11 +11835,21 @@ function renderRecords(){
 
   /* ── 통산 ── */
   if(recTab==='career'){
+    const CR=id=>ST.career[id]||blankCareer();
     const card=el('div','card'); card.appendChild(el('div','card-h','개인 통산 · 타격'));
+    card.appendChild(el('p','muted','헤더를 누르면 정렬이 바뀐다. 같은 헤더를 다시 누르면 오름차순.'));
     const t=el('table','box wide');
-    t.innerHTML='<tr><th>선수</th><th>G</th><th>타수</th><th>안타</th><th>2B</th><th>3B</th><th>HR</th><th>타점</th><th>득점</th><th>도루</th><th>볼넷</th><th>삼진</th><th>타율</th></tr>';
+    const CB={ g:p=>CR(p.id).g, ab:p=>CR(p.id).ab, h:p=>CR(p.id).h, d2:p=>CR(p.id).d2,
+      d3:p=>CR(p.id).d3, hr:p=>CR(p.id).hr, rbi:p=>CR(p.id).rbi, r:p=>CR(p.id).r,
+      sb:p=>CR(p.id).sb, bb:p=>CR(p.id).bb, k:p=>CR(p.id).k,
+      avg:p=>{const c2=CR(p.id);return c2.ab?c2.h/c2.ab:null;}, name:p=>0 };
+    t.appendChild(sortHead([
+      ['name','선수',false],['g','G',true],['ab','타수',true],['h','안타',true],['d2','2B',true],
+      ['d3','3B',true],['hr','HR',true],['rbi','타점',true],['r','득점',true],['sb','도루',true],
+      ['bb','볼넷',true],['k','삼진',true],['avg','타율',true],
+    ], carBatSort, k=>sortPick(k,carBatSort,v=>{carBatSort=v;renderRecords();}), sortAsc[carBatSort]));
     let any=false;
-    us.players.slice().sort((a,b)=>((ST.career[b.id]||{}).h||0)-((ST.career[a.id]||{}).h||0)).forEach(p=>{
+    sortBy(us.players, CB[carBatSort]||CB.h, carBatSort).forEach(p=>{
       const c2=ST.career[p.id]; if(!c2||!c2.g)return; any=true;
       const tr=el('tr',isMe(p.id)?'me':'');
       tr.innerHTML=`<td class="nm">${p.name}</td><td>${c2.g}</td><td>${c2.ab}</td><td>${c2.h}</td><td>${c2.d2}</td><td>${c2.d3}</td><td>${c2.hr}</td><td>${c2.rbi}</td><td>${c2.r}</td><td>${c2.sb}</td><td>${c2.bb}</td><td>${c2.k}</td><td>${c2.ab?fmt3(c2.h/c2.ab):'—'}</td>`;
@@ -11791,8 +11861,15 @@ function renderRecords(){
 
     const pc=el('div','card'); pc.appendChild(el('div','card-h','개인 통산 · 투구'));
     const pt=el('table','box wide');
-    pt.innerHTML='<tr><th>투수</th><th>G</th><th>승</th><th>패</th><th>이닝</th><th>피안타</th><th>자책</th><th>볼넷</th><th>삼진</th><th>ERA</th></tr>';
-    us.players.forEach(p=>{
+    const CP={ pg:p=>CR(p.id).pg, pw:p=>CR(p.id).pw, pl:p=>CR(p.id).pl, pouts:p=>CR(p.id).pouts,
+      ph:p=>CR(p.id).ph, per:p=>CR(p.id).per, pbb:p=>CR(p.id).pbb, pk:p=>CR(p.id).pk,
+      /* ERA 는 낮을수록 위. 안 던진 사람은 null 로 빼서 맨 뒤로. */
+      era:p=>{const c2=CR(p.id);return c2.pouts?-((c2.per*7)/(c2.pouts/3)):null;}, name:p=>0 };
+    pt.appendChild(sortHead([
+      ['name','투수',false],['pg','G',true],['pw','승',true],['pl','패',true],['pouts','이닝',true],
+      ['ph','피안타',true],['per','자책',true],['pbb','볼넷',true],['pk','삼진',true],['era','ERA',true],
+    ], carPitSort, k=>sortPick(k,carPitSort,v=>{carPitSort=v;renderRecords();}), sortAsc[carPitSort]));
+    sortBy(us.players, CP[carPitSort]||CP.pk, carPitSort).forEach(p=>{
       const c2=ST.career[p.id]; if(!c2||!c2.pg)return;
       const ipS=Math.floor(c2.pouts/3)+(c2.pouts%3?'.'+(c2.pouts%3):'');
       const e=c2.pouts?((c2.per*7)/(c2.pouts/3)).toFixed(2):'—';
@@ -11815,6 +11892,106 @@ function renderRecords(){
   card.appendChild(g2);
   card.appendChild(el('p','muted',`시즌 ${ST.seasonNo||1}년차 진행 중`));
   c.appendChild(card);
+
+  /* ---- 구단 통산 부문별 1위 ----
+     구단 역사에서 누가 뭘 제일 많이 했는지. 시즌을 넘겨도 계속 쌓인다. */
+  const CRr=id=>ST.career[id]||blankCareer();
+  const LEAD_B=[
+    {k:'g',   n:'최다 출전', f:c2=>c2.g,   u:'경기'},
+    {k:'h',   n:'최다 안타', f:c2=>c2.h,   u:'안타'},
+    {k:'hr',  n:'최다 홈런', f:c2=>c2.hr,  u:'홈런'},
+    {k:'d2',  n:'최다 2루타',f:c2=>c2.d2,  u:'2루타'},
+    {k:'d3',  n:'최다 3루타',f:c2=>c2.d3,  u:'3루타'},
+    {k:'rbi', n:'최다 타점', f:c2=>c2.rbi, u:'타점'},
+    {k:'r',   n:'최다 득점', f:c2=>c2.r,   u:'득점'},
+    {k:'sb',  n:'최다 도루', f:c2=>c2.sb,  u:'도루'},
+    {k:'bb',  n:'최다 볼넷', f:c2=>c2.bb,  u:'볼넷'},
+    {k:'k',   n:'최다 삼진', f:c2=>c2.k,   u:'삼진'},
+    {k:'avg', n:'최고 타율', f:c2=>c2.ab>=30?c2.h/c2.ab:-1, u:'', fmt:v=>fmt3(v), min:'30타수 이상'},
+  ];
+  const LEAD_P=[
+    {k:'pg',  n:'최다 등판', f:c2=>c2.pg,   u:'경기'},
+    {k:'pw',  n:'최다 승',   f:c2=>c2.pw,   u:'승'},
+    {k:'pk',  n:'최다 탈삼진',f:c2=>c2.pk,  u:'탈삼진'},
+    {k:'pouts',n:'최다 이닝',f:c2=>c2.pouts,u:'', fmt:v=>`${Math.floor(v/3)}${v%3?'.'+(v%3):''}이닝`},
+    {k:'era', n:'최저 ERA', f:c2=>c2.pouts>=30?-((c2.per*7)/(c2.pouts/3)):-9999, u:'',
+     fmt:v=>v<=-9999?'—':(-v).toFixed(2), min:'10이닝 이상'},
+  ];
+  const leaderCard=(title,defs,gate)=>{
+    const lc=el('div','card');
+    lc.appendChild(el('div','card-h',title));
+    const t=el('table','box');
+    t.innerHTML='<tr><th>부문</th><th>선수</th><th>기록</th></tr>';
+    let any=false;
+    defs.forEach(dfn=>{
+      const cands=us.players.filter(p=>gate(CRr(p.id)) && dfn.f(CRr(p.id))>(dfn.min?-1:0));
+      if(!cands.length) return;
+      const top=Math.max(...cands.map(p=>dfn.f(CRr(p.id))));
+      if(top<=0 && !dfn.min) return;
+      const winners=cands.filter(p=>Math.abs(dfn.f(CRr(p.id))-top)<1e-9);
+      if(!winners.length) return;
+      any=true;
+      const val=dfn.fmt?dfn.fmt(top):`${top}${dfn.u}`;
+      const tr=el('tr', winners.some(p=>isMe(p.id))?'me':'');
+      tr.innerHTML=`<td class="nm">${dfn.n}${dfn.min?`<i>${dfn.min}</i>`:''}</td>`+
+        `<td class="nm">${winners.map(p=>nmLink(p.id,p.name)).join(', ')}`+
+        `${winners.length>1?'<span class="subtag">공동</span>':''}</td>`+
+        `<td class="hl-hr">${val}</td>`;
+      t.appendChild(tr);
+    });
+    if(!any) return null;
+    wireNames(t); lc.appendChild(t);
+    return lc;
+  };
+  const lb=leaderCard('구단 통산 1위 · 타격', LEAD_B, c2=>c2.g>0);
+  if(lb) c.appendChild(lb);
+  const lp=leaderCard('구단 통산 1위 · 투구', LEAD_P, c2=>c2.pg>0);
+  if(lp) c.appendChild(lp);
+  if(!lb&&!lp) c.appendChild(el('div','card','아직 통산 기록이 없다. 경기를 치르면 여기에 쌓인다.'));
+
+  /* ---- 구단 진기록 ---- 기록실 진기록 탭과 같은 창고를 본다 */
+  const fx=(ST.feats||[]).slice().reverse();
+  const fc=el('div','card');
+  fc.appendChild(el('div','card-h','구단 진기록'));
+  if(fx.length){
+    fc.appendChild(el('p','muted',
+      `구단 역사에 남은 ${fx.length}건이다. 시즌을 넘겨도 안 지워진다.`));
+    fx.slice(0,12).forEach(f=>{
+      const r=el('div','feat-row');
+      r.innerHTML=`<div class="ft-i">${f.icon||'⭐'}</div>
+        <div class="ft-b"><div class="ft-k">${f.kind}${f.first?'<em>구단 최초</em>':''}</div>
+          <div class="ft-v">${f.pid?nmLink(f.pid,f.name||nameOf(f.pid))+' · ':''}${f.detail||''}</div>
+          <div class="ft-d">${f.year||2026}년${f.game?` · 통산 ${f.game}경기째`:''}</div></div>`;
+      fc.appendChild(r);
+    });
+    wireNames(fc);
+    if(fx.length>12){
+      const mb=el('button','btn',`진기록 ${fx.length}건 전부 보기`);
+      mb.onclick=()=>{ recTab='feat'; renderRecords(); };
+      fc.appendChild(mb);
+    }
+  } else {
+    fc.appendChild(el('p','muted','아직 없다. 사이클링 히트·노히트 노런 같은 게 나오면 여기 남는다.'));
+  }
+  c.appendChild(fc);
+
+  /* ---- 1호 기록 ---- */
+  const fk=ST.firsts||{};
+  const fkeys=Object.keys(fk);
+  if(fkeys.length){
+    const f1=el('div','card');
+    f1.appendChild(el('div','card-h','구단 1호 기록 · 이번 구단'));
+    f1.appendChild(el('p','muted','게임 안에서 이 구단이 처음 낸 기록이다. 실제 2026 기록과는 별개다.'));
+    fkeys.forEach(k=>{
+      const v=fk[k];
+      const r=el('div','first-row');
+      r.innerHTML=`<div class="fr-k">${k.replace('1호','')}</div>
+        <div class="fr-v"><b>${v.player}</b></div>
+        <div class="fr-d">${v.date||''}${v.game?` · 통산 ${v.game}경기째`:''}</div>`;
+      f1.appendChild(r);
+    });
+    c.appendChild(f1);
+  }
 
   const sc=el('div','card'); sc.appendChild(el('div','card-h','병살 시너지'));
   DP_SYNERGY.forEach(sy=>{
