@@ -172,6 +172,9 @@ button{font-family:inherit;cursor:pointer}
   border-radius:8px;padding:8px 10px;margin:0 4px 10px;font-size:12px}
 .pcs-today b{font-size:13px}
 .award.king .aw-l{color:var(--gold);font-weight:800}
+.award.king{opacity:.68}
+.award.king.ours{opacity:1}
+.aw-tm{display:block;font-style:normal;font-size:9.5px;color:var(--dim);font-weight:400}
 .cotag{font-style:normal;font-size:9px;background:rgba(201,162,39,.2);color:var(--gold);
   border-radius:4px;padding:1px 4px;margin-left:5px}
 .featcard{border:1px solid rgba(201,162,39,.35)}
@@ -202,6 +205,8 @@ button{font-family:inherit;cursor:pointer}
 .pod-r.win{background:rgba(201,162,39,.10);border-radius:6px}
 .pod-n{flex:none;width:22px;text-align:center;font-size:13px;color:var(--dim)}
 .pod-p{flex:none;min-width:56px;font-weight:700}
+.pod-r.opp{opacity:.72}
+.pod-tm{display:block;font-style:normal;font-size:9.5px;color:var(--dim);font-weight:400}
 .pod-v{flex:1;color:var(--dim);font-size:11.5px}
 .pod-t{flex:none;font-size:10px;color:var(--gold)}
 .pod-r.win .pod-t{font-weight:800}
@@ -209,6 +214,13 @@ button{font-family:inherit;cursor:pointer}
 .snd-vol{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:12px;color:var(--dim)}
 .snd-vol input[type=range]{flex:1;accent-color:var(--gold);height:22px}
 .snd-vol b{color:var(--ink);min-width:26px;text-align:right;font-variant-numeric:tabular-nums}
+.subtabs.sub2{margin-bottom:10px}
+.yr-pick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.yr{background:var(--panel);border:1px solid var(--line);border-radius:9px;
+  color:var(--ink);font-family:inherit;font-size:13px;font-weight:800;padding:7px 11px;line-height:1.25}
+.yr em{display:block;font-style:normal;font-size:9.5px;color:var(--dim);font-weight:400;margin-top:2px}
+.yr.on{border-color:var(--gold);background:rgba(201,162,39,.12);color:var(--gold)}
+.yr.on em{color:var(--gold);opacity:.8}
 .dimtxt{color:var(--dim);font-weight:400}
 .diag{background:var(--panel2);border-radius:8px;padding:4px 10px;margin-top:6px}
 .diag .ot-r{border-bottom:1px solid var(--line)}
@@ -4645,8 +4657,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.1.2';
-const APP_VERSION_NOTE = '세이브 용량 13% 감소 · 수상 화면 스타일 충돌 수정';
+const APP_VERSION = '2.3.0';
+const APP_VERSION_NOTE = '시상 전부 리그 전체 기준 · 통산 연도별/총합 분리 · 이름 어디서든 클릭';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -4970,6 +4982,13 @@ const AWARD_CHEER=[
   ['다음 구간도 부탁한다','다음 구간도 부탁드립니다'],
   ['오늘 저녁은 니가 사는 거다','오늘 저녁은 쏘시는 겁니다'],
 ];
+/* 이번 구간에 우리 팀이 하나도 못 받았을 때 */
+const AWARD_NONE=[
+  ['이번 구간은 우리 이름이 하나도 없다. 다음엔 하나 가져오자','이번 구간은 우리 이름이 하나도 없습니다. 다음엔 하나 가져오시죠'],
+  ['리그가 넓긴 넓다. 저 정도는 해야 상을 주네','리그가 넓긴 넓습니다. 저 정도는 해야 상을 주네요'],
+  ['남의 잔치 구경만 했다','남의 잔치 구경만 했습니다'],
+  ['우리도 저기 이름 한 번 올려보자','우리도 저기 이름 한 번 올려보시죠'],
+];
 const AWARD_OPP=[
   ['우완좌완 요새 무섭네요 축하합니다','우완좌완 요새 무섭네요 축하합니다'],
   ['기록 보고 놀랐습니다. 축하드려요','기록 보고 놀랐습니다. 축하드려요'],
@@ -5065,11 +5084,28 @@ function snapDiff(now, then, keys){
 function runMiniAwards(ST){
   const us=TBYID['wwzw'];
   const snap=ST.awardSnap;
+  /* 구간 시상은 리그 전체와 겨룬다.
+     우리 팀끼리만 뽑으면 "우리 중 제일 나은 사람"이라 상 값이 안 나간다.
+     23팀 전원을 한 줄에 세우고, 그중 우리 선수가 이기면 그때 상이 된다.
+     감독상·팀 공헌상만 팀 내부 상이라 그대로 둔다.                     */
   const B={}, P={};
   const BK=['g','pa','ab','h','d2','d3','hr','bb','hbp','k','rbi','r','sb'];
   const PK=['g','outs','h','r','er','bb','hbp','k','w'];
-  us.players.forEach(p=>{ if(!isMerc(p.id)) B[p.id]=snapDiff(ST.bat[p.id]||blankBat(),snap&&snap.bat[p.id],BK); });
-  us.pitchers.forEach(p=>{ P[p.id]=snapDiff(ST.pit[p.id]||blankPit(),snap&&snap.pit[p.id],PK); });
+  Object.keys(ST.lgBat||{}).forEach(id=>{
+    if(!leagueOwner(id))return;
+    B[id]=snapDiff(ST.lgBat[id], snap&&snap.lg&&snap.lg[id], BK);
+  });
+  Object.keys(ST.lgPit||{}).forEach(id=>{
+    if(!leagueOwner(id))return;
+    P[id]=snapDiff(ST.lgPit[id], snap&&snap.lgp&&snap.lgp[id], PK);
+  });
+  // 우리 팀은 ST.bat / ST.pit 이 정본이다
+  us.players.forEach(p=>{ if(!isMerc(p.id)) B[p.id]=snapDiff(ST.bat[p.id]||blankBat(),snap&&snap.bat&&snap.bat[p.id],BK); });
+  us.pitchers.forEach(p=>{ P[p.id]=snapDiff(ST.pit[p.id]||blankPit(),snap&&snap.pit&&snap.pit[p.id],PK); });
+  const ourB={}; us.players.forEach(p=>{ if(!isMerc(p.id)) ourB[p.id]=B[p.id]; });
+  const isOurs=id=>us.players.some(x=>x.id===id)||us.pitchers.some(x=>x.id===id);
+  const nmOf=id=>isOurs(id)?nameOf(id):leagueName(id);
+  const teamOf=id=>{ const t=leagueOwner(id); return t?t.name:'?'; };
 
   const won=[];
   /* [제보] "김한규가 ERA 12.68로 투수상을 탔는데 왜 탔는지 모르겠다".
@@ -5092,10 +5128,11 @@ function runMiniAwards(ST){
     let rk=0, prev=null;
     const podium=list.slice(0,6).map((x,i)=>{
       if(prev===null||Math.abs(x.s-prev)>1e-9){ rk=i+1; prev=x.s; }
-      return {rank:rk, pid:x.pid, v:x.v};
+      return {rank:rk, pid:x.pid, v:x.v, name:nmOf(x.pid), team:teamOf(x.pid), ours:isOurs(x.pid)};
     });
     co.forEach(c=>{
       won.push({kind, pid:c.pid, value:c.v, criteria, podium,
+        name:nmOf(c.pid), team:teamOf(c.pid), ours:isOurs(c.pid),
         coWith: co.filter(x=>x.pid!==c.pid).map(x=>x.pid),
         skipped:[], cand:list.length});
     });
@@ -5113,33 +5150,39 @@ function runMiniAwards(ST){
   const gw=(stNow.w||0)-(rec0.w||0), gl=(stNow.l||0)-(rec0.l||0), gt=(stNow.t||0)-(rec0.t||0);
   let mgrGiven=false;
   if(mgrP && (gw+gl+gt)>0 && gw>=gl){
+    /* [버그 이력] ours/name/team 을 안 달아서 '남의 팀 수상 발표' 쪽으로
+       새어 나갔다. 발표문에 "감독상 — undefined (undefined)" 로 찍혔다. */
     won.push({kind:'mgr',pid:mgrP.id,value:`${gw}승 ${gl}패${gt?` ${gt}무`:''}`,
-      criteria:'감독(이건) 전용 · 이 구간 팀 성적이 5할 이상이면 준다',
+      criteria:'감독(이건) 전용 · 이 구간 팀 성적이 5할 이상이면 준다 (팀 내부 상)',
+      ours:true, name:nameOf(mgrP.id), team:us.name,
       podium:null, skipped:[], cand:1});
     mgrGiven=true;
   }
-  const noMgr={}; Object.keys(B).forEach(id=>{ if(!mgrP||id!==mgrP.id) noMgr[id]=B[id]; });
+  const noMgr={}; Object.keys(ourB).forEach(id=>{ if(!mgrP||id!==mgrP.id) noMgr[id]=ourB[id]; });
 
-  /* 타자상·투수상은 안타/ERA 같은 날것 대신 wRC+ · WAR 로 뽑는다.
-     타순과 등판 상황에 덜 휘둘리고, 실제로 팀에 얼마나 보탰는지에 가깝다. */
+  /* 리그 전체를 놓고 뽑기 때문에 지표도 전원에게 계산되는 것만 쓴다.
+     WAR(타자)는 수비·포지션 보정이 필요해서 우리 팀만 계산된다 —
+     그래서 MVP 는 '얼마나 많이 보탰나'(타석 가중 공격 기여)로 간다. */
   const eraOf=l=>l.outs?((l.er*7)/(l.outs/3)):99;
   const wbA=(typeof leagueWoba==='function')?leagueWoba():null;   // 이 함수 뒤쪽에 lgw 가 이미 있다
   const erA=(typeof leagueEra==='function')?leagueEra():8.5;
-  const warB=(b,id)=>warOf(id,b,wbA);
-  give('mvp', rank(B,b=>b.pa>=5,warB,(b,id)=>`WAR ${warB(b,id).toFixed(2)} · OPS ${opsOf(b).toFixed(3)}`),
-       '이 구간 WAR 1위 · 5타석 이상 (타격 + 수비 + 포지션)');
-  give('avg', rank(B,b=>b.ab>=6,b=>b.h/b.ab,b=>`타율 ${fmt3(b.h/b.ab)} (${b.h}/${b.ab})`),
-       '이 구간 타율 1위 · 6타수 이상');
-  give('bat', rank(B,b=>b.pa>=5,b=>wrcPlus(b,wbA),
+  const runsOf=b=>(!b||!b.pa||!wbA||!wbA.woba)?0:((woba(b)-wbA.woba)/WOBA_SCALE)*b.pa;
+  const minPA=6, minAB=8, minOuts=9;
+  give('mvp', rank(B,b=>b.pa>=minPA,runsOf,
+       b=>`공격 기여 ${runsOf(b)>=0?'+':''}${runsOf(b).toFixed(1)}점 · OPS ${opsOf(b).toFixed(3)}`),
+       `리그 전체 ${minPA}타석 이상 중 공격 기여(득점 환산) 1위`);
+  give('avg', rank(B,b=>b.ab>=minAB,b=>b.h/b.ab,b=>`타율 ${fmt3(b.h/b.ab)} (${b.h}/${b.ab})`),
+       `리그 전체 ${minAB}타수 이상 중 타율 1위`);
+  give('bat', rank(B,b=>b.pa>=minPA,b=>wrcPlus(b,wbA),
        b=>`wRC+ ${wrcPlus(b,wbA)} · ${b.h}안타 ${b.rbi}타점`),
-       '이 구간 wRC+ 1위 · 5타석 이상 (리그 평균 100 기준 타격 생산력)');
+       `리그 전체 ${minPA}타석 이상 중 wRC+ 1위 (리그 평균 100)`);
   give('sb',  rank(B,b=>(b.sb||0)>=2,b=>b.sb,b=>`${b.sb}도루`),
-       '이 구간 도루 1위 · 2개 이상');
-  give('pit', rank(P,l=>l.outs>=6,l=>warPit(l,erA),
+       '리그 전체 도루 1위 · 2개 이상');
+  give('pit', rank(P,l=>l.outs>=minOuts,l=>warPit(l,erA),
        l=>`WAR ${warPit(l,erA).toFixed(2)} · ERA ${eraOf(l).toFixed(2)} · ${ipStr(l)}이닝`),
-       '이 구간 투수 WAR 1위 · 2이닝 이상 (ERA 만으로는 짧게 던진 사람이 유리해서 이닝을 같이 본다)');
+       `리그 전체 ${minOuts/3}이닝 이상 중 투수 WAR 1위 (ERA 만 보면 짧게 던진 사람이 유리해서 이닝을 같이 본다)`);
   give('team', rank(noMgr,b=>b.pa>=4,b=>(b.rbi||0)+(b.r||0),b=>`${b.rbi}타점 ${b.r}득점`),
-       '타점 + 득점 합계 1위 · 4타석 이상');
+       '우리 팀 안에서 타점 + 득점 합계 1위 · 4타석 이상 (팀 내부 상)');
 
   const at=ST.schedule.filter(x=>x.played&&!x.po).length;
   if(!Array.isArray(ST.hall))ST.hall=[];
@@ -5147,7 +5190,22 @@ function runMiniAwards(ST){
   const msgs=[];
   const meId=ST.playerId||MYID;
 
-  won.forEach(w=>{
+  /* 남의 팀이 받은 건 '리그 발표'로만 알린다.
+     [제보] 예전에는 이걸 이건(감독) 이름으로 올려서, 우리 감독이
+     남의 팀 선수를 칭찬하는 것처럼 보였다. 이제 기록 공지로만 뜬다. */
+  won.forEach(x=>{ if(x.ours==null) x.ours=isOurs(x.pid); });   // 빠뜨린 게 있어도 새지 않게
+  const theirs=won.filter(x=>!x.ours);
+  if(theirs.length){
+    msgs.push({who:'lg',type:'record',
+      text:`📋 ${at}경기 구간 시상 발표\n`+theirs.map(x=>
+        `${MINI_LABELS[x.kind]||'수상'} — ${x.name} (${x.team}) ${x.value}`).join('\n')});
+    /* 우리가 하나도 못 받았으면 감독이 한마디 한다 */
+    if(!won.some(x=>x.ours) && us.players.some(x=>x.id==='lg')){
+      msgs.push({who:'lg', text:sayTo('lg',meId,...pickOne(AWARD_NONE)), mood:'flat'});
+    }
+  }
+
+  won.filter(x=>x.ours).forEach(w=>{
     const label=MINI_LABELS[w.kind]||'수상';
     ST.hall.push({season:ST.seasonNo||1, year:ST.year||2026, at, kind:w.kind,
       label, pid:w.pid, name:nameOf(w.pid), value:w.value, scope:'구간',
@@ -5157,56 +5215,42 @@ function runMiniAwards(ST){
     ST.morale[w.pid]=Math.min(100,(ST.morale[w.pid]||70)+7);
     if(ST.bond&&w.pid!==meId)ST.bond[w.pid]=Math.min(100,(ST.bond[w.pid]||50)+1);
     const coTxt=(w.coWith&&w.coWith.length)
-      ? `\n${w.coWith.map(nameOf).join(', ')}와(과) 공동 수상` : '';
+      ? `\n${w.coWith.map(id=>nmOf(id)+(isOurs(id)?'':`(${teamOf(id)})`)).join(', ')}와(과) 공동 수상` : '';
+    const scope = (w.kind==='mgr'||w.kind==='team') ? '팀' : '리그';
     msgs.push({who:'lg',type:'notice',
-      text:`${at}경기 구간 시상 — ${label}\n${nameOf(w.pid)} · ${w.value}${coTxt}\n사기 +7 · 몸값 상승`});
-    /* 축하 — 이건이 하고, 이건이 받으면 송승민이 한다 */
+      text:`${at}경기 구간 시상 — ${label}${scope==='리그'?' (리그 전체 1위)':''}\n`+
+        `${nameOf(w.pid)} · ${w.value}${coTxt}\n사기 +7 · 몸값 상승`});
+    /* 축하 — 이건이 하고, 이건이 받으면 송승민이 한다. 우리 선수한테만. */
     const cheerer = (w.pid==='lg') ? 'swm' : 'lg';
     if(us.players.some(x=>x.id===cheerer)){
       const c=pickOne(AWARD_CHEER);
       msgs.push({who:cheerer, text:sayTo(cheerer, w.pid, c[0], c[1]), mood:'happy'});
     }
-    /* 아주 가끔 다른 팀에서도 축하가 온다 */
-    if(Math.random()<0.22){
+    /* 리그 상이면 다른 팀에서도 연락이 온다 */
+    if(scope==='리그' && Math.random()<0.35){
       const other=TEAMS.filter(t=>t.id!=='wwzw');
       const t=pickOne(other);
       const l2=pickOne(AWARD_OPP);
-      msgs.push({who:'lg',type:'notice',text:`${t.name}에서 단톡방에 연락이 왔다\n"${l2[0]}"`});
+      msgs.push({who:'lg',type:'record',text:`${t.name}에서 단톡방에 연락이 왔다\n"${l2[0]}"`});
     }
   });
 
-  /* ---- 리그 전체 구간 수상 ---- 남의 팀 누가 받았는지도 알려준다 */
-  const lgw=leagueAwards(snap);
-  if(lgw.length){
-    msgs.push({who:'lg',type:'notice',
-      text:`리그 ${at}경기 구간 수상\n`+lgw.map(a=>{
-        const t=leagueOwner(a.pid);
-        return `${a.label} — ${leagueName(a.pid)} (${t?t.name:'?'}) ${a.value}`;
-      }).join('\n')});
-    lgw.forEach(a=>{
-      const ours=us.players.some(x=>x.id===a.pid);
-      if(!ours)return;
-      /* 우리 선수가 리그 상을 받았다 — 남의 팀이 극찬한다 */
-      ST.hall=ST.hall||[];
-      ST.hall.push({season:ST.seasonNo||1,year:ST.year||2026,at,kind:a.kind,
-        label:a.label,pid:a.pid,name:nameOf(a.pid),value:a.value,scope:'리그'});
-      ST.awardBonus[a.pid]=(ST.awardBonus[a.pid]||0)+2;
-      ST.morale[a.pid]=Math.min(100,(ST.morale[a.pid]||70)+10);
-      us.players.forEach(q=>ST.morale[q.id]=Math.min(100,(ST.morale[q.id]||70)+3));
-      const others=TEAMS.filter(t=>t.id!=='wwzw');
-      const n=1+((Math.random()*2)|0);
-      for(let i=0;i<n;i++){
-        const t=pickOne(others);
-        msgs.push({who:'lg',type:'notice',
-          text:`${t.name} 감독\n"${nameOf(a.pid)} 선수, ${pickOne(OPP_PRAISE)}"`});
-      }
-      msgs.push({who:'lg',type:'notice',text:`${nameOf(a.pid)} 리그 수상 — 전원 사기 +3 · 본인 +10`});
-      if(a.pid===meId) ST.awardReply={label:a.label, value:a.value};
-    });
-  }
+  /* 우리 선수가 리그 상을 받으면 팀 전체가 들뜬다 */
+  const lgWins=won.filter(x=>x.ours && x.kind!=='mgr' && x.kind!=='team');
+  lgWins.forEach(a=>{
+    us.players.forEach(q=>ST.morale[q.id]=Math.min(100,(ST.morale[q.id]||70)+3));
+    ST.morale[a.pid]=Math.min(100,(ST.morale[a.pid]||70)+3);
+    const others=TEAMS.filter(t=>t.id!=='wwzw');
+    if(Math.random()<0.5){
+      const t=pickOne(others);
+      msgs.push({who:'lg',type:'record',
+        text:`${t.name} 감독\n"${nameOf(a.pid)} 선수, ${pickOne(OPP_PRAISE)}"`});
+    }
+    msgs.push({who:'lg',type:'notice',text:`${nameOf(a.pid)} 리그 수상 — 전원 사기 +3`});
+  });
 
   /* 내가 받았으면 대답을 골라야 한다 */
-  const mine=won.find(w=>w.pid===meId);
+  const mine=won.find(w=>w.ours && w.pid===meId);
   if(mine && !ST.awardReply) ST.awardReply={label:MINI_LABELS[mine.kind]||'수상', value:mine.value};
 
   ST.awardSnap=blankSnap();
@@ -5273,16 +5317,33 @@ function buildAwards(ST){
     {label:'이닝왕',   min:l=>l.outs>=9,  v:l=>l.outs,     f:l=>`${ipStr(l)}이닝`},
     {label:'WHIP왕',   min:l=>l.outs>=21, v:l=>-whip(l),   f:l=>`WHIP ${whip(l).toFixed(2)}`},
   ];
-  const kingOf=(list,get,defs)=>defs.forEach(k=>{
-    const c=list.filter(p=>{const o=get(p); return o&&k.min(o);});
+  /* 종합왕은 리그 23팀 전체와 겨룬다.
+     우리 팀 안에서 누가 제일 잘했는지는 기록실 → 구단(통산 1위)에 따로 있다.
+     여기서까지 팀 내부로 뽑으면 같은 걸 두 번 보는 셈이라 의미가 없다. */
+  const kingOf=(pool,get,defs)=>defs.forEach(k=>{
+    const c=pool.filter(x=>{const o=get(x); return o&&k.min(o);});
     if(!c.length)return;
-    const top=Math.max(...c.map(p=>k.v(get(p))));
-    const winners=c.filter(p=>Math.abs(k.v(get(p))-top)<1e-9);
-    winners.forEach(wp=>A.push({label:k.label,name:wp.name,value:k.f(get(wp)),
-      king:true, co:winners.length>1?winners.length:0}));
+    const top=Math.max(...c.map(x=>k.v(get(x))));
+    const winners=c.filter(x=>Math.abs(k.v(get(x))-top)<1e-9);
+    winners.forEach(wx=>A.push({label:k.label, name:wx.name, value:k.f(get(wx)),
+      king:true, team:wx.team, ours:wx.ours,
+      co:winners.length>1?winners.length:0}));
   });
-  kingOf(us.players, p=>ST.bat[p.id], KINGS);
-  kingOf(us.pitchers, p=>ST.pit[p.id], PKINGS);
+  /* 리그 전원을 한 줄에 세운다. 우리 팀은 ST.bat/ST.pit 이 정본이다. */
+  const lgPool=[], lgPPool=[];
+  TEAMS.forEach(t=>{
+    (t.players||[]).forEach(pp=>{
+      if(t.id==='wwzw'&&isMerc(pp.id))return;
+      lgPool.push({id:pp.id,name:pp.name,team:t.name,ours:t.id==='wwzw',
+        b:(t.id==='wwzw')?(ST.bat[pp.id]||blankBat()):(ST.lgBat[pp.id]||blankBat())});
+    });
+    (t.pitchers||[]).forEach(pp=>{
+      lgPPool.push({id:pp.id,name:pp.name,team:t.name,ours:t.id==='wwzw',
+        s:(t.id==='wwzw')?(ST.pit[pp.id]||blankPit()):(ST.lgPit[pp.id]||blankPit())});
+    });
+  });
+  kingOf(lgPool,  x=>x.b, KINGS);
+  kingOf(lgPPool, x=>x.s, PKINGS);
   /* 리그 전체 시즌 1위 — 남의 팀이 받았어도 보여준다 */
   leagueAwards(null).forEach(a=>{
     const t=leagueOwner(a.pid);
@@ -7292,7 +7353,7 @@ function renderHome(){
     <div><b>${st.rf}</b><span>득점</span></div><div><b>${st.ra}</b><span>실점</span></div></div>
     <div class="progress"><div class="bar" style="width:${Math.min(100,played/regGames()*100)}%"></div></div>
     <div class="hero-foot">${Math.min(played,regGames())} / ${regGames()} 경기 · 리그 ${leagueRank('wwzw')}위 · 운영비 ${ST.budget.toFixed(0)}만원<br>${holidayFor(ST.round,ST.year||2026).label} 예정 · 다음 시즌 가입비 ${LEAGUE_FEE}만원</div>
-    <div class="hero-me">플레이 중: <b>${nameOf(ST.playerId||MYID)}</b></div>`;
+    <div class="hero-me">플레이 중: <b>${nmLink(ST.playerId||MYID, nameOf(ST.playerId||MYID))}</b></div>`;
   c.appendChild(hero);
 
   const avgM=us.players.reduce((s,p)=>s+(ST.morale[p.id]||70),0)/us.players.length;
@@ -7302,17 +7363,27 @@ function renderHome(){
     <div class="tend-row"><span class="tn">사기</span><div class="tbar"><div class="${avgM>=70?'g':'r'}" style="width:${avgM}%"></div></div><span class="tv">${avgM.toFixed(0)}</span></div>
     <div class="tend-row"><span class="tn">컨디션</span><div class="tbar"><div class="${avgC>=70?'g':'r'}" style="width:${avgC}%"></div></div><span class="tv">${avgC.toFixed(0)}</span></div>`;
   const inj=us.players.filter(p=>ST.injury[p.id]);
-  if(inj.length)mood.appendChild(el('p','muted','부상: '+inj.map(p=>`${p.name}(${ST.injury[p.id].name} ${ST.injury[p.id].games}경기)`).join(', ')));
+  if(inj.length){
+    const iv=el('p','muted');
+    iv.innerHTML='부상: '+inj.map(p=>
+      `${nmLink(p.id,p.name)}(${ST.injury[p.id].name} ${ST.injury[p.id].games}경기)`).join(', ');
+    mood.appendChild(iv);
+  }
   const unh=us.players.filter(p=>ST.unhappy&&ST.unhappy[p.id]&&ST.unhappy[p.id].level>=2);
-  if(unh.length)mood.appendChild(el('div','warn','불만: '+unh.map(p=>`${p.name}(${unhappyLabel(ST.unhappy[p.id].level)})`).join(', ')));
+  if(unh.length){
+    const uv=el('div','warn');
+    uv.innerHTML='불만: '+unh.map(p=>
+      `${nmLink(p.id,p.name)}(${unhappyLabel(ST.unhappy[p.id].level)})`).join(', ');
+    mood.appendChild(uv);
+  }
   // 폼 — 누가 뜨겁고 누가 슬럼프인지 한 줄로
   const hotL=us.players.filter(p=>formTag(p.id)===FORM_HOT);
   const coldL=us.players.filter(p=>formTag(p.id)===FORM_COLD);
   if(hotL.length||coldL.length){
     const fl=el('p','muted');
     const parts=[];
-    if(hotL.length)parts.push(`${FORM_HOT} <b>${hotL.map(p=>p.name).join(', ')}</b>`);
-    if(coldL.length)parts.push(`${FORM_COLD} <b>${coldL.map(p=>p.name).join(', ')}</b>`);
+    if(hotL.length)parts.push(`${FORM_HOT} <b>${hotL.map(p=>nmLink(p.id,p.name)).join(', ')}</b>`);
+    if(coldL.length)parts.push(`${FORM_COLD} <b>${coldL.map(p=>nmLink(p.id,p.name)).join(', ')}</b>`);
     fl.innerHTML='<b>폼</b> — '+parts.join(' &nbsp;/&nbsp; ')
       +'<br>뜨거운 선수는 위 타순, 슬럼프는 아래로 내려라.';
     mood.appendChild(fl);
@@ -7328,7 +7399,7 @@ function renderHome(){
     const top=spk.slice().sort((a,b)=>sparkOf(ST,b.id).n-sparkOf(ST,a.id).n);
     const shown=top.slice(0,3).map(p=>{
       const sp=sparkOf(ST,p.id);
-      return `${p.name}(${sparkLabel(sp)} · ${sp.n}/${sparkFuse(p.id)})`;
+      return `${nmLink(p.id,p.name)}(${sparkLabel(sp)} · ${sp.n}/${sparkFuse(p.id)})`;
     }).join(', ');
     line.innerHTML='<b>불만 조짐</b> — '+shown+(top.length>3?` 외 ${top.length-3}명`:'')
       +'<br>아직 참는 중이다. 이 상태에서 또 벤치에 두거나 하위타순에 넣으면 터진다.';
@@ -7341,7 +7412,7 @@ function renderHome(){
     const ar=el('div','card po-card');
     ar.appendChild(el('div','card-h','수상'));
     ar.appendChild(el('p','muted',''));
-    ar.lastChild.innerHTML=`단톡방이 시끄럽다. <b>${nameOf(ST.playerId||MYID)}</b>이(가) `+
+    ar.lastChild.innerHTML=`단톡방이 시끄럽다. <b>${nmLink(ST.playerId||MYID,nameOf(ST.playerId||MYID))}</b>이(가) `+
       `<b>${ST.awardReply.label}</b>을(를) 받았다. ${ST.awardReply.value||''}<br>뭐라고 할까.`;
     AWARD_REPLIES.forEach(r=>{
       const b=el('button','sendopt');
@@ -7382,7 +7453,7 @@ function renderHome(){
   const myHall=(ST.hall||[]).filter(h=>h.pid===meId0).length;
   const hc=el('div','card');
   hc.innerHTML=`<div class="card-h">전시장</div>
-    <p class="muted"><b>${nameOf(meId0)}</b> 수상 <b>${myHall}</b>개 · 팀 타이틀 <b>${(ST.hall||[]).filter(h=>h.scope==='팀').length}</b>개</p>`;
+    <p class="muted"><b>${nmLink(meId0,nameOf(meId0))}</b> 수상 <b>${myHall}</b>개 · 팀 타이틀 <b>${(ST.hall||[]).filter(h=>h.scope==='팀').length}</b>개</p>`;
   const hb=el('button','btn','트로피 보러 가기');
   hb.onclick=()=>{hallWho=meId0;go('hall');};
   hc.appendChild(hb);
@@ -7402,7 +7473,7 @@ function renderHome(){
     pc.appendChild(el('div','card-h','약속한 것'));
     proms.forEach(pid=>{
       const r=el('div','prom-row');
-      r.innerHTML=`<span>${nameOf(pid)}</span><b>${promiseLabel(ST.promise[pid])}</b>`;
+      r.innerHTML=`<span>${nmLink(pid,nameOf(pid))}</span><b>${promiseLabel(ST.promise[pid])}</b>`;
       pc.appendChild(r);
     });
     pc.appendChild(el('p','muted','약속을 어기면 사기 -20에 불만이 2단계 오른다. 결장한 경기는 세지 않는다.'));
@@ -7440,12 +7511,12 @@ function renderHome(){
   if(ST.bossTalk){
     const B=ST.bossTalk;
     const bc=el('div','card');
-    bc.innerHTML=`<div class="card-h">${nameOf(B.boss)}에게서 카톡</div>`;
+    bc.innerHTML=`<div class="card-h">${nmLink(B.boss,nameOf(B.boss))}에게서 카톡</div>`;
     const room=el('div','kakao');
     B.log.forEach(m=>{
       const mine=m.who===(ST.playerId||MYID);
       const wd=el('div','kmsg'+(mine?' mine':'')+(m.type==='notice'?' notice':''));
-      wd.innerHTML=`${(mine||m.type==='notice')?'':`<div class="kname">${nameOf(m.who)}</div>`}`+
+      wd.innerHTML=`${(mine||m.type==='notice')?'':`<div class="kname">${nmLink(m.who,nameOf(m.who))}</div>`}`+
         `<div class="kbub ${B.tier==='bad'&&!m.type?'angry':(B.tier==='good'&&!m.type?'happy':'')}">`+
         `${String(m.text).replace(/\n/g,'<br>')}</div>`;
       room.appendChild(wd);
@@ -7504,8 +7575,8 @@ function renderHome(){
       const a=speakers(ST,null,2,Math.random);
       b.innerHTML=`<b>${lv?`${g.name} 강화 (${gearLabel(g.id)} → ${['','기본','보강','최상'][Math.min(3,lv+1)]})`:g.name} · ${maxed?'최상 등급':cost+'만원'}</b>`+
         `<span>${g.desc}<br>${g.effect}${lv?` · 지금 ${gearLabel(g.id)} 등급`:''}`+
-        (maxed?'':`<br><i class="gfor">${a[0]?nameOf(a[0].id)+': ':''}${a[0]?sayTo(a[0].id,ST.playerId,forL[0],forL[1]):''}</i>`+
-             `<br><i class="gag">${a[1]?nameOf(a[1].id)+': ':''}${a[1]?sayTo(a[1].id,ST.playerId,agL[0],agL[1]):''}</i>`)+
+        (maxed?'':`<br><i class="gfor">${a[0]?nmLink(a[0].id,nameOf(a[0].id))+': ':''}${a[0]?sayTo(a[0].id,ST.playerId,forL[0],forL[1]):''}</i>`+
+             `<br><i class="gag">${a[1]?nmLink(a[1].id,nameOf(a[1].id))+': ':''}${a[1]?sayTo(a[1].id,ST.playerId,agL[0],agL[1]):''}</i>`)+
         `</span>`;
       if(!maxed&&!poor)b.onclick=()=>{
         ST.budget-=cost;
@@ -7564,7 +7635,7 @@ function renderHome(){
     const pid=ST.drinkInvite.pid;
     const me=ST.playerId||MYID;
     const dc=el('div','card');
-    dc.innerHTML=`<div class="card-h">${nameOf(pid)}에게서 연락</div>
+    dc.innerHTML=`<div class="card-h">${nmLink(pid,nameOf(pid))}에게서 연락</div>
       <p class="muted">${ST.drinkInvite.line||sayTo(pid,me,...pickOne(DRINK_INVITE))}</p>
       <div class="pc-prom">지금 우정 ${bondLabel(bondOf(pid))} (${bondOf(pid)})</div>`;
     const g=el('div','tac-grid');
@@ -7600,7 +7671,7 @@ function renderHome(){
     const pid=ST.poach.pid, om=ST.poach.orderMax||3;
     const me=ST.playerId||MYID;
     const pc2=el('div','card');
-    pc2.innerHTML=`<div class="card-h">타팀 영입 제안 · ${nameOf(pid)}</div>
+    pc2.innerHTML=`<div class="card-h">타팀 영입 제안 · ${nmLink(pid,nameOf(pid))}</div>
       <p class="muted">${ST.poach.line||sayTo(pid,me,...pickOne(POACH_LINES))}</p>
       <div class="pc-prom">${om}번 타순 이상 · 5경기 보장을 요구한다</div>`;
     const g=el('div','tac-grid');
@@ -7715,14 +7786,23 @@ function renderHome(){
       const kc=el('div','card');
       kc.appendChild(el('div','card-h','종합왕 · 타이틀홀더'));
       kc.appendChild(el('p','muted',
-        '구간 시상은 WAR·wRC+ 같은 종합 지표로 간다. 홈런·도루·삼진처럼 '+
-        '"그냥 제일 많이 한 사람"을 기리는 자리는 시즌 끝에 여기서 몰아 준다.'));
+        '홈런·도루·삼진처럼 "그냥 제일 많이 한 사람"을 기리는 자리다. '+
+        '<b>리그 23팀 전체</b>가 대상이다.<br>'+
+        '우리 팀 안에서 누가 제일 잘했는지는 <b>기록실 → 구단</b>의 통산 1위에서 본다.'));
+      kc.lastChild.innerHTML=kc.lastChild.textContent
+        .replace('리그 23팀 전체','<b>리그 23팀 전체</b>')
+        .replace('기록실 → 구단','<b>기록실 → 구단</b>');
       kings.forEach(a=>{
-        const r=el('div','award king');
+        const r=el('div','award king'+(a.ours?' ours':''));
         r.innerHTML=`<span class="aw-l">👑 ${a.label}${a.co?`<i class="cotag">공동 ${a.co}</i>`:''}</span>`+
-          `<span class="aw-n">${a.name}</span><span class="aw-v">${a.value}</span>`;
+          `<span class="aw-n">${a.name}${a.team&&!a.ours?`<i class="aw-tm">${a.team}</i>`:''}</span>`+
+          `<span class="aw-v">${a.value}</span>`;
         kc.appendChild(r);
       });
+      const mineK=kings.filter(a=>a.ours).length;
+      kc.appendChild(el('p','muted', mineK
+        ? `리그 23팀 전체와 겨룬 결과다. 그중 ${mineK}개가 우리 선수다.`
+        : '리그 23팀 전체와 겨룬 결과다. 이번 시즌은 우리 이름이 없다.'));
       c.appendChild(kc);
     }
     const d=el('div','card');
@@ -7732,9 +7812,30 @@ function renderHome(){
       +`</p>`;
     const b=el('button','btn primary','새 시즌 시작');
     b.onclick=async()=>{
+      /* 끝난 시즌을 연도별 기록으로 남긴다.
+         통산만 쌓으면 "몇 년차에 뭘 했는지"가 사라진다. */
+      const log=Array.isArray(ST.seasonLog)?ST.seasonLog.slice():[];
+      if(!log.some(x=>x.season===(ST.seasonNo||1))){
+        const stx=ST.stand['wwzw']||{w:0,l:0,t:0,g:0,rf:0,ra:0};
+        const bat={}, pit={};
+        TBYID['wwzw'].players.forEach(p=>{
+          const bb=ST.bat[p.id]; if(bb&&(bb.pa||bb.g)) bat[p.id]={...bb, name:p.name};
+        });
+        TBYID['wwzw'].pitchers.forEach(p=>{
+          const pp=ST.pit[p.id]; if(pp&&(pp.outs||pp.g)) pit[p.id]={...pp, name:p.name};
+        });
+        log.push({season:ST.seasonNo||1, year:ST.year||2026,
+          rec:{w:stx.w,l:stx.l,t:stx.t,g:stx.g,rf:stx.rf,ra:stx.ra},
+          rank:(typeof leagueRank==='function')?leagueRank('wwzw'):null,
+          place:(ST.playoff&&ST.playoff.place)||null,
+          awards:(ST.hall||[]).filter(h=>h.season===(ST.seasonNo||1))
+            .map(h=>({label:h.label,name:h.name,value:h.value,kind:h.kind,scope:h.scope})),
+          feats:(ST.feats||[]).filter(f=>(f.season||1)===(ST.seasonNo||1)).length,
+          bat, pit});
+      }
       const keep={career:ST.career,teamCareer:ST.teamCareer,milestones:ST.milestones,firsts:ST.firsts,
         seasonNo:(ST.seasonNo||1)+1,discharged:ST.discharged,playerId:ST.playerId,
-        ratings:{}, budget:ST.budget,
+        ratings:{}, budget:ST.budget, seasonLog:log, feats:ST.feats||[],
         hall:ST.hall||[], awardBonus:ST.awardBonus||{}, gear:ST.gear||{}, playSec:ST.playSec||0,
         dev:ST.dev||null};
       TBYID['wwzw'].players.forEach(p=>keep.ratings[p.id]={con:p.con,pow:p.pow,eye:p.eye,spd:p.spd,def:p.def,arm:p.arm});
@@ -7747,6 +7848,7 @@ function renderHome(){
         firsts:keep.firsts,seasonNo:keep.seasonNo,discharged:keep.discharged,playerId:keep.playerId,
         year:2026+keep.seasonNo-1, budget:Math.round(keep.budget*0.4+120),
         hall:keep.hall, awardBonus:keep.awardBonus, gear:keep.gear, playSec:keep.playSec,
+        seasonLog:keep.seasonLog, feats:keep.feats,
         dev:keep.dev||{pts:0,games:0,trains:0,minTick:0}});
       ST.teamCareer.seasons=(ST.teamCareer.seasons||0)+1;
       normalizeState();
@@ -8395,24 +8497,31 @@ function openAward(idx){
 
   if(h.podium && h.podium.length){
     const coN=h.podium.filter(c=>c.rank===1).length;
+    const anyTeam=h.podium.some(c=>c.team);
     let pod='<div class="pod">';
     h.podium.forEach(c=>{
       const meRow = c.pid===h.pid;
       const co = c.rank===1 && coN>1;
-      pod+=`<div class="pod-r${meRow?' win':''}">
+      const nm = c.name || nameOf(c.pid);
+      /* 리그 전체와 겨루는 상이라 남의 팀 선수도 후보에 올라온다.
+         이름을 누르면 그쪽 선수 카드도 그대로 열린다. */
+      pod+=`<div class="pod-r${meRow?' win':''}${c.ours===false?' opp':''}">
         <span class="pod-n">${c.rank===1?'🥇':c.rank===2?'🥈':c.rank===3?'🥉':c.rank}</span>
-        <span class="pod-p">${nmLink(c.pid,nameOf(c.pid))}</span>
+        <span class="pod-p">${nmLink(c.pid,nm)}${c.team&&c.ours===false?`<i class="pod-tm">${c.team}</i>`:''}</span>
         <span class="pod-v">${c.v||''}</span>
         <span class="pod-t">${meRow?(co?'공동 수상':'수상'):(co?'공동 수상':'')}</span>
       </div>`;
     });
     pod+='</div>';
     let note='';
+    const scopeTxt = anyTeam
+      ? '이 상은 <b>리그 23팀 전체</b>와 겨뤄서 뽑는다. 우리 팀끼리가 아니다.'
+      : '이 상은 팀 내부 상이다.';
     if(coN>1){
-      note=`<p class="ot-note">기록이 똑같아서 <b>${coN}명 공동 수상</b>이다.
-        상은 순전히 기록으로만 준다 — 한 사람이 MVP 와 타율상을 같이 받아도 그대로 준다.</p>`;
+      note=`<p class="ot-note">${scopeTxt} 기록이 똑같아서 <b>${coN}명 공동 수상</b>이다.
+        상은 순전히 기록으로만 준다 — 한 사람이 여러 개 받아도 그대로 준다.</p>`;
     } else {
-      note=`<p class="ot-note">후보 ${h.cand||h.podium.length}명 중 1위다.
+      note=`<p class="ot-note">${scopeTxt} 후보 ${h.cand||h.podium.length}명 중 1위다.
         상은 순전히 기록으로만 준다 — 한 사람이 여러 개 받아도 그대로 준다.</p>`;
     }
     add(otSec('후보 순위', pod+note, `${h.cand||h.podium.length}명`));
@@ -9510,6 +9619,12 @@ const TUTORIAL=[
      표 <b>헤더를 누르면 정렬</b>이 바뀌고, 같은 헤더를 다시 누르면 오름차순이 된다.<br><br>
      <b>구단</b> 탭에는 통산 부문별 1위(최다 안타·홈런·탈삼진…)와 진기록이 모여 있다.
      시즌을 넘겨도 계속 쌓인다.<br><br>
+     <b>구간 시상</b>과 <b>시즌 종합왕</b>은 <b>리그 23팀 전체</b>와 겨뤄서 뽑는다. 우리 팀끼리가 아니다.
+     트로피를 누르면 남의 팀 선수까지 포함된 후보 순위가 나온다.
+     감독상·팀 공헌상만 팀 내부 상이다.
+     우리 팀 안에서 누가 제일 잘했는지는 <b>구단</b> 탭의 통산 1위에서 본다.<br><br>
+     <b>통산</b> 탭은 <b>연도별</b>과 <b>통산 합계</b>로 나뉜다.
+     연도별은 그 해 전적·성적·수상을 그대로 보여주고, 합계는 몇 년치를 다 더한 값이다.<br><br>
      <b>소리</b> — 상단 <b>🔊</b> 를 누르면 로비 BGM 을 끄고 켠다.
      한 번 끄면 다음에 열어도 꺼진 채로 열린다. 음량은 <b>더보기 → 사운드</b>에서 조절한다.
      경기 화면에서는 저절로 작아진다.<br><br>
@@ -9748,7 +9863,8 @@ function renderKakao(){
     const nm=p?p.name:'?';
     const mine=isMe(m.who);
     const w=el('div','kmsg'+(mine?' mine':'')+(m.type==='notice'?' notice':'')+(m.type==='record'?' record':''));
-    w.innerHTML=`${(mine||m.type==='notice'||m.type==='record')?'':`<div class="kname">${nm}</div>`}<div class="kbub ${m.mood||''}">${String(m.text).replace(/\n/g,'<br>')}</div>`;
+    w.innerHTML=`${(mine||m.type==='notice'||m.type==='record')?''
+      :`<div class="kname">${p?nmLink(p.id,nm):nm}</div>`}<div class="kbub ${m.mood||''}">${String(m.text).replace(/\n/g,'<br>')}</div>`;
     room.appendChild(w);
   });
   c.appendChild(room);
@@ -9852,6 +9968,8 @@ function renderGame(){
       applyDHRule(); saveGame(true);
       c.appendChild(el('div','warn',
         bad.map(x=>nameOf(x.id)).join(', ')+'이(가) 빠져서 라인업을 자동으로 채웠다.'));
+      c.lastChild.innerHTML=bad.map(x=>nmLink(x.id,nameOf(x.id))).join(', ')
+        +'이(가) 빠져서 라인업을 자동으로 채웠다.';
     } else {
       c.appendChild(el('div','warn',
         `출전 가능 인원이 ${avail}명뿐이다. 9명을 못 채우면 몰수패(0:7)다. 용병을 부르면 채울 수 있다.`));
@@ -9896,14 +10014,14 @@ function renderGame(){
   const fx=resolveStarterField();
   if(fx&&fx.filled)
     c.appendChild(el('div','warn',
-      `${nameOf(fx.starter)}이(가) 마운드에 올라가서 ${POSNAMES[fx.pos]}는 ${nameOf(fx.filled)}이(가) 본다.`
+      `${nmLink(fx.starter,nameOf(fx.starter))}이(가) 마운드에 올라가서 ${POSNAMES[fx.pos]}는 ${nmLink(fx.filled,nameOf(fx.filled))}이(가) 본다.`
       +(fx.dhLost?' 채울 사람이 없어서 오늘은 지명타자 없이 간다.':'')));
   else if(fx&&fx.dhLost)
     c.appendChild(el('div','warn',
-      `벤치에 사람이 모자라서 오늘은 지명타자를 못 쓴다. ${nameOf(fx.starter)}이(가) 타순에도 든다.`));
+      `벤치에 사람이 모자라서 오늘은 지명타자를 못 쓴다. ${nmLink(fx.starter,nameOf(fx.starter))}이(가) 타순에도 든다.`));
   else if(fx&&fx.swapped)
     c.appendChild(el('div','warn',
-      `${nameOf(fx.swapped)}은(는) 이미 야수로 나가 있어서 선발을 ${nameOf(fx.starter)}(으)로 바꿨다.`));
+      `${nmLink(fx.swapped,nameOf(fx.swapped))}은(는) 이미 야수로 나가 있어서 선발을 ${nmLink(fx.starter,nameOf(fx.starter))}(으)로 바꿨다.`));
   const sp=TBYID['wwzw'].pitchers.find(x=>x.id===gameRotation()[0])
     ||TBYID['wwzw'].pitchers.find(x=>x.id===ST.rotation[0]);
   const rr=(ST.rest&&sp)?ST.rest[sp.id]:3;
@@ -10498,8 +10616,11 @@ function showResult(){
   if(res.assists||res.dpCount){
     const ex=el('div','card');
     ex.appendChild(el('div','card-h','수비 하이라이트'));
-    if(res.assists) ex.appendChild(el('div','res-row',
-      `${nameOf(res.assistBy)} 홈 보살 ${res.assists}개 — 3루 주자를 잡아냈다`));
+    if(res.assists){
+      const ar2=el('div','res-row');
+      ar2.innerHTML=`${nmLink(res.assistBy,nameOf(res.assistBy))} 홈 보살 ${res.assists}개 — 3루 주자를 잡아냈다`;
+      ex.appendChild(ar2);
+    }
     if(res.dpCount){
       const syn=dpBonus((next.homeGame?LIVE.home:LIVE.away).slots).syn;
       ex.appendChild(el('div','res-row',
@@ -10939,7 +11060,7 @@ function renderTrain(){
   const frow=el('div','focus-row');
   if(tgt){
     const room=effPA(tgt)-effCA(tgt);
-    frow.innerHTML=`<div class="fo-l"><b>${nameOf(tgt)}</b>
+    frow.innerHTML=`<div class="fo-l"><b>${nmLink(tgt,nameOf(tgt))}</b>
       <span>${trainAttends(tgt)?'훈련 참석 · 집중 성장 ×2.2':'이번 주 불참 — 집중 효과 없음'}</span></div>
       <div class="fo-r">성장 여지 +${room.toFixed(1)}</div>`;
     if(!trainAttends(tgt))frow.classList.add('miss');
@@ -11038,7 +11159,9 @@ function renderTrain(){
   ls.lastChild.innerHTML=`레슨비 <b>${LESSON_COST}만원</b>. 사설 아카데미는 원래 비싸다.<br>`+
     `다음 경기 후 그 선수에게 변화가 생길 확률이 크게 오른다.<br>현재 운영비 <b>${ST.budget.toFixed(0)}만원</b>`;
   if(ST.lessonBoost){
-    ls.appendChild(el('div','warn',`${nameOf(ST.lessonTarget||'')} 레슨 진행 중 — 다음 경기 후 결과가 나온다`));
+    const lw=el('div','warn');
+    lw.innerHTML=`${nmLink(ST.lessonTarget||'',nameOf(ST.lessonTarget||''))} 레슨 진행 중 — 다음 경기 후 결과가 나온다`;
+    ls.appendChild(lw);
   } else {
     const lb=el('button','btn','레슨 보낼 선수 고르기');
     lb.onclick=()=>{
@@ -11074,7 +11197,7 @@ function renderTrain(){
   us.players.slice().sort((a,b)=>(effPA(b.id)-effCA(b.id))-(effPA(a.id)-effCA(a.id))).forEach(p=>{
     const ca=effCA(p.id),pa=effPA(p.id);
     const row=el('div','grow-row');
-    row.innerHTML=`<span class="gn">${p.name}</span>
+    row.innerHTML=`<span class="gn">${nmLink(p.id,p.name)}</span>
       <div class="gbar"><u style="width:${pa/80*100}%"></u><i style="width:${ca/80*100}%"></i></div>
       <span class="gv">+${(pa-ca).toFixed(1)}</span>`;
     gr.appendChild(row);
@@ -11700,6 +11823,8 @@ function renderStats(){
 
 /* ---------- 통산 기록 ---------- */
 let recTab='real';
+let carTab='total';      // 통산 하위탭 — total(총합) / year(연도별)
+let carYear=null;        // 연도별에서 보고 있는 시즌
 function renderRecords(){
   const c=$('#view'); c.innerHTML='';
   const tabs=el('div','subtabs');
@@ -11780,10 +11905,12 @@ function renderRecords(){
 
     const fp=el('div','card');
     fp.appendChild(el('div','card-h','구단 1호 기록 · 개인'));
+    const byNm={}; TBYID['wwzw'].players.forEach(p=>byNm[p.name]=p.id);
+    const lnk=nm=>byNm[nm]?nmLink(byNm[nm],nm):nm;
     Object.entries(REAL_FIRSTS_PLAYER).forEach(([k,v])=>{
       const r=el('div','first-row');
       r.innerHTML=`<div class="fr-k">${k.replace('1호','')}</div>
-        <div class="fr-v"><b>${v.player}</b>${v.result?` · ${v.result}`:''}</div>
+        <div class="fr-v"><b>${lnk(v.player)}</b>${v.result?` · ${v.result}`:''}</div>
         <div class="fr-d">${v.date||''}${v.inning?' · '+v.inning+'회':''}${v.game?' · '+v.game+'차전':''}</div>
         ${v.note?`<div class="fr-n">${v.note}</div>`:''}`;
       fp.appendChild(r);
@@ -11875,7 +12002,111 @@ function renderRecords(){
 
   /* ── 통산 ── */
   if(recTab==='career'){
+    /* 통산은 두 갈래다 — 시즌별로 끊어 보는 것과, 몇 년치를 다 합친 것.
+       둘을 섞어 놓으면 "이건 올해 것인가 통산인가"가 헷갈린다. */
+    const log=(ST.seasonLog||[]).slice().sort((a,b)=>b.season-a.season);
+    const sub=el('div','subtabs sub2');
+    [['total','통산 합계'],['year','연도별']].forEach(([k,n])=>{
+      const b=el('button','subtab'+(carTab===k?' on':''),n);
+      b.onclick=()=>{carTab=k;renderRecords();}; sub.appendChild(b);
+    });
+    c.appendChild(sub);
+
+    if(carTab==='year'){
+      /* ---- 연도별 ---- */
+      const cur={season:ST.seasonNo||1, year:ST.year||2026, live:true};
+      const years=[cur].concat(log.filter(x=>x.season!==cur.season));
+      if(carYear==null) carYear=cur.season;
+      const pick=el('div','yr-pick');
+      years.forEach(y=>{
+        const b=el('button','yr'+(carYear===y.season?' on':''));
+        b.innerHTML=`${y.year}<em>${y.season}년차${y.live?' · 진행 중':''}</em>`;
+        b.onclick=()=>{carYear=y.season;renderRecords();};
+        pick.appendChild(b);
+      });
+      c.appendChild(pick);
+
+      const sel=years.find(y=>y.season===carYear)||cur;
+      const live=!!sel.live;
+      const src=live?null:log.find(x=>x.season===sel.season);
+      if(!live && !src){ c.appendChild(el('div','card','그 시즌 기록이 없다.')); return; }
+
+      const stx=live?(ST.stand['wwzw']||{w:0,l:0,t:0,g:0,rf:0,ra:0}):src.rec;
+      const head=el('div','card');
+      head.innerHTML=`<div class="card-h">${sel.year} · ${sel.season}년차${live?' (진행 중)':''}</div>`;
+      const g3=el('div','tc-grid');
+      [[`${stx.w}승 ${stx.l}패${stx.t?` ${stx.t}무`:''}`,'전적'],[stx.g||0,'경기'],
+       [stx.rf||0,'득점'],[stx.ra||0,'실점'],
+       [live?((typeof leagueRank==='function')?leagueRank('wwzw'):'-')+'위':((src.rank||'-')+'위'),'리그 순위'],
+       [live?((ST.playoff&&ST.playoff.place)||'-'):(src.place||'-'),'플레이오프']]
+        .forEach(([v,k])=>{const b=el('div','tc');b.innerHTML=`<b>${v}</b><span>${k}</span>`;g3.appendChild(b);});
+      head.appendChild(g3);
+      c.appendChild(head);
+
+      const bat=live
+        ? TBYID['wwzw'].players.map(p=>({id:p.id,name:p.name,b:ST.bat[p.id]||blankBat()}))
+        : Object.keys(src.bat||{}).map(id=>({id,name:src.bat[id].name||nameOf(id),b:src.bat[id]}));
+      const bc=el('div','card'); bc.appendChild(el('div','card-h','타격'));
+      const bt=el('table','box wide');
+      bt.innerHTML='<tr><th>선수</th><th>G</th><th>타수</th><th>안타</th><th>2B</th><th>HR</th><th>타점</th><th>득점</th><th>도루</th><th>타율</th><th>OPS</th></tr>';
+      let anyB=false;
+      bat.filter(x=>x.b&&(x.b.pa||x.b.g)).sort((x,y)=>ops(y.b)-ops(x.b)).forEach(x=>{
+        anyB=true;
+        const tr=el('tr',isMe(x.id)?'me':'');
+        tr.innerHTML=`<td class="nm">${nmLink(x.id,x.name)}</td><td>${x.b.g}</td><td>${x.b.ab}</td><td>${x.b.h}</td>`+
+          `<td>${x.b.d2}</td><td>${x.b.hr}</td><td>${x.b.rbi}</td><td>${x.b.r}</td><td>${x.b.sb}</td>`+
+          `<td>${x.b.ab?fmt3(avg(x.b)):'—'}</td><td>${x.b.pa?ops(x.b).toFixed(3):'—'}</td>`;
+        bt.appendChild(tr);
+      });
+      bc.appendChild(bt);
+      if(!anyB) bc.appendChild(el('p','muted','기록이 없다.'));
+      c.appendChild(bc);
+
+      const pitL=live
+        ? TBYID['wwzw'].pitchers.map(p=>({id:p.id,name:p.name,s:ST.pit[p.id]||blankPit()}))
+        : Object.keys(src.pit||{}).map(id=>({id,name:src.pit[id].name||nameOf(id),s:src.pit[id]}));
+      const pc2=el('div','card'); pc2.appendChild(el('div','card-h','투구'));
+      const pt2=el('table','box wide');
+      pt2.innerHTML='<tr><th>투수</th><th>G</th><th>승</th><th>패</th><th>이닝</th><th>피안타</th><th>자책</th><th>삼진</th><th>ERA</th></tr>';
+      let anyP=false;
+      pitL.filter(x=>x.s&&x.s.outs).sort((x,y)=>y.s.outs-x.s.outs).forEach(x=>{
+        anyP=true;
+        const tr=el('tr',isMe(x.id)?'me':'');
+        tr.innerHTML=`<td class="nm">${nmLink(x.id,x.name)}</td><td>${x.s.g}</td><td>${x.s.w||0}</td><td>${x.s.l||0}</td>`+
+          `<td>${ipStr(x.s)}</td><td>${x.s.h}</td><td>${x.s.er}</td><td>${x.s.k}</td><td>${era(x.s).toFixed(2)}</td>`;
+        pt2.appendChild(tr);
+      });
+      pc2.appendChild(pt2);
+      if(!anyP) pc2.appendChild(el('p','muted','등판 기록이 없다.'));
+      c.appendChild(pc2);
+
+      const aw=live?(ST.hall||[]).filter(h=>h.season===sel.season):(src.awards||[]);
+      const ac=el('div','card'); ac.appendChild(el('div','card-h','그 해 수상'));
+      if(aw.length){
+        aw.forEach(a=>{
+          const r=el('div','award');
+          r.innerHTML=`<span class="aw-l">${a.kind==='king'?'👑 ':''}${a.label}</span>`+
+            `<span class="aw-n">${a.name}</span><span class="aw-v">${a.value||''}</span>`;
+          ac.appendChild(r);
+        });
+      } else ac.appendChild(el('p','muted','받은 상이 없다.'));
+      c.appendChild(ac);
+      if(!log.length) c.appendChild(el('p','muted',
+        '지난 시즌 기록은 시즌을 넘길 때부터 쌓인다. 지금은 진행 중인 시즌만 볼 수 있다.'));
+      return;
+    }
+
+    /* ---- 통산 합계 ---- */
     const CR=id=>ST.career[id]||blankCareer();
+    if(log.length){
+      const sm=el('div','card');
+      sm.appendChild(el('div','card-h','합산 범위'));
+      sm.appendChild(el('p','muted',
+        `${log.length+1}개 시즌(${log.length?log[log.length-1].year:(ST.year||2026)}~${ST.year||2026})을 전부 합친 값이다. `+
+        `시즌 하나만 보려면 위 <b>연도별</b>을 눌러라.`));
+      sm.lastChild.innerHTML=sm.lastChild.textContent.replace('연도별','<b>연도별</b>');
+      c.appendChild(sm);
+    }
     const card=el('div','card'); card.appendChild(el('div','card-h','개인 통산 · 타격'));
     card.appendChild(el('p','muted','헤더를 누르면 정렬이 바뀐다. 같은 헤더를 다시 누르면 오름차순.'));
     const t=el('table','box wide');
@@ -12028,7 +12259,8 @@ function renderRecords(){
       const v=fk[k];
       const r=el('div','first-row');
       r.innerHTML=`<div class="fr-k">${k.replace('1호','')}</div>
-        <div class="fr-v"><b>${v.player}</b></div>
+        <div class="fr-v"><b>${(function(){const id=(TBYID['wwzw'].players.find(x=>x.name===v.player)||{}).id;
+          return id?nmLink(id,v.player):v.player;})()}</b></div>
         <div class="fr-d">${v.date||''}${v.game?` · 통산 ${v.game}경기째`:''}</div>`;
       f1.appendChild(r);
     });
@@ -12654,6 +12886,13 @@ async function boot(){
   $$('.tab').forEach(b=>b.onclick=()=>go(b.dataset.v));
   $('#sheet-close').onclick=closeSheet;
   $('#sheet-bg').onclick=closeSheet;
+  /* 선수 이름 클릭 — #view 에 한 번만 걸어두면 어느 화면이든 동작한다.
+     표마다 wireNames() 를 부르던 것도 그대로 둔다 (그쪽이 먼저 잡고
+     stopPropagation 하므로 두 번 열리지 않는다). */
+  $('#view').addEventListener('click', ev=>{
+    const t=ev.target.closest('.nml'); if(!t) return;
+    const pid=t.getAttribute('data-pid'); if(pid) openPlayerCard(pid);
+  });
   /* 소리 — 브라우저 정책상 사용자가 한 번 건드려야 난다 */
   paintSndBtn();
   const sb=$('#sndbtn'); if(sb) sb.onclick=(e)=>{ e.stopPropagation(); toggleSound(); };
