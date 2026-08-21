@@ -3883,8 +3883,8 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.5.0';
-const APP_VERSION_NOTE = '내 선수 성장 속도 하향 · 켜두기만 하면 안 크게';
+const APP_VERSION = '1.5.1';
+const APP_VERSION_NOTE = '지명타자를 켜도 투수가 타석에 서던 버그 수정';
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
   const a=String(v||'0.0.0').split('.').map(x=>parseInt(x,10)||0);
@@ -7793,7 +7793,14 @@ function renderLineup(){
   head.appendChild(br2);
   c.appendChild(head);
 
-  resolveStarterField();          // 투수와 야수가 겹치면 여기서 정리한다
+  const lfx=resolveStarterField();   // 투수와 야수가 겹치면 여기서 정리한다
+  if(lfx&&lfx.benched)
+    c.appendChild(el('div','warn',
+      `${nameOf(lfx.benched)}은(는) 오늘 선발이라 타순에서 뺐다. `+
+      `${POSNAMES[lfx.pos]} 자리는 ${nameOf(lfx.filled)}이(가) 들어갔다.`));
+  else if(lfx&&lfx.dhLost)
+    c.appendChild(el('div','warn',
+      `벤치에 사람이 모자라서 오늘은 지명타자를 못 쓴다. ${nameOf(lfx.starter)}이(가) 타순에도 든다.`));
   if(ST.lineupDirty){
     const w=el('div','warn');
     const bad=ST.lineup.filter(x=>!isAvailable(x.id)).map(x=>nameOf(x.id));
@@ -7960,8 +7967,44 @@ function resolveStarterField(){
   if(i<0) return null;                        // 타순 밖 — 정상
   const pos=ST.lineup[i].pos;
   if(pos==='P') return null;                  // 이미 투수 자리
-  if(pos==='DH'){ ST.lineup[i].pos='P'; return {starter:sp,filled:null,from:'DH'}; }
+  const bench=()=>t.players.filter(q=>isAvailable(q.id)&&!ST.lineup.some(x=>x.id===q.id));
+  const otherP=()=>{
+    const alt=rot.find(id=>id!==sp && !ST.lineup.some(x=>x.id===id));
+    if(!alt) return null;
+    ST.rotation=[alt].concat((ST.rotation||[]).filter(x=>x!==alt));
+    return {starter:alt, swapped:sp};
+  };
 
+  /* [버그 이력] 지명타자를 켜놨는데도 투수가 타석에 섰다.
+     송승민처럼 포수 겸 에이스인 선수가 선발이면 여기서 그 사람을 P 로 바꾸고
+     지명타자 자리를 헐어 그 포지션을 메웠다. 결과적으로 라인업 화면을 한 번
+     여는 것만으로 지타가 사라지고 투수가 9번 타순에 들어갔다.
+     지명타자를 쓰는 동안에는 선발 투수를 아예 타순 밖으로 빼고,
+     그 타순은 벤치에서 채워서 '타자 9명 + 타순 밖 투수' 를 지킨다.        */
+  if(ST.useDH){
+    const pool=bench();
+    // 지타 자리였다면 수비 부담이 없으니 제일 잘 치는 사람으로 채운다
+    const rep = pos==='DH'
+      ? pool.slice().sort((a,b)=>effCA(b.id)-effCA(a.id))[0]
+      : pool.filter(q=>posFit(q.id,pos)>0).sort((a,b)=>posFit(b.id,pos)-posFit(a.id,pos))[0];
+    if(rep){
+      ST.lineup[i]={id:rep.id, pos};
+      return {starter:sp, filled:rep.id, pos, from:'bench', benched:sp};
+    }
+    // 벤치에 메울 사람이 없다 — 다른 투수를 세워서라도 지타를 지킨다
+    const sw=otherP(); if(sw) return sw;
+    // 그것도 안 되면 어쩔 수 없이 지타를 포기하고 투수가 타순에 든다
+    const dh=ST.lineup.findIndex(s=>s.pos==='DH');
+    if(dh>=0 && dh!==i && posFit(ST.lineup[dh].id,pos)>0){
+      ST.lineup[dh].pos=pos; ST.lineup[i].pos='P';
+      return {starter:sp, filled:ST.lineup[dh].id, pos, from:'DH', dhLost:true};
+    }
+    ST.lineup[i].pos='P';
+    return {starter:sp, filled:null, pos, from:'none', dhLost:true};
+  }
+
+  /* 지명타자 미사용 — 투수도 타순에 서야 한다 */
+  if(pos==='DH'){ ST.lineup[i].pos='P'; return {starter:sp,filled:null,from:'DH'}; }
   // 1) 지명타자가 그 자리를 볼 수 있으면 지타가 나간다
   const dh=ST.lineup.findIndex(s=>s.pos==='DH');
   if(dh>=0 && posFit(ST.lineup[dh].id,pos)>0){
@@ -7969,8 +8012,7 @@ function resolveStarterField(){
     return {starter:sp, filled:ST.lineup[dh].id, pos, from:'DH'};
   }
   // 2) 벤치에서 그 자리를 볼 수 있는 사람을 올린다 (지타 자리와 맞바꾼다)
-  const bench=t.players.filter(q=>isAvailable(q.id)&&!ST.lineup.some(x=>x.id===q.id));
-  const rep=bench.filter(q=>posFit(q.id,pos)>0).sort((a,b)=>posFit(b.id,pos)-posFit(a.id,pos))[0];
+  const rep=bench().filter(q=>posFit(q.id,pos)>0).sort((a,b)=>posFit(b.id,pos)-posFit(a.id,pos))[0];
   if(rep && dh>=0){
     const outId=ST.lineup[dh].id;
     ST.lineup[dh].id=rep.id; ST.lineup[dh].pos=pos; ST.lineup[i].pos='P';
@@ -7982,11 +8024,7 @@ function resolveStarterField(){
     return {starter:sp, filled:null, pos, from:'none'};
   }
   // 3) 아무도 못 메우면 다른 투수를 선발로 세운다
-  const alt=rot.find(id=>id!==sp && !ST.lineup.some(x=>x.id===id));
-  if(alt){
-    ST.rotation=[alt].concat((ST.rotation||[]).filter(x=>x!==alt));
-    return {starter:alt, swapped:sp};
-  }
+  const sw=otherP(); if(sw) return sw;
   ST.lineup[i].pos='P';
   return {starter:sp, filled:null, pos, from:'none'};
 }
@@ -8641,7 +8679,11 @@ function renderGame(){
   const fx=resolveStarterField();
   if(fx&&fx.filled)
     c.appendChild(el('div','warn',
-      `${nameOf(fx.starter)}이(가) 마운드에 올라가서 ${POSNAMES[fx.pos]}는 ${nameOf(fx.filled)}이(가) 본다.`));
+      `${nameOf(fx.starter)}이(가) 마운드에 올라가서 ${POSNAMES[fx.pos]}는 ${nameOf(fx.filled)}이(가) 본다.`
+      +(fx.dhLost?' 채울 사람이 없어서 오늘은 지명타자 없이 간다.':'')));
+  else if(fx&&fx.dhLost)
+    c.appendChild(el('div','warn',
+      `벤치에 사람이 모자라서 오늘은 지명타자를 못 쓴다. ${nameOf(fx.starter)}이(가) 타순에도 든다.`));
   else if(fx&&fx.swapped)
     c.appendChild(el('div','warn',
       `${nameOf(fx.swapped)}은(는) 이미 야수로 나가 있어서 선발을 ${nameOf(fx.starter)}(으)로 바꿨다.`));
