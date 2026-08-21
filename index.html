@@ -537,6 +537,34 @@ table.stand td.nm{text-align:left;font-weight:700;font-size:12px}
 .savestat{font-size:11px;color:var(--blue);background:var(--panel2);border:1px solid var(--line);
   border-radius:9px;padding:8px 10px;margin:8px 0}
 .savestat.bad{color:#ffb4a8;border-color:#7a3b34}
+/* 버전 안내 모달 */
+#vernote{position:fixed;inset:0;z-index:160;pointer-events:none}
+#vernote.on{pointer-events:auto}
+.vn-bg{position:absolute;inset:0;background:rgba(0,0,0,.66);opacity:0;transition:opacity .22s}
+#vernote.on .vn-bg{opacity:1}
+.vn-panel{position:absolute;left:12px;right:12px;bottom:12px;max-width:520px;margin:0 auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  max-height:86vh;overflow-y:auto;transform:translateY(20px);opacity:0;
+  transition:transform .26s cubic-bezier(.3,.8,.3,1),opacity .2s;
+  -webkit-overflow-scrolling:touch}
+#vernote.on .vn-panel{transform:translateY(0);opacity:1}
+.vn-top{display:flex;gap:11px;align-items:center;padding:14px 14px 10px}
+.vn-pic{width:64px;height:64px;flex:none;border-radius:12px;overflow:hidden;background:var(--panel2)}
+.vn-pic img{width:100%;height:100%;object-fit:contain;display:block}
+.vn-nm{font-size:12px;font-weight:800;color:var(--gold)}
+.vn-nm span{font-size:9.5px;color:var(--dim);font-weight:400;margin-left:5px}
+.vn-say p{margin:4px 0 0;font-size:13px;line-height:1.55}
+.vn-body{padding:0 14px 4px}
+.vn-t{font-size:15px;font-weight:800;margin-bottom:8px}
+.vn-lead{font-size:12.5px;color:var(--dim);line-height:1.7;margin:0 0 10px}
+.vn-list{border-top:1px solid var(--line);padding-top:10px}
+.vn-v{font-size:12.5px;font-weight:700;margin-top:9px}
+.vn-v b{color:var(--gold);margin-right:5px}
+.vn-ul{margin:5px 0 0;padding-left:17px}
+.vn-ul li{font-size:11.5px;color:var(--dim);line-height:1.75}
+.vn-act{display:flex;gap:8px;padding:12px 14px 16px}
+.vn-act .btn{flex:1;margin:0}
+@media(max-width:360px){ .vn-pic{width:52px;height:52px} }
 #updbar{position:fixed;left:0;right:0;bottom:0;z-index:150;max-width:560px;margin:0 auto;
   background:var(--gold);color:#14181e;font-size:12.5px;font-weight:700;
   padding:11px 14px calc(11px + env(safe-area-inset-bottom));
@@ -1772,6 +1800,13 @@ function posTrainCap(pid, pos){
   return base>0 ? Math.min(70, base+25) : 30;
 }
 /* 실제 적용되는 적합도 = 타고난 값 + 훈련으로 올린 값 */
+/* [버그 이력] v2.1.2 에서 '안 쓰는 함수 정리'를 하다가 앞 주석을 지우는
+   범위가 넘쳐서 이 함수까지 같이 지워졌다. 참조는 세 군데나 남아 있어서
+   포지션 훈련을 한 선수가 있으면 선수단 화면이 통째로 터졌다.
+   그 뒤로 자동 삭제는 안 한다 — 지우기 전에 참조 수를 다시 센다.   */
+function posTrained(pid,pos){
+  return (typeof ST!=='undefined'&&ST&&ST.posTrain&&ST.posTrain[pid])?(ST.posTrain[pid][pos]||0):0;
+}
 function posFit(pid, pos){
   const base=basePosFit(pid,pos);
   const cap=posTrainCap(pid,pos);
@@ -5350,6 +5385,79 @@ const BGM=(function(){
   };
 })();
 
+/* ================= 버전 안내 =================
+   그냥 토스트로 흘리면 아무도 안 본다. 안내역이 나와서 말해주고,
+   닫기 전까지 남아 있게 한다.
+   두 가지 경우가 있다 —
+   (A) 이미 새 판으로 올라온 상태 → 무엇이 바뀌었는지 알려준다
+   (B) 서버에 더 새 판이 있다      → 받으라고 알려준다              */
+function guidePic(who){
+  const g=(typeof GUIDES!=='undefined')?GUIDES[who]:null;
+  return g&&g.img ? `<img src="${g.img}" alt="${g.name}">` : '';
+}
+function closeVerNote(){
+  const m=document.getElementById('vernote');
+  if(m){ m.classList.remove('on'); setTimeout(()=>m.remove(),220); }
+}
+function showVerNote(mode, opt){
+  opt=opt||{};
+  const old=document.getElementById('vernote'); if(old)old.remove();
+  const who = mode==='new' ? 'jiwoo' : 'ian';
+  const g=(typeof GUIDES!=='undefined')?GUIDES[who]:{name:'안내',tag:''};
+  const wrap=document.createElement('div');
+  wrap.id='vernote';
+
+  let title, say, body, actions;
+  if(mode==='new'){
+    title=`새 버전 v${opt.latest} 이 나왔어요`;
+    say='업데이트가 올라왔어요. 지금 받으실래요?';
+    body=`<p class="vn-lead">지금 쓰는 건 <b>v${APP_VERSION}</b> 이고, 올라온 건 <b>v${opt.latest}</b> 예요.<br>
+      받아도 <b>기록은 그대로</b> 남아요.</p>`;
+    const list=changesBetween(APP_VERSION, opt.latest);
+    if(list.length){
+      body+='<div class="vn-list">'+list.map(c=>
+        `<div class="vn-v"><b>v${c.v}</b> ${c.t}</div>`).join('')+'</div>';
+    }
+    actions=[['지금 받기','primary',()=>{ closeVerNote(); hardReload(); }],
+             ['나중에','',()=>closeVerNote()]];
+  } else {
+    const list=changesBetween(opt.prev, APP_VERSION);
+    title=`v${APP_VERSION} 로 업데이트됐어요`;
+    say=list.length?'이번에 이런 게 바뀌었어요.':'새 판으로 올라왔어요.';
+    body=`<p class="vn-lead">v${opt.prev||'?'} → <b>v${APP_VERSION}</b><br>
+      기록은 그대로예요. 아무것도 안 지워졌어요.</p>`;
+    if(list.length){
+      body+='<div class="vn-list">'+list.map(c=>
+        `<div class="vn-v"><b>v${c.v}</b> ${c.t}</div>`+
+        '<ul class="vn-ul">'+c.items.map(x=>`<li>${x}</li>`).join('')+'</ul>').join('')+'</div>';
+    } else {
+      body+=`<p class="vn-lead">${APP_VERSION_NOTE}</p>`;
+    }
+    actions=[['확인했어요','primary',()=>closeVerNote()],
+             ['튜토리얼 다시 보기','',()=>{ closeVerNote();
+               if(ST){ST.tutStep=0;} go('tutorial'); }]];
+  }
+
+  wrap.innerHTML=`<div class="vn-bg"></div>
+    <div class="vn-panel">
+      <div class="vn-top">
+        <div class="vn-pic">${guidePic(who)}</div>
+        <div class="vn-say"><div class="vn-nm">${g?g.name:''}<span>${g?g.tag:''}</span></div>
+          <p>${say}</p></div>
+      </div>
+      <div class="vn-body"><div class="vn-t">${title}</div>${body}</div>
+      <div class="vn-act"></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const act=wrap.querySelector('.vn-act');
+  actions.forEach(([label,cls,fn])=>{
+    const b=el('button','btn'+(cls?' '+cls:''),label);
+    b.onclick=fn; act.appendChild(b);
+  });
+  wrap.querySelector('.vn-bg').onclick=closeVerNote;
+  requestAnimationFrame(()=>wrap.classList.add('on'));
+}
+
 /* 상단 스피커 버튼 */
 function paintSndBtn(){
   const b=document.getElementById('sndbtn'); if(!b) return;
@@ -5371,8 +5479,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.5.0';
-const APP_VERSION_NOTE = '답변이 상황마다 달라진다 · 감독 액션 상시 · 물통 차다 다칠 수 있음';
+const APP_VERSION = '2.6.0';
+const APP_VERSION_NOTE = '튜토리얼 새로 쓰고, 업데이트되면 안내역이 알려준다';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -5388,6 +5496,53 @@ function browserTag(){
   if(/SM-|Galaxy/.test(u)) parts.push('갤럭시');
   if(window.matchMedia && matchMedia('(display-mode: standalone)').matches) parts.push('홈화면앱');
   return parts.length?parts.join(' · '):'알 수 없음';
+}
+/* ================= 버전별 변경 내역 =================
+   업그레이드되면 이안·지우가 나와서 무엇이 바뀌었는지 알려준다.
+   새 버전을 올릴 때 여기 한 줄 추가하는 걸 잊지 마라.        */
+const CHANGELOG=[
+  {v:'2.6.0', t:'튜토리얼 새로 쓰고, 업데이트 안내가 생겼다', items:[
+    '튜토리얼이 그동안 늘어난 기능까지 전부 담았다',
+    '새 버전이 올라오면 이 화면이 뜬다',
+  ]},
+  {v:'2.5.0', t:'단톡방 답변이 상황마다 달라진다', items:[
+    '경기 후 답변이 그날 있었던 일에 따라 바뀐다 — 실책이 많으면 수비 훈련, 잔루가 많으면 타격 훈련',
+    '직접 지휘 중에는 ⚡ 감독 액션 버튼이 계속 떠 있다',
+    '물통을 차면 3% 확률로 본인 발을 다친다',
+    '회식이 이야기처럼 흘러간다 — 2차를 가면 컨디션이 더 빠진다',
+  ]},
+  {v:'2.4.0', t:'단톡방 대사가 두 배로 늘었다', items:[
+    '같은 말을 연달아 안 하게 했다',
+    '상대가 강팀인지, 어느 구장인지, 무엇으로 졌는지에 따라 다른 말이 나온다',
+    '야구랑 상관없는 잡담도 생겼다',
+  ]},
+  {v:'2.3.0', t:'상은 리그 전체와 겨뤄서 준다', items:[
+    '구간 시상과 시즌 종합왕이 23팀 전원 기준으로 바뀌었다',
+    '통산 기록이 연도별과 총합으로 나뉜다',
+    '어느 화면이든 선수 이름을 누르면 카드가 열린다',
+  ]},
+  {v:'2.1.0', t:'기록 표를 정렬할 수 있다', items:[
+    '헤더를 누르면 정렬, 다시 누르면 오름차순',
+    '기록실 구단 탭에 통산 부문별 1위가 생겼다',
+    '대기화면에 이안·지우가 나온다',
+  ]},
+  {v:'2.0.0', t:'로비 BGM 이 생겼다', items:[
+    '상단 스피커로 끄고 켠다. 한 번 끄면 계속 꺼진 채로 열린다',
+    '음량은 더보기 → 사운드에서 조절한다',
+  ]},
+  {v:'1.8.0', t:'진기록과 수상 근거', items:[
+    '사이클링 히트·노히트 노런 같은 진기록 16종이 영구 보관된다',
+    '전시장에서 트로피를 누르면 무슨 기준으로 받았는지 나온다',
+  ]},
+  {v:'1.6.0', t:'경기 후 전 타자 기록', items:[
+    '대타로 교체돼도 선발 기록이 그대로 남는다',
+    '상대 팀 박스스코어도 같이 나온다',
+  ]},
+];
+/* 두 버전 사이에 바뀐 것들을 모은다 */
+function changesBetween(from, to){
+  const a=verNum(from||'0.0.0'), b=verNum(to);
+  return CHANGELOG.filter(c=>verNum(c.v)>a && verNum(c.v)<=b);
 }
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
@@ -5416,7 +5571,9 @@ function checkVersion(){
     ST.notices.push({type:'update',title:`업데이트 v${APP_VERSION}`,
       body:`${prev} 에서 올라왔다. ${APP_VERSION_NOTE}`,
       effect:'기록은 그대로다'});
-    setTimeout(()=>toast(`v${APP_VERSION} 로 업데이트됨`),1200);
+    /* 토스트는 흘러가서 아무도 안 본다. 안내역이 나와서 알려준다. */
+    setTimeout(()=>{ try{ showVerNote('done',{prev}); }catch(e){
+      toast(`v${APP_VERSION} 로 업데이트됨`); } },900);
   }
   if(ST) ST.appVer=APP_VERSION;
   return fresh;
@@ -10362,35 +10519,63 @@ const TUTORIAL=[
      바로 캐리하면 금방 질리니까 일부러 느리게 잡았다.<br><br>
      투자 현황은 <b>내 선수 프로필 → 성장 투자</b>에서 볼 수 있다.
      집중 훈련 대상으로 걸어두면 열린 잠재치를 제일 빨리 채운다.`},
+ {who:'jiwoo', say:'화면 보는 법을 알려드릴게요. 이거 모르면 반은 못 쓰는 거예요.',
+  t:'화면 보는 법',
+  b:`<b>선수 이름은 어디서든 누를 수 있다</b> — 홈 화면의 부상·불만 목록이든,
+     경기 결과 박스스코어든, 리그 순위표든, 단톡방 발신자 이름이든.
+     누르면 능력치·올 시즌 기록·오늘 성적이 카드로 뜬다. <b>상대 팀 선수도 된다</b>.<br><br>
+     <b>표 헤더를 누르면 정렬된다</b> — 기록실의 우리 타격·우리 투수·리그 순위,
+     그리고 통산 표까지. 한 번 누르면 내림차순, 같은 헤더를 다시 누르면 오름차순이다.
+     기록이 없는 사람은 항상 맨 아래로 간다.<br><br>
+     <b>경기 결과</b>에는 선발 아래에 그날 들어간 대타·교체가 같은 타순으로 붙는다.
+     양 팀 타자·투수 기록이 전부 나온다.`},
+ {who:'ian', say:'평생 한 번 볼까 말까 한 기록들이 있어요.',
+  t:'진기록',
+  b:`사이클링 히트, 노히트 노런, 퍼펙트게임, 만루홈런, 끝내기, 완봉승…
+     <b>16종</b>을 지켜보고 있다가 나오면 그날 단톡방이 뒤집어진다.<br><br>
+     한 번 나온 기록은 <b>기록실 → 진기록</b>과 <b>전시장</b>에 영구 보관된다.
+     시즌을 넘겨도 안 지워진다. 구단 최초로 나온 건 따로 표시된다.<br><br>
+     아직 안 나온 기록도 조건과 희귀도(★)를 같이 보여준다. 뭘 노려야 하는지 보라는 뜻이다.`},
+ {who:'jiwoo', say:'상이 어떻게 정해지는지 헷갈리실 것 같아서요.',
+  t:'상은 리그 전체와 겨룬다',
+  b:`5경기마다 <b>구간 시상</b>이 있고, 시즌이 끝나면 <b>시상식</b>과 <b>종합왕</b>이 있다.<br><br>
+     이건 우리 팀끼리 뽑는 게 아니다. <b>리그 23팀 전원</b>과 겨룬다.
+     그래서 우리 이름이 하나도 없는 구간도 흔하다. 대신 하나 따면 진짜 딴 거다.<br><br>
+     <b>감독상</b>과 <b>팀 공헌상</b>만 팀 내부 상이다.
+     우리 팀 안에서 누가 제일 잘했는지는 <b>기록실 → 구단</b>의 통산 1위에서 본다.<br><br>
+     전시장에서 <b>트로피를 누르면</b> 무슨 기준으로, 누구를 제치고 받았는지
+     후보 순위가 나온다. 남의 팀 선수까지 같이 나온다.`},
+ {who:'ian', say:'경기 중에 감독이 할 수 있는 게 있어요.',
+  t:'감독 액션 — 물통은 조심해라',
+  b:`<b>직접 지휘</b>로 경기를 보면 화면 아래 <b>⚡ 감독 액션</b> 버튼이 계속 있다.
+     경기당 3번 쓸 수 있다.<br><br>
+     <b>물통 차기</b> — 지고 있을 때 62%, 이기고 있으면 25%로 분위기가 바뀐다.
+     이기고 있을 때 화를 내면 오히려 위축된다.<br><br>
+     <b>박수</b>는 무난하게 사기가 오르고, <b>심판 어필</b>은 40% 유리 / 20% 경고다.<br><br>
+     한 가지 — 물통을 차면 <b>3% 확률로 본인 발을 다친다</b>.
+     감독은 당신이 고른 선수다. 다치면 그 자리에서 교체되고 다음 경기도 못 나간다.
+     그리고 단톡방에서 놀림받는다.`},
+ {who:'jiwoo', say:'소리랑 통산 기록도 짚고 갈게요.',
+  t:'소리와 통산',
+  b:`<b>소리</b> — 상단 <b>🔊</b> 를 누르면 로비 BGM 을 끄고 켠다.
+     한 번 끄면 다음에 열어도 꺼진 채로 열린다. 음량은 <b>더보기 → 사운드</b>.
+     경기 화면에서는 중계에 안 묻히게 저절로 작아진다.<br><br>
+     아이폰에서 소리가 안 나면 옆면 <b>벨/무음 스위치</b>부터 확인해라. 그것 때문인 경우가 많다.<br><br>
+     <b>통산</b> — 기록실 통산 탭은 <b>연도별</b>과 <b>통산 합계</b>로 나뉜다.
+     연도별은 그 해 전적·성적·수상을 그대로 보여주고, 합계는 몇 년치를 다 더한 값이다.<br><br>
+     <b>구단</b> 탭에는 통산 부문별 1위(최다 안타·홈런·탈삼진…)와 진기록,
+     이 구단이 처음 낸 1호 기록이 모여 있다.`},
  {who:'ian', say:'마지막으로 알아두면 좋은 것들이에요.',
   t:'그 밖에',
   b:`<b>선수 프로필</b> — 선수단에서 선수를 누르면 능력치·가능 포지션·훈련 방향·성격이
      한 장에 뜬다. 능력치 옆의 흐린 칸이 잠재치다.<br><br>
      <b>플레이타임</b> — 홈과 설정에 누적 시간이 뜬다. 탭을 뒤로 보내면 안 센다.<br><br>
-     <b>기록실</b> — 리그 전체 타격·투수 순위를 볼 수 있다. 우리 팀이 몇 등인지 확인해라.
-     표 <b>헤더를 누르면 정렬</b>이 바뀌고, 같은 헤더를 다시 누르면 오름차순이 된다.<br><br>
-     <b>구단</b> 탭에는 통산 부문별 1위(최다 안타·홈런·탈삼진…)와 진기록이 모여 있다.
-     시즌을 넘겨도 계속 쌓인다.<br><br>
-     <b>감독 액션</b> — 직접 지휘로 경기를 보면 화면 아래 <b>⚡ 감독 액션</b> 버튼이 계속 있다.
-     물통 차기·박수·심판 어필. 경기당 3번.
-     물통은 지고 있을 때 잘 먹히는데, <b>3% 확률로 본인 발을 다친다</b>. 다치면 그 자리에서 빠진다.<br><br>
-     <b>구간 시상</b>과 <b>시즌 종합왕</b>은 <b>리그 23팀 전체</b>와 겨뤄서 뽑는다. 우리 팀끼리가 아니다.
-     트로피를 누르면 남의 팀 선수까지 포함된 후보 순위가 나온다.
-     감독상·팀 공헌상만 팀 내부 상이다.
-     우리 팀 안에서 누가 제일 잘했는지는 <b>구단</b> 탭의 통산 1위에서 본다.<br><br>
-     <b>통산</b> 탭은 <b>연도별</b>과 <b>통산 합계</b>로 나뉜다.
-     연도별은 그 해 전적·성적·수상을 그대로 보여주고, 합계는 몇 년치를 다 더한 값이다.<br><br>
-     <b>소리</b> — 상단 <b>🔊</b> 를 누르면 로비 BGM 을 끄고 켠다.
-     한 번 끄면 다음에 열어도 꺼진 채로 열린다. 음량은 <b>더보기 → 사운드</b>에서 조절한다.
-     경기 화면에서는 저절로 작아진다.<br><br>
-     <b>진기록</b> — 사이클링 히트·노히트 노런·만루홈런 같은 게 나오면
-     기록실 <b>진기록</b> 탭과 전시장에 영구 보관된다. 아직 안 나온 목록도 같이 뜬다.<br><br>
-     <b>수상 근거</b> — 전시장에서 트로피를 누르면 무슨 기준으로,
-     누구를 제치고 받았는지 후보 순위까지 나온다. 기록이 같으면 공동 수상이다.<br><br>
-     <b>선수 이름은 누를 수 있다</b> — 경기 결과 박스스코어든 리그 순위표든,
-     이름을 누르면 그 선수의 능력치·올 시즌 기록이 카드로 뜬다. 상대 팀 선수도 된다.<br><br>
-     <b>경기 결과</b> — 선발 타자 아래에 그날 들어간 대타·교체가 같은 타순으로 들여쓰여 붙는다.
-     양 팀 타자·투수 기록이 전부 나온다.<br><br>
+     <b>단톡방</b> — 경기 전후로 답이 몇 개 뜬다. 그날 무슨 일이 있었느냐에 따라
+     선택지가 바뀐다. 실책이 많은 날엔 수비 훈련 얘기가, 부상자가 나온 날엔
+     챙기자는 얘기가 뜬다. 고른 답에 따라 사기와 다음 경기가 달라진다.<br><br>
+     <b>버전</b> — 새 판이 올라오면 이안이나 지우가 나와서 알려준다.
+     받아도 기록은 그대로다. 지금 버전은 상단 배지에서 볼 수 있다.<br><br>
+
      <b>통산</b> — 시즌을 넘겨도 남는 개인 통산 기록과 마일스톤이 쌓인다.`},
  {who:'jiwoo', say:'마지막으로 하나만 짚고 갈게요. 중요해요.',
   t:'이 게임에 대해',
@@ -13236,6 +13421,9 @@ function renderMore(){
   const hb=el('button','btn','캐시 지우고 새로 받기');
   hb.onclick=hardReload;
   vc.appendChild(hb);
+  const nb2=el('button','btn','이번 버전에 뭐가 바뀌었나');
+  nb2.onclick=()=>showVerNote('done',{prev:(CHANGELOG[1]||{}).v||APP_VERSION});
+  vc.appendChild(nb2);
   c.appendChild(vc);
 
   /* 환경 정보 — "내 폰에서만 안 된다"는 제보를 받았을 때
@@ -13637,13 +13825,19 @@ async function checkForUpdate(manual){
     if(manual)toast(`v${APP_VERSION} — 이미 최신이다`);
     return false;
   }
-  if(!document.getElementById('updbar')){
-    const bar=document.createElement('div');
-    bar.id='updbar';
-    bar.innerHTML=`<b>새 버전 v${r.latest}</b> 이 나왔다. 지금 쓰는 건 v${APP_VERSION} 이다.
-      <button id="updgo">새로 받기</button>`;
-    document.body.appendChild(bar);
-    document.getElementById('updgo').onclick=hardReload;
+  if(!document.getElementById('vernote')){
+    try{ showVerNote('new',{latest:r.latest}); }
+    catch(e){
+      /* 안내역 사진이 아직 없거나 뭔가 어긋나면 예전 방식으로라도 알린다 */
+      if(!document.getElementById('updbar')){
+        const bar=document.createElement('div');
+        bar.id='updbar';
+        bar.innerHTML=`<b>새 버전 v${r.latest}</b> 이 나왔다. 지금 쓰는 건 v${APP_VERSION} 이다.
+          <button id="updgo">새로 받기</button>`;
+        document.body.appendChild(bar);
+        document.getElementById('updgo').onclick=hardReload;
+      }
+    }
   }
   return true;
 }
