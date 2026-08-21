@@ -1,0 +1,6 @@
+node_modules/
+package-lock.json
+
+# 미리보기용으로 만든 임시 산출물 (index.html 에서 뽑아 쓰는 것들)
+bgm-preview.html
+loading-preview.html
