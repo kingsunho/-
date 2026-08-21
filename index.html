@@ -221,6 +221,17 @@ button{font-family:inherit;cursor:pointer}
 .yr em{display:block;font-style:normal;font-size:9.5px;color:var(--dim);font-weight:400;margin-top:2px}
 .yr.on{border-color:var(--gold);background:rgba(201,162,39,.12);color:var(--gold)}
 .yr.on em{color:var(--gold);opacity:.8}
+.dec-b .recl{display:inline-block;font-style:normal;font-size:11px;color:var(--gold);margin-top:3px}
+.dec-b .recl.dim{color:var(--dim)}
+.pst{font-style:normal;font-size:10.5px;border-radius:4px;padding:1px 5px}
+.pst.ok{background:rgba(95,211,156,.16);color:#5fd39c}
+.pst.mid{background:rgba(201,162,39,.16);color:var(--gold)}
+.pst.bad{background:rgba(210,84,74,.18);color:#e0796f}
+.dec-note{grid-column:1/-1;font-size:10.5px;color:var(--dim);padding:4px 2px 0}
+.pcs-val{font-size:20px;font-weight:900;color:var(--gold);letter-spacing:-.02em}
+.pk-info{font-style:normal;font-size:9.5px;color:var(--gold);border:1px solid rgba(201,162,39,.4);
+  border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+.dec-b .nml{border-bottom:1px dotted var(--dim);cursor:pointer}
 .dimtxt{color:var(--dim);font-weight:400}
 .diag{background:var(--panel2);border-radius:8px;padding:4px 10px;margin-top:6px}
 .diag .ot-r{border-bottom:1px solid var(--line)}
@@ -1027,9 +1038,16 @@ function makeRng(seed){
    엔진 상수 BABIP 와 측정 BABIP 는 값이 다르다.                        */
 const LG = {
   K: 0.1518, BB: 0.1540, HBP: 0.035, BABIP: 0.4802,
-  H1: 0.741, H2: 0.163, H3: 0.075, HR: 0.009,
+  H1: 0.741, H2: 0.163, H3: 0.075, HR: 0.0035,
   SB_PER_PA: 0.240, SB_SUCCESS: 0.90,
   ERR_PER_BIP: 0.075,
+  /* 그라운드 홈런 — 4부 사회인야구에서 홈런은 대부분 이쪽이다.
+     담장을 넘기는 힘보다, 외야가 공을 놓치고 우왕좌왕하는 사이 다리로 도는 것.
+     실제 2026시즌 팀 유일 홈런도 '좌측 그라운드(인정) 홈런' 이었고
+     담장을 넘어간 타구는 시즌 내내 0개였다.
+     3루타가 될 타구에서만 굴리고, 발이 느리면 아예 안 된다.        */
+  ITP_BASE: 0.40,        // 3루타 중 이만큼이 그라운드 홈런으로 넘어간다(기준 주력)
+  ITP_MIN_SPD: 50,       // 이보다 느리면 3루에서 멈춘다
 };
 
 /* ---------- 우완좌완 실제 선수 ---------- */
@@ -1382,7 +1400,17 @@ function simPA(bat,pit,offTeam,defTeam,rng,tac,cond,park,mods){
   if(tot>0.85){const s=0.85/tot;p2*=s;p3*=s;phr*=s;}
   const rr=rng();
   if(rr<phr) return {type:'HR'};
-  if(rr<phr+p3) return {type:'3B'};
+  if(rr<phr+p3){
+    /* 3루타 타구 — 발이 빠르고 상대 외야가 어리바리하면 그대로 홈까지 돈다.
+       기록지에는 홈런으로 남지만 담장은 안 넘었다.                    */
+    if(spdE>=LG.ITP_MIN_SPD){
+      const fast=(spdE-LG.ITP_MIN_SPD)/20;                 // 주력이 빠를수록
+      const sloppy=Math.exp(-((defTeam._slotDef!=null?defTeam._slotDef:defTeam.mean.def)-46)*0.020);
+      const chance=clamp(LG.ITP_BASE*(0.5+fast)*sloppy*(park.d3||1), 0, 0.55);
+      if(rng()<chance) return {type:'HR', itp:true};
+    }
+    return {type:'3B'};
+  }
   if(rr<phr+p3+p2) return {type:'2B'};
   return {type:'1B'};
 }
@@ -1534,7 +1562,9 @@ function simGame(home,away,opts){
             log.push({t:'play',inning:inn,half,text:`${bat.name} 3루타`,cls:'hit'});}
           else{bl.hr++;let c=1;for(let b=0;b<3;b++)if(bases[b]){score(bases[b],true);c++;bases[b]=null;}
             score(bat.id,true);bl.rbi+=c;
-            log.push({t:'play',inning:inn,half,text:`${bat.name} 홈런! ${c}점`,cls:'hr'});}}
+            if(res.itp) box[bat.id].itp=(box[bat.id].itp||0)+1;
+            log.push({t:'play',inning:inn,half,
+              text:res.itp?`${bat.name} 그라운드 홈런! ${c}점`:`${bat.name} 홈런! ${c}점`,cls:'hr'});}}
 
         if(half===1&&inn>=INN&&S[1].runs>S[0].runs){over=true;break;}
       }
@@ -2340,6 +2370,7 @@ const FEAT_INFO = {
   '퍼펙트게임'   :{icon:'💎',rare:5,d:'완투하면서 한 명도 1루를 밟게 하지 않았다'},
   '노히트 노런'  :{icon:'🚫',rare:5,d:'완투 무피안타 무실점'},
   '만루홈런'     :{icon:'💣',rare:3,d:'주자 만루에서 넘겼다'},
+  '그라운드 홈런':{icon:'🏃',rare:2,d:'담장은 안 넘었는데 발로 홈까지 돌았다'},
   '완봉승'       :{icon:'🛡️',rare:4,d:'완투하고 한 점도 안 줬다'},
   '무사사구 완투':{icon:'🎯',rare:4,d:'완투하면서 볼넷·사구를 하나도 안 줬다'},
   '두 자릿수 탈삼진':{icon:'🔥',rare:3,d:'한 경기 10탈삼진 이상'},
@@ -4370,6 +4401,24 @@ const REACT_PRE_EXTRA={
     ['이 날씨에 야구하는 우리가 대단하다','이 날씨에 야구하는 우리가 대단합니다'],
     ['그늘에 좀 있다 나가겠다','그늘에 좀 있다 나가겠습니다']],
 };
+/* 그라운드 홈런 — 축하는 하는데 그냥 두지는 않는다 */
+const ITP_TEASE=[
+  ['넘어가지도 않았는데 홈런이냐고 ㅋㅋㅋ','넘어가지도 않았는데 홈런인가요 ㅋㅋㅋ'],
+  ['외야가 공 찾는 동안 다 돌았다','외야가 공 찾는 동안 다 도셨네요'],
+  ['기록지에는 홈런이라고 적힌다 ㅋㅋ','기록지에는 홈런이라고 적힙니다 ㅋㅋ'],
+  ['담장 한 번 넘겨보자 진짜','담장 한 번 넘겨보시죠 진짜'],
+  ['이건 홈런이 아니라 육상이다','이건 홈런이 아니라 육상입니다'],
+  ['상대 외야수한테 감사 인사해라','상대 외야수분께 감사 인사하셔야죠'],
+  ['그래도 홈런은 홈런이지','그래도 홈런은 홈런이죠'],
+  ['영상 보면 다들 웃을 거다','영상 보시면 다들 웃으실 겁니다'],
+];
+const ITP_REPLY=[
+  ['홈런은 홈런이다','홈런은 홈런입니다'],
+  ['다리도 실력이다','다리도 실력입니다'],
+  ['기록지 확인해봐라','기록지 확인해보세요'],
+  ['넘기는 건 다음에 하겠다','넘기는 건 다음에 하겠습니다'],
+  ['숨차서 죽는 줄 알았다','숨차서 죽는 줄 알았습니다'],
+];
 /* 물통 차다 본인이 다쳤을 때 */
 const BOTTLE_TEASE=[
   ['물통이 이겼네 ㅋㅋㅋ','물통이 이겼네요 ㅋㅋㅋ'],
@@ -4595,6 +4644,15 @@ function postFlavor(ST,res,usSide,thSide,uSlots,msgs){
   if(teamBB>=8 && rng()<0.6) speak(anyone(), pickFresh(POST_MANY_BB,'MANY_BB',rng), 'flat');
   const teamH=usSide.hits||0;
   if(teamH>=8 && usSide.runs<=4 && rng()<0.7) speak(anyone(), pickFresh(POST_LOB,'LOB',rng), 'sad');
+
+  /* 15-b. 그라운드 홈런 — 축하하면서 놀린다 */
+  uSlots.forEach(sl=>{
+    const b=res.box&&res.box[sl.id];
+    if(!b||!b.itp)return;
+    const tz=anyone(sl.id);
+    if(tz) speak(tz, pickFresh(ITP_TEASE,'ITP_TEASE',rng), 'happy');
+    if(rng()<0.75) speak(sl.id, pickFresh(ITP_REPLY,'ITP_REPLY',rng), 'happy');
+  });
 
   /* 16. 잡담 — 경기랑 상관없는 소리. 이게 있어야 단톡방 같다 */
   const chat=1+((rng()*2)|0);
@@ -5503,8 +5561,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.7.0';
-const APP_VERSION_NOTE = '승리·패전투수를 야구 규칙대로 · 회비 스폰서 금액 누락 수정';
+const APP_VERSION = '2.9.0';
+const APP_VERSION_NOTE = '직접 지휘 판단 근거 · 그라운드 홈런 · 인원 부족 대응 · 라인업 버그 수정';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -5525,6 +5583,20 @@ function browserTag(){
    업그레이드되면 이안·지우가 나와서 무엇이 바뀌었는지 알려준다.
    새 버전을 올릴 때 여기 한 줄 추가하는 걸 잊지 마라.        */
 const CHANGELOG=[
+  {v:'2.9.0', t:'직접 지휘가 편해지고, 그라운드 홈런이 생겼다', items:[
+    '판단창에 타자의 오늘 타수·안타와 시즌 성적이 나온다',
+    '마운드 투수가 몇 이닝 몇 실점인지, 지금 흔들리는지 알려준다',
+    '상대 타자가 몇 번 타자인지, 능력치와 오늘 성적이 어떤지 나온다 — 거를지 정할 수 있게',
+    '판단창에서 이름을 누르면 선수 카드가 열린다. 상대 선수도 된다',
+    '주자가 없으면 도루·번트 지시를 아예 안 띄운다',
+    '담장 넘기는 홈런은 확 줄이고 그라운드 홈런이 생겼다 — 4부는 원래 이쪽이다',
+    '그라운드 홈런은 발 빠른 사람만 된다. 나오면 단톡방에서 놀림받는다',
+    '스카우트에 상대 팀 투수가 안 뜨던 걸 고쳤다. 선수 카드에 몸값도 나온다',
+    '인원이 모자랄 때 라인업 화면에서 바로 사정하거나 용병을 부를 수 있다',
+    '사정하기는 성공 20% · 잘하는 사람부터 · 부상자는 못 부른다',
+    '사람이 돌아오면 라인업이 통째로 다시 짜여 지명타자가 멋대로 바뀌던 걸 고쳤다',
+    '자동 라인업이 설 수 없는 자리에 사람을 세우던 걸 고쳤다',
+  ]},
   {v:'2.7.0', t:'승리·패전투수가 제대로 정해진다', items:[
     '9실점하고 내려간 선발 대신 마무리가 패전투수가 되던 걸 고쳤다',
     '이긴 팀이 끝까지 지킨 리드를 잡은 순간(결승점) 기준으로 승·패를 준다',
@@ -7219,11 +7291,17 @@ LiveGame.prototype.stepPA = function(){
       this.hl('d3',off,bat.name,'');}
     else{bl.hr++;let c=1;for(let b=0;b<3;b++)if(this.bases[b]){score(this.bases[b],true);c++;this.bases[b]=null;}
       score(bat.id,true);bl.rbi+=c;
-      const slam=(c===4);
-      events.push({text:slam?`${bat.name} 만루홈런!! 4점`:`${bat.name} 홈런! ${c}점`,cls:'hr'});
-      this.hl('hr',off,bat.name,slam?'만루홈런':(c>1?`${c}점 홈런`:'솔로 홈런'));
+      const slam=(c===4), itp=!!res.itp;
+      bl.itp=(bl.itp||0)+(itp?1:0);
+      events.push({text: itp
+          ? `${bat.name} 그라운드 홈런!! ${c}점 (담장은 안 넘었다)`
+          : (slam?`${bat.name} 만루홈런!! 4점`:`${bat.name} 홈런! ${c}점`),cls:'hr'});
+      this.hl('hr',off,bat.name,
+        itp?(slam?'만루 그라운드 홈런':'그라운드 홈런'):(slam?'만루홈런':(c>1?`${c}점 홈런`:'솔로 홈런')));
       if(slam) this.feats.push({kind:'만루홈런',pid:bat.id,us:!!off.isUser,
-        detail:`${this.inning}회 ${this.half===0?'초':'말'}`});}
+        detail:`${this.inning}회 ${this.half===0?'초':'말'}${itp?' · 그라운드':''}`});
+      if(itp) this.feats.push({kind:'그라운드 홈런',pid:bat.id,us:!!off.isUser,
+        detail:`${this.inning}회 ${this.half===0?'초':'말'} · 발로 돌았다`});}
   }
 
   off.order++;
@@ -7890,13 +7968,33 @@ function recommendLineup(){
   const sc=p=>p.con*1.1+p.pow*0.9+p.eye*0.7+p.spd*0.5+(ST&&ST.cond?(ST.cond[p.id]-70)*0.25:0);
   const sorted=use.slice().sort((a,b)=>sc(b)-sc(a));
   const used=new Set(); const slots=[];
-  const c=sorted.find(p=>p.pos.includes('C'));
+  /* [버그 이력] 예전에는 로스터의 pos 배열만 보고, 없으면 남는 자리에 아무나
+     꽂았다. 그래서 포수를 못 보는 사람이 포수에, 외야 못 서는 사람이 우익에
+     서는 라인업이 나왔다. 실제로 수비가 무너지는데 이유를 알 수 없었다.
+     이제 posFit(설 수 있는가) 을 먼저 본다. 정 사람이 없을 때만 억지로 채운다. */
+  const fitAt=(id,pos)=>(typeof posFit==='function')?posFit(id,pos):1;
+  // 포수부터 — 여기가 제일 아무나 못 선다
+  const c=sorted.find(p=>fitAt(p.id,'C')>0) || sorted.find(p=>p.pos.includes('C'));
   if(c){slots.push({id:c.id,pos:'C'});used.add('C');}
   for(const p of sorted){
     if(slots.length>=9)break;
     if(slots.some(s=>s.id===p.id))continue;
-    const pos=p.pos.find(x=>x!=='P'&&!used.has(x))||ALLPOS.find(x=>!used.has(x));
-    if(!pos)break; used.add(pos); slots.push({id:p.id,pos});
+    const open=ALLPOS.filter(x=>x!=='P'&&!used.has(x));
+    // 설 수 있는 자리 중 제일 잘 보는 곳
+    let pos=open.filter(x=>fitAt(p.id,x)>0).sort((a,b)=>fitAt(p.id,b)-fitAt(p.id,a))[0];
+    if(!pos) pos=p.pos.find(x=>x!=='P'&&!used.has(x));
+    if(!pos) continue;                      // 설 자리가 없으면 이 사람은 건너뛴다
+    used.add(pos); slots.push({id:p.id,pos});
+  }
+  /* 그래도 9명이 안 차면(설 자리가 없어 건너뛴 사람들) 남은 자리를 억지로 채운다.
+     몰수패보다는 낫다. */
+  if(slots.length<9){
+    for(const p of sorted){
+      if(slots.length>=9)break;
+      if(slots.some(s=>s.id===p.id))continue;
+      const pos=ALLPOS.find(x=>x!=='P'&&!used.has(x));
+      if(!pos)break; used.add(pos); slots.push({id:p.id,pos});
+    }
   }
   const byId=id=>t.players.find(p=>p.id===id);
   const pool2=slots.slice(); const order=[];
@@ -8221,7 +8319,7 @@ function runWeek(){
   const rained=applyWeekEvents(ST,evs);
   // 결장자가 라인업에 있으면 자동 교체
   autoFixLineup();
-  ST.kakao=[]; ST.kakaoPost=[]; ST.partyDone=false; ST.weekDone=true;
+  ST.kakao=[]; ST.kakaoPost=[]; ST.partyDone=false; ST.weekDone=true; ST.begAsked={};
   ST.sentPre=false; ST.sentPost=false; ST.teamBuff=null; ST.canParty=false; ST.dropouts=[]; ST.lineupDirty=false;
   ST.announced=false;      // 라인업을 단톡방에 올려야 경기로 넘어간다
   const anId=TBYID['wwzw'].players.find(p=>META[p.id]&&META[p.id].traits.includes('분석가'));
@@ -8852,32 +8950,7 @@ function renderHome(){
     if(avail<9){
       card.appendChild(el('div','warn',
         `출전 가능 인원 ${avail}명. 9명이 안 되면 몰수패(0:7)다. 용병을 부르면 채울 수 있다.`));
-      const b0=el('button','btn','단톡방에 사정해본다');
-      b0.onclick=()=>{
-        const cands=us.players.filter(p=>ST.absent&&ST.absent[p.id]);
-        if(!cands.length){toast('부를 사람이 없다');return;}
-        const p=cands[(Math.random()*cands.length)|0];
-        if(Math.random()<0.45){
-          delete ST.absent[p.id];
-          ST.morale[p.id]=Math.max(10,ST.morale[p.id]-6);
-          ST.cond[p.id]=Math.max(25,ST.cond[p.id]-10);
-          ST.kakao=ST.kakao||[];
-          ST.kakao.push({who:p.id,text:say(p.id,'알겠다 늦게라도 갈게','알겠습니다 늦게라도 가겠습니다'),mood:'flat'});
-          ST.lineup=recommendLineup(); applyDHRule();
-          toast(`${p.name}이(가) 오기로 했다`);
-        } else {
-          ST.kakao=ST.kakao||[];
-          ST.kakao.push({who:p.id,text:say(p.id,'미안하다 진짜 안 된다','정말 죄송합니다 안 됩니다'),mood:'sad'});
-          toast(`${p.name} 못 온다고 한다`);
-        }
-        saveGame(true); go('home');
-      };
-      card.appendChild(b0);
-      const bm=el('button','btn','용병 부른다');
-      bm.onclick=()=>openMercSheet(()=>go('home'));
-      card.appendChild(bm);
-      const b=el('button','btn danger','몰수패 처리'); b.onclick=forfeit;
-      card.appendChild(b);
+      shortHandedButtons(card, 'home');
     } else {
       const b1=el('button','btn','라인업 · 카톡 발표'); b1.onclick=()=>go('lineup');
       const announced0=!!ST.announced;
@@ -9000,6 +9073,135 @@ function releaseMercs(refund){
   if(ST.trainTarget&&isMerc(ST.trainTarget))ST.trainTarget=null;
   finalizeTeam(us); buildPitcherPool(); applyDHRule();
   return n;
+}
+
+/* ================= 인원이 모자랄 때 =================
+   [제보] 라인업 화면에서 사람이 모자란 걸 봤는데, 부르려면 홈으로 돌아가야 했다.
+   그 자리에서 바로 되게 공용으로 뺐다.
+
+   단톡방에 사정하기 —
+   · 성공 확률 20%. 한 번 물어볼 때마다 한 명씩.
+   · 잘하는 사람부터(오버롤 순) 물어본다. 급하면 에이스부터 붙잡는 게 맞다.
+   · 부상자는 아예 안 부른다. 다쳐서 못 나오는 사람을 부를 수는 없다.
+   · 이미 물어본 사람은 다시 안 물어본다.                              */
+const BEG_YES=[
+  ['알겠다 늦게라도 갈게','알겠습니다 늦게라도 가겠습니다'],
+  ['어쩔 수 없지 준비하고 나간다','어쩔 수 없죠 준비하고 나가겠습니다'],
+  ['일정 미뤘다 간다','일정 미뤘습니다 가겠습니다'],
+  ['9명 안 되면 안 되지 갈게','9명 안 되면 안 되죠 가겠습니다'],
+  ['한 시간 늦게 도착한다 그래도 되냐','한 시간 늦게 도착합니다 그래도 될까요'],
+];
+const BEG_NO=[
+  ['미안하다 진짜 안 된다','정말 죄송합니다 안 됩니다'],
+  ['오늘은 진짜 못 뺀다 미안','오늘은 진짜 못 뺍니다 죄송합니다'],
+  ['가고 싶은데 상황이 안 된다','가고 싶은데 상황이 안 됩니다'],
+  ['다음 주엔 꼭 갈게','다음 주엔 꼭 가겠습니다'],
+];
+function begForPlayer(){
+  const us=TBYID['wwzw'];
+  ST.begAsked=ST.begAsked||{};
+  /* 부상자는 제외 — 다쳐서 못 나오는 사람이다.
+     개인 사정으로 빠진 사람만 부를 수 있다. */
+  const cands=us.players
+    .filter(p=>ST.absent&&ST.absent[p.id])
+    .filter(p=>!ST.injury||!ST.injury[p.id])
+    .filter(p=>!ST.begAsked[p.id])
+    .sort((a,b)=>effCA(b.id)-effCA(a.id));      // 잘하는 사람부터
+  if(!cands.length){
+    const hurt=us.players.filter(p=>ST.injury&&ST.injury[p.id]&&ST.absent&&ST.absent[p.id]).length;
+    return {ok:false, done:true,
+      msg: hurt ? '남은 건 부상자뿐이다. 부를 수 없다' : '더 물어볼 사람이 없다'};
+  }
+  const p=cands[0];
+  ST.begAsked[p.id]=true;
+  ST.kakao=ST.kakao||[];
+  ST.kakao.push({who:'lg',type:'notice',text:`${p.name}, 오늘 진짜 안 되겠나. 9명이 안 된다`});
+  if(Math.random()<0.20){
+    delete ST.absent[p.id];
+    ST.morale[p.id]=Math.max(10,(ST.morale[p.id]||70)-6);
+    ST.cond[p.id]=Math.max(25,(ST.cond[p.id]||70)-10);
+    ST.kakao.push({who:p.id,text:say(p.id,...pickFresh(BEG_YES,'BEG_YES')),mood:'flat'});
+    /* [버그 이력] 예전에는 recommendLineup() 으로 라인업을 통째로 다시 짰다.
+       그래서 한 명 돌아왔을 뿐인데 짜놓은 타순이 날아가고,
+       applyDHRule() 이 지명타자를 멋대로 켜고 끄고,
+       좌투처럼 설 수 없는 자리에 사람이 들어가기도 했다.
+       이제 라인업은 건드리지 않는다 — 빈자리가 있을 때만 조용히 메운다. */
+    fillEmptySlot(p.id);
+    return {ok:true, name:p.name, msg:`${p.name}이(가) 오기로 했다`};
+  }
+  ST.kakao.push({who:p.id,text:say(p.id,...pickFresh(BEG_NO,'BEG_NO')),mood:'sad'});
+  return {ok:false, name:p.name, msg:`${p.name} 못 온다고 한다`};
+}
+/* 돌아온 사람을 라인업에 끼워 넣는다 — 빈자리가 있을 때만.
+   기존 타순·포지션·지명타자 설정은 절대 건드리지 않는다.
+   설 수 있는 자리(posFit>0)만 준다. 없으면 그냥 벤치에 둔다.        */
+function fillEmptySlot(pid){
+  if(!Array.isArray(ST.lineup)) return false;
+  if(ST.lineup.some(s=>s.id===pid)) return false;          // 이미 들어 있다
+  // 못 나오는 사람이 차지하고 있는 자리를 먼저 본다
+  let idx=ST.lineup.findIndex(s=>!s.id||!isAvailable(s.id));
+  if(idx<0 && ST.lineup.length<9) idx=ST.lineup.length;    // 자리 자체가 모자라면 추가
+  if(idx<0) return false;                                   // 자리가 없으면 벤치로 둔다
+  const taken=ST.lineup.filter((_,i)=>i!==idx).map(s=>s.pos);
+  const want = idx<ST.lineup.length ? ST.lineup[idx].pos : null;
+  let pos = (want && posFit(pid,want)>0) ? want : null;     // 원래 그 자리를 볼 수 있으면 그대로
+  if(!pos){
+    const free=ALLPOS.filter(x=>x!=='DH'&&taken.indexOf(x)<0);
+    pos = free.find(x=>posFit(pid,x)>0) || null;
+  }
+  if(!pos && ST.useDH && taken.indexOf('DH')<0) pos='DH';   // DH 를 쓰는 중일 때만 DH 로
+  if(pos){
+    if(idx<ST.lineup.length) ST.lineup[idx]={id:pid,pos};
+    else ST.lineup.push({id:pid,pos});
+    return true;
+  }
+  /* 빈자리가 이 사람이 설 수 없는 포지션이면 한 번만 자리를 바꿔본다.
+     감독이라면 야수 하나를 그 자리로 옮기고 새 사람을 그 자리에 넣는다.
+     [제보] 예전에는 여기서 좌투 선수를 유격에 세우거나 하는 일이 있었다.
+     설 수 없는 자리에는 절대 안 넣는다 — 안 되면 벤치에 둔다.        */
+  if(idx<ST.lineup.length && want){
+    for(let j=0;j<ST.lineup.length;j++){
+      if(j===idx) continue;
+      const other=ST.lineup[j];
+      if(!other.id||!isAvailable(other.id)) continue;
+      if(other.pos==='P') continue;                         // 선발 투수 자리는 안 건드린다
+      if(posFit(other.id, want)>0 && posFit(pid, other.pos)>0){
+        ST.lineup[idx]={id:other.id, pos:want};
+        ST.lineup[j]={id:pid, pos:other.pos};
+        return true;
+      }
+    }
+  }
+  return false;                                             // 끝내 자리가 없으면 벤치
+}
+
+/* 인원 부족 대응 버튼 묶음. back 은 처리 후 돌아갈 화면. */
+function shortHandedButtons(host, back){
+  const us=TBYID['wwzw'];
+  ST.begAsked=ST.begAsked||{};
+  const left=us.players
+    .filter(p=>ST.absent&&ST.absent[p.id])
+    .filter(p=>!ST.injury||!ST.injury[p.id])
+    .filter(p=>!ST.begAsked[p.id]).length;
+
+  const b0=el('button','btn', left?`단톡방에 사정해본다 (${left}명 남음)`:'단톡방에 사정해본다');
+  if(!left) b0.disabled=true;
+  b0.onclick=()=>{
+    const r=begForPlayer();
+    toast(r.msg);
+    saveGame(true); go(back);
+  };
+  host.appendChild(b0);
+  host.appendChild(Object.assign(el('p','muted'),
+    {textContent:'성공 확률 20%. 잘하는 사람부터 물어본다. 부상자는 부를 수 없다.'}));
+
+  const bm=el('button','btn','용병 부른다');
+  bm.onclick=()=>openMercSheet(()=>go(back));
+  host.appendChild(bm);
+
+  const bf=el('button','btn danger','몰수패 처리');
+  bf.onclick=forfeit;
+  host.appendChild(bf);
 }
 
 /* 용병 섭외 시트 */
@@ -9585,6 +9787,25 @@ function openPlayerCard(pid){
   if(pitFirst){ addPitRating(); addBatRating(); }
   else { addBatRating(); addPitRating(); }
 
+  /* ---- 몸값 ---- 우리 팀은 실제 계산값, 남의 팀은 추정값 ---- */
+  {
+    let val=null, note='';
+    if(ours && p){
+      val=playerValue(p,META[pid],ST.bat[pid]);
+      note='실제 기록·나이·특성까지 넣은 값이다.';
+    } else if(p){
+      val=playerValue(p,null,(ST.lgBat&&ST.lgBat[pid])||blankBat())*1.5;
+      note='남의 팀이라 추정값이다. 데려오려면 이 정도는 든다.';
+    } else if(pit){
+      val=pitcherValue(pit)*1.5;
+      note='투수는 구위·제구·체력으로 매긴 추정값이다.';
+    }
+    if(val!=null){
+      add(otSec('몸값',
+        `<div class="pcs-val">${wonStr(val)}</div><p class="ot-note">${note}</p>`));
+    }
+  }
+
   /* ---- 상태 (우리 팀만) ---- */
   if(ours){
     const injv=ST&&ST.injury&&ST.injury[pid];
@@ -10076,6 +10297,19 @@ function renderLineup(){
   const d=Object.keys(dup).filter(k=>dup[k]>1);
   if(d.length)c.appendChild(el('div','warn',`포지션 중복: ${d.map(x=>POSNAMES[x]).join(', ')} — 수비가 약해진다`));
   if(ST.lineup.some(s=>!isAvailable(s.id)))c.appendChild(el('div','warn','출전 불가 선수가 라인업에 있다. 교체해야 경기를 시작할 수 있다.'));
+  /* [제보] 라인업에서 인원이 모자란 걸 보고도 부르려면 홈으로 가야 했다.
+     그 자리에서 바로 되게 한다. */
+  {
+    const availN=TBYID['wwzw'].players.filter(p=>isAvailable(p.id)).length;
+    if(availN<9){
+      const sc=el('div','card');
+      sc.appendChild(el('div','card-h','인원이 모자란다'));
+      sc.appendChild(Object.assign(el('p','muted'),
+        {textContent:`출전 가능 ${availN}명. 9명이 안 되면 몰수패(0:7)다.`}));
+      shortHandedButtons(sc, 'lineup');
+      c.appendChild(sc);
+    }
+  }
 
   const bench=t.players.filter(p=>!ST.lineup.some(s=>s.id===p.id));
   const bc=el('div','card');
@@ -10274,6 +10508,14 @@ function applyDHRule(){
   const sp=ST.rotation[0];
   const used=()=>ST.lineup.map(x=>x.pos);
   const freePos=(exclude)=>ALLPOS.concat(['P']).filter(x=>x!=='DH'&&!ST.lineup.some((s,i)=>i!==exclude&&s.pos===x));
+  /* [버그 이력] 자리를 재배치할 때 posFit 을 안 보고 남는 칸에 아무나 꽂았다.
+     그래서 포수를 못 보는 사람이 포수에 서는 라인업이 나왔다.
+     설 수 있는 자리 중 제일 잘 보는 곳을 고르고, 정 없으면 그때만 억지로 넣는다. */
+  const bestPos=(id,cands)=>{
+    if(!cands||!cands.length) return null;
+    const ok=cands.filter(x=>posFit(id,x)>0).sort((a,b)=>posFit(id,b)-posFit(id,a));
+    return ok[0] || cands.slice().sort((a,b)=>posFit(id,b)-posFit(id,a))[0];
+  };
 
   if(!ST.useDH){
     // 투수가 반드시 타순에 들어간다
@@ -10281,7 +10523,8 @@ function applyDHRule(){
     const spIdx=ST.lineup.findIndex(s=>s.id===sp);
     if(spIdx>=0){
       // 이미 라인업에 있으면 그 자리를 P로
-      if(pIdx>=0&&pIdx!==spIdx) ST.lineup[pIdx].pos=freePos(pIdx).find(x=>x!=='P')||'RF';
+      if(pIdx>=0&&pIdx!==spIdx)
+        ST.lineup[pIdx].pos=bestPos(ST.lineup[pIdx].id, freePos(pIdx).filter(x=>x!=='P'))||'RF';
       ST.lineup[spIdx].pos='P';
     } else {
       // DH 자리를 투수로 교체, 없으면 마지막 타순
@@ -10303,7 +10546,7 @@ function applyDHRule(){
         ST._starterMoved=who;         // 화면에서 안내 문구를 띄우기 위한 표시
       }
       const hasDH=ST.lineup.some(s=>s.pos==='DH');
-      ST.lineup[pIdx].pos = hasDH ? (freePos(pIdx).find(x=>posFit(who,x)>0)||'RF') : 'DH';
+      ST.lineup[pIdx].pos = hasDH ? (bestPos(who, freePos(pIdx).filter(x=>x!=='P'))||'RF') : 'DH';
     }
   }
   syncStarter();
@@ -10312,18 +10555,37 @@ function applyDHRule(){
     ST.lineup.forEach((s,i)=>{
       if(s.pos!=='DH')return;
       const cand=ALLPOS.filter(x=>x!=='DH'&&!ST.lineup.some((y,j)=>j!==i&&y.pos===x));
-      s.pos=cand.find(x=>posFit(s.id,x)>0)||cand[0]||'RF';
+      s.pos=bestPos(s.id,cand)||'RF';
     });
   }
+  /* 서로 자리를 바꾸면 둘 다 설 수 있게 되는 경우를 한 번 훑는다.
+     혼자서는 못 고치는 배치가 스왑 한 번으로 풀린다. */
+  const fixSwaps=()=>{
+    for(let a=0;a<ST.lineup.length;a++){
+      const A=ST.lineup[a];
+      if(!A||A.pos==='DH'||A.pos==='P'||posFit(A.id,A.pos)>0) continue;
+      for(let b=0;b<ST.lineup.length;b++){
+        if(a===b) continue;
+        const B=ST.lineup[b];
+        if(!B||B.pos==='DH'||B.pos==='P') continue;
+        if(posFit(A.id,B.pos)>0 && posFit(B.id,A.pos)>0){
+          const t=A.pos; A.pos=B.pos; B.pos=t; break;
+        }
+      }
+    }
+  };
+  fixSwaps();
+
   // 포지션 중복 정리
   const seen={};
   ST.lineup.forEach((s,i)=>{
     if(seen[s.pos]){
       const cand=ALLPOS.concat(ST.useDH?[]:['P']).filter(x=>!ST.lineup.some((y,j)=>j!==i&&y.pos===x));
-      s.pos = cand.find(x=>posFit(s.id,x)>0) || cand[0] || s.pos;
+      s.pos = bestPos(s.id,cand) || s.pos;
     }
     seen[s.pos]=true;
   });
+  fixSwaps();
 }
 
 function restLabel(pid){
@@ -10581,8 +10843,15 @@ const TUTORIAL=[
      전시장에서 <b>트로피를 누르면</b> 무슨 기준으로, 누구를 제치고 받았는지
      후보 순위가 나온다. 남의 팀 선수까지 같이 나온다.`},
  {who:'ian', say:'경기 중에 감독이 할 수 있는 게 있어요.',
-  t:'감독 액션 — 물통은 조심해라',
-  b:`<b>직접 지휘</b>로 경기를 보면 화면 아래 <b>⚡ 감독 액션</b> 버튼이 계속 있다.
+  t:'직접 지휘 — 판단할 근거와 감독 액션',
+  b:`판단창에는 그 타자의 <b>오늘 타수·안타</b>와 시즌 성적이 같이 나온다.
+     마운드에는 <b>몇 이닝 몇 실점</b>인지, 지금 흔들리는지가 표시된다.
+     대타 후보와 바꿀 투수의 기록도 붙는다. 그거 보고 정하면 된다.<br><br>
+     수비 중에는 <b>상대 타자가 몇 번 타자인지</b>, 컨택·파워·주루가 얼마인지,
+     오늘 몇 타수 몇 안타인지가 나온다. 거를지 말지는 그거 보고 정해라.
+     <b>이름을 누르면</b> 그 선수 카드가 열린다 — 상대 선수도 되고, 몸값도 같이 나온다.<br><br>
+     주자가 없으면 도루·번트 지시는 아예 안 뜬다. 쓸 수 없는 걸 띄워두지 않는다.<br><br>
+     <b>직접 지휘</b>로 경기를 보면 화면 아래 <b>⚡ 감독 액션</b> 버튼이 계속 있다.
      경기당 3번 쓸 수 있다.<br><br>
      <b>물통 차기</b> — 지고 있을 때 62%, 이기고 있으면 25%로 분위기가 바뀐다.
      이기고 있을 때 화를 내면 오히려 위축된다.<br><br>
@@ -11288,6 +11557,89 @@ function openMgrSheet(box){
 }
 
 /* '투수 교체' 상시 버튼 — 공격 중에도 미리 예고해 둘 수 있다 */
+/* ================= 오늘 기록 한 줄 =================
+   직접 지휘 중에는 "얘가 오늘 몇 타수 몇 안타인지" 를 모르면
+   대타를 쓸지 투수를 바꿀지 판단할 수가 없다. 판단이 필요한 자리마다 붙인다. */
+function todayBat(pid){
+  const b=(LIVE&&LIVE.box)?LIVE.box[pid]:null;
+  if(!b||!b.pa) return '오늘 첫 타석';
+  const hit=[];
+  if(b.hr)hit.push(`홈런 ${b.hr}`);
+  if(b.d3)hit.push(`3루타 ${b.d3}`);
+  if(b.d2)hit.push(`2루타 ${b.d2}`);
+  const extra=[];
+  if(b.rbi)extra.push(`${b.rbi}타점`);
+  if(b.bb+b.hbp)extra.push(`${b.bb+b.hbp}사사구`);
+  if(b.k)extra.push(`삼진 ${b.k}`);
+  if(b.sb)extra.push(`도루 ${b.sb}`);
+  return `오늘 ${b.ab}타수 ${b.h}안타`
+    + (hit.length?` (${hit.join(' ')})`:'')
+    + (extra.length?` · ${extra.join(' · ')}`:'');
+}
+/* 시즌 성적도 같이 — 오늘만 보면 표본이 너무 작다 */
+function seasonBat(pid){
+  const b=ST&&ST.bat?ST.bat[pid]:null;
+  if(!b||!b.pa) return '시즌 기록 없음';
+  return `시즌 ${fmt3(avg(b))} · OPS ${ops(b).toFixed(3)} · ${b.h}안타 ${b.rbi}타점`;
+}
+function todayPit(pid){
+  const l=(LIVE&&LIVE.pbox)?LIVE.pbox[pid]:null;
+  if(!l||!l.bf) return '오늘 등판 전';
+  const free=(l.bb||0)+(l.hbp||0);
+  return `${ipStr(l)}이닝 ${l.h}피안타 ${l.r}실점 ${l.er}자책 · ${free}사사구 ${l.k}삼진`
+    + ` · 상대 ${l.bf}타자` + (l.sbA?` · 도루 ${l.sbA}`:'');
+}
+/* 상대 타자 — 몇 번 타자인지, 어떤 유형인지, 오늘 어땠는지.
+   거를지 말지 정하려면 이게 있어야 한다. */
+function oppBatLine(pid, side){
+  const p=(side&&side.team.players||[]).find(x=>x.id===pid);
+  if(!p) return '';
+  const ord=(side.slots||[]).findIndex(x=>x.id===pid);
+  const parts=[];
+  if(ord>=0) parts.push(`${ord+1}번`);
+  parts.push(`컨택 ${Math.round(p.con)} · 파워 ${Math.round(p.pow)} · 주루 ${Math.round(p.spd)}`);
+  return parts.join(' · ');
+}
+function oppBatToday(pid){
+  const b=(LIVE&&LIVE.box)?LIVE.box[pid]:null;
+  if(!b||!b.pa) return '오늘 첫 타석';
+  const x=[];
+  if(b.hr)x.push(`홈런 ${b.hr}`);
+  if(b.d3)x.push(`3루타 ${b.d3}`);
+  if(b.d2)x.push(`2루타 ${b.d2}`);
+  if(b.bb+b.hbp)x.push(`${b.bb+b.hbp}사사구`);
+  if(b.k)x.push(`삼진 ${b.k}`);
+  return `오늘 ${b.ab}타수 ${b.h}안타` + (x.length?` (${x.join(' ')})`:'');
+}
+/* 위험도 — 거를 만한 타자인지 */
+function oppBatDanger(pid, side){
+  const p=(side&&side.team.players||[]).find(x=>x.id===pid);
+  if(!p) return {t:'',cls:''};
+  const b=(LIVE&&LIVE.box)?LIVE.box[pid]:null;
+  const hot = b && b.ab>=2 && b.h>=2;
+  const power = p.pow>=60;
+  const ops = (side.team.ops||0);
+  if(hot && power) return {t:'오늘 뜨겁고 장타력도 있다', cls:'bad'};
+  if(hot) return {t:'오늘 잘 맞고 있다', cls:'bad'};
+  if(power && ops>=1.05) return {t:'장타 조심', cls:'mid'};
+  if(b && b.ab>=2 && b.h===0) return {t:'오늘 안 맞는다', cls:'ok'};
+  return {t:'', cls:''};
+}
+/* 투수가 지금 흔들리는지 한마디로 */
+function pitState(pid){
+  const l=(LIVE&&LIVE.pbox)?LIVE.pbox[pid]:null;
+  if(!l||!l.bf) return {t:'', cls:''};
+  const ip=l.outs/3, free=(l.bb||0)+(l.hbp||0);
+  if(ip<1) return {t:'', cls:''};
+  const era7=(l.er*7)/Math.max(0.34,ip);
+  const fpi=free/Math.max(0.34,ip);          // 이닝당 사사구
+  if(fpi>=2.5) return {t:'사사구가 쏟아진다', cls:'bad'};
+  if(era7>=12) return {t:'많이 맞고 있다', cls:'bad'};
+  if(l.outs>=15) return {t:'많이 던졌다', cls:'mid'};
+  if(era7<=3 && fpi<=1) return {t:'좋다 — 더 가도 된다', cls:'ok'};
+  return {t:'', cls:''};
+}
+
 function pchangeBtn(box){
   const s=LIVE.userSide();
   if(s.pIdx>=s.rot.length-1) return null;
@@ -11295,7 +11647,10 @@ function pchangeBtn(box){
   const nxt=LIVE.curPitcherNext(s);
   const l=LIVE.pbox[cur.id]||{};
   const b=el('button','decb wide alt');
-  b.innerHTML=`<b>투수 교체 → ${nxt}</b><span>${cur.name} ${ipStr(l)}이닝 ${l.r||0}실점 ${l.bb||0}볼넷 · 작전 횟수 안 씀</span>`;
+  const st=pitState(cur.id);
+  b.innerHTML=`<b>투수 교체 → ${nxt}</b>`+
+    `<span>${cur.name} · ${todayPit(cur.id)}`+
+    `${st.t?` <i class="pst ${st.cls}">${st.t}</i>`:''}<br>작전 횟수 안 씀</span>`;
   b.onclick=()=>{ LIVE.applyDecision('pchange'); decDone(box); };
   return b;
 }
@@ -11303,6 +11658,7 @@ function pchangeBtn(box){
 function showDecision(d){
   const box=$('#decision'); if(!box)return;
   box.innerHTML=''; box.classList.add('on');
+  if(!box._nmWired){ wireNames(box); box._nmWired=true; }   // 이름 눌러 카드 열기
   const us=LIVE.userIsHome?LIVE.home:LIVE.away;
   const th=LIVE.userIsHome?LIVE.away:LIVE.home;
 
@@ -11313,9 +11669,18 @@ function showDecision(d){
     const bat=off.team.players.find(x=>x.id===slot.id);
     const bs=LIVE.bases.map((b,i)=>b?['1루','2루','3루'][i]:null).filter(Boolean).join('·')||'주자 없음';
     const diff=us.runs-th.runs;
+    const dp=LIVE.curPitcher(LIVE.def());
+    const dst=pitState(dp.id);
+    const dg=bat?oppBatDanger(bat.id,off):{t:'',cls:''};
     box.innerHTML=`<div class="dec-t">${d.label} · 남은 수비 판단 ${LIVE.defTimeouts}회</div>
       <div class="dec-b">${LIVE.inning}회 ${LIVE.outs}아웃 · ${bs} · ${diff>0?'+':''}${diff}점<br>
-        상대 타석 <b>${bat?bat.name:'—'}</b> · 마운드 <b>${LIVE.curPitcher(LIVE.def()).name}</b></div>`;
+        상대 타석 <b>${bat?nmLink(bat.id,bat.name):'—'}</b>
+        ${bat?`<br><i class="recl dim">${oppBatLine(bat.id,off)}</i>`:''}
+        ${bat?`<br><i class="recl">${oppBatToday(bat.id)}</i>`:''}
+        ${dg.t?`<br><i class="pst ${dg.cls}">${dg.t}</i>`:''}
+        <br><br>마운드 <b>${nmLink(dp.id,dp.name)}</b>
+        <br><i class="recl">${todayPit(dp.id)}</i>`+
+        `${dst.t?`<br><i class="pst ${dst.cls}">${dst.t}</i>`:''}</div>`;
     const g=el('div','dec-g');
     const pb=pchangeBtn(box); if(pb)g.appendChild(pb);
 
@@ -11344,8 +11709,25 @@ function showDecision(d){
   }
 
   if(d.kind==='pitcherChange'){
+    const sd=d.side||LIVE.userSide();
+    const curP=LIVE.curPitcher(sd);
+    const nxtId=(sd.rot||[])[Math.min(sd.pIdx+1,(sd.rot||[]).length-1)];
+    const nxtP=(sd.team.pitchers||[]).find(x=>x.id===nxtId);
+    const st=pitState(curP.id);
+    const restOf=id=>{
+      const r=(ST&&ST.rest)?ST.rest[id]:null;
+      return r==null?'':(r>=3?'푹 쉬었다':r===2?'하루 쉬었다':r===1?'피곤하다':'과부하');
+    };
     box.innerHTML=`<div class="dec-t">투수 교체 판단</div>
-      <div class="dec-b">${d.from}이(가) 한계다. ${d.to}(으)로 바꿀까?</div>`;
+      <div class="dec-b"><b>${nmLink(curP.id,curP.name)}</b> 이(가) 한계다.
+        <br><i class="recl">${todayPit(curP.id)}</i>
+        ${st.t?`<br><i class="pst ${st.cls}">${st.t}</i>`:''}
+        ${nxtP?`<br><br>바꾼다면 <b>${nmLink(nxtP.id,nxtP.name)}</b>`+
+          `<br><i class="recl dim">구위 ${nxtP.stf} · 제구 ${nxtP.ctl} · 체력 ${nxtP.sta}`+
+          `${restOf(nxtP.id)?` · ${restOf(nxtP.id)}`:''}`+
+          `${(ST&&ST.pit&&ST.pit[nxtP.id]&&ST.pit[nxtP.id].outs)
+            ? ` · 시즌 ERA ${era(ST.pit[nxtP.id]).toFixed(2)}`:''}</i>`:''}
+      </div>`;
     const g=el('div','dec-g');
     [['change',`${d.to} 투입`],['stay',`${d.from} 계속`]].forEach(([v,n])=>{
       const b=el('button','decb',n);
@@ -11362,21 +11744,39 @@ function showDecision(d){
   const ttl=[];
   if(LIVE.tacTTL.bat>0)ttl.push(`타격 지시 ${LIVE.tacTTL.bat}타석 남음`);
   if(LIVE.tacTTL.run>0)ttl.push(`주루 지시 ${LIVE.tacTTL.run}타석 남음`);
+  const myP=LIVE.curPitcher(LIVE.def());
   box.innerHTML=`<div class="dec-t">${d.label} · 남은 작전 ${LIVE.timeouts}회</div>
     <div class="dec-b">${LIVE.inning}회 ${LIVE.outs}아웃 · ${bs} · ${diff>0?'+':''}${diff}점<br>
-      타석 <b class="${isMine?'meb':''}">${bat.name}</b>${isMine?' <span class="metag">내 선수</span>':''}
+      타석 <b class="${isMine?'meb':''}">${nmLink(bat.id,bat.name)}</b>${isMine?' <span class="metag">내 선수</span>':''}
+      <br><i class="recl">${todayBat(bat.id)}</i>
+      <br><i class="recl dim">${seasonBat(bat.id)}</i>
+      <br><br>상대 투수 <b>${nmLink(myP.id,myP.name)}</b>
+      <br><i class="recl dim">구위 ${myP.stf} · 제구 ${myP.ctl}</i>
+      <br><i class="recl">${todayPit(myP.id)}</i>
       ${ttl.length?`<br><i class="ttlx">${ttl.join(' · ')}</i>`:''}</div>`;
   const g=el('div','dec-g');
-  [['patient','공 보고 가기','볼넷↑ · 1타석'],['swing','적극 타격','장타↑ · 1타석'],
-   ['bunt','진루 우선','삼진↓ · 1타석'],['buntrun','번트 앤 런','주자 한 베이스 더 · 병살 위험'],
-   ['steal','뛰어라','도루↑ · 2타석'],['hold','주루 자제','도루 안 함 · 2타석'],
-   ['normal','지시 해제','기본 전술로']]
-  .forEach(([v,n,s])=>{
+  /* 상황에 안 맞는 지시는 아예 안 보여준다.
+     [제보] "주자 없는데 뛰어라가 왜 있냐" — 맞는 말이다. */
+  const onBase = LIVE.bases.some(Boolean);
+  const first  = !!LIVE.bases[0];
+  const runTac = LIVE.off().tac.run;
+  const OPTS=[
+    ['patient','공 보고 가기','볼넷↑ · 1타석', true],
+    ['swing','적극 타격','장타↑ · 1타석', true],
+    ['bunt','진루 우선','삼진↓ · 1타석', onBase],
+    ['buntrun','번트 앤 런','주자 한 베이스 더 · 병살 위험', first],
+    ['steal','뛰어라','도루↑ · 2타석', first],
+    ['hold','주루 자제','도루 안 함 · 2타석', first||runTac==='aggressive'],
+    ['normal','지시 해제','기본 전술로', LIVE.tacTTL.bat>0||LIVE.tacTTL.run>0||runTac!=='normal'],
+  ];
+  OPTS.filter(o=>o[3]).forEach(([v,n,s])=>{
     const b=el('button','decb');
     b.innerHTML=`<b>${n}</b>${s?`<span>${s}</span>`:''}`;
     b.onclick=()=>{LIVE.applyDecision(v);decDone(box);};
     g.appendChild(b);
   });
+  if(!onBase) g.appendChild(Object.assign(el('div','dec-note'),
+    {textContent:'주자가 없어서 번트·주루 지시는 뺐다.'}));
   const pb2=pchangeBtn(box); if(pb2)g.appendChild(pb2);
   g.appendChild(mgrBtn(box));
 
@@ -11415,18 +11815,30 @@ function showDecision(d){
     !us.slots.some(s=>s.id===p.id)&&isAvailable(p.id)&&!LIVE.usedPH[p.id]);
   if(bench.length&&LIVE.inning>=4){
     const ph=el('button','decb wide');
-    ph.innerHTML=`<b>대타 기용</b><span>${bat.name} 대신</span>`;
+    ph.innerHTML=`<b>대타 기용</b><span>${bat.name} 대신 · ${todayBat(bat.id)}</span>`;
     ph.onclick=()=>{
       const body=$('#sheet-body'); body.innerHTML='';
       $('#sheet-title').textContent='대타 선택';
+      body.appendChild(Object.assign(el('div','sheet-note'),
+        {innerHTML:`빼는 사람 — <b>${bat.name}</b> · ${todayBat(bat.id)}<br>`+
+          `<span class="dimtxt">${seasonBat(bat.id)}</span>`}));
       bench.forEach(p=>{
         const r=el('button','pick-row');
-        r.innerHTML=`<div class="pk-l"><div class="pk-name">${p.name}</div>
-          <div class="pk-note">${condLabel(ST.cond[p.id]||70)} · ${META[p.id]?META[p.id].traits.join(' '):''}</div></div>
+        const tb=(LIVE.box&&LIVE.box[p.id]&&LIVE.box[p.id].pa)?todayBat(p.id):null;
+        r.innerHTML=`<div class="pk-l"><div class="pk-name">${p.name}<i class="pk-info" data-pid="${p.id}">기록</i></div>
+          <div class="pk-note">${seasonBat(p.id)}<br>
+            ${condLabel(ST.cond[p.id]||70)}${tb?` · ${tb}`:''}
+            ${META[p.id]&&META[p.id].traits.length?` · ${META[p.id].traits.slice(0,2).join(' ')}`:''}</div></div>
           <div class="pk-r">${starHTML(effCA(p.id))}</div>`;
         r.onclick=()=>{LIVE.pinchHit(p.id);closeSheet();decDone(box);};
         body.appendChild(r);
       });
+      /* 행 전체는 '이 사람으로 교체', 이름 옆 '기록' 만 카드를 연다 */
+      body.addEventListener('click', ev=>{
+        const t=ev.target.closest('.pk-info'); if(!t) return;
+        ev.stopPropagation(); ev.preventDefault();
+        openPlayerCard(t.getAttribute('data-pid'));
+      }, true);
       $('#sheet').classList.add('open');
     };
     g.appendChild(ph);
@@ -12273,19 +12685,50 @@ function renderScout(){
   c.appendChild(back);
 
   const card=el('div','card');
-  card.appendChild(el('div','card-h',t.name));
+  card.appendChild(el('div','card-h',t.name+' · 야수'));
   t.players.slice().sort((a,b)=>calcCA(b)-calcCA(a)).forEach(p=>{
     const st=ST.lgBat[p.id]||blankBat();
     const val=playerValue(p,null,st);
     const row=el('div','sc-row');
-    row.innerHTML=`<div class="sc-l"><div class="sc-n">${p.name}${p.bats==='L'?'<span class="lh">좌</span>':''}</div>
+    row.innerHTML=`<div class="sc-l"><div class="sc-n">${nmLink(p.id,p.name)}${p.bats==='L'?'<span class="lh">좌</span>':''}</div>
       <div class="sc-s">${POSNAMES[p.pos[0]]||''} · ${st.pa?`${fmt3(avg(st))} OPS ${ops(st).toFixed(3)}`:'기록 없음'}</div>
       ${starHTML(calcCA(p))}</div>
       <div class="sc-r"><div class="sc-v">${wonStr(val*1.5)}</div><button class="sc-b">접촉</button></div>`;
     row.querySelector('.sc-b').onclick=()=>startRecruit(p,t,val);
     card.appendChild(row);
   });
+  wireNames(card);
   c.appendChild(card);
+
+  /* [제보] "스카우트에 투수가 안 뜬다" — t.players 만 돌아서 그랬다.
+     상대 팀 투수는 t.pitchers 에 따로 있다. 로스터에 야수로도 올라 있는
+     투타 겸업(고진선·박인용 등)은 위에 이미 나오니 이름으로 걸러낸다. */
+  const pit=(t.pitchers||[]).filter(q=>!t.players.some(x=>x.name===q.name));
+  if(pit.length){
+    const pc=el('div','card');
+    pc.appendChild(el('div','card-h',t.name+' · 투수'));
+    pit.slice().sort((a,b)=>(b.stf+b.ctl+b.sta)-(a.stf+a.ctl+a.sta)).forEach(q=>{
+      const ps=(ST.lgPit&&ST.lgPit[q.id])||blankPit();
+      const row=el('div','sc-row');
+      row.innerHTML=`<div class="sc-l"><div class="sc-n">${nmLink(q.id,q.name)}</div>
+        <div class="sc-s">구위 ${q.stf} · 제구 ${q.ctl} · 체력 ${q.sta}`+
+        `${ps.outs?` · ${ipStr(ps)}이닝 ERA ${era(ps).toFixed(2)}`:(q.era!=null?` · 실제 ERA ${q.era.toFixed(2)}`:' · 등판 기록 없음')}</div>
+        ${starHTML((q.stf+q.ctl+q.sta)/3)}</div>
+        <div class="sc-r"><div class="sc-v">${wonStr(pitcherValue(q)*1.5)}</div><button class="sc-b">접촉</button></div>`;
+      row.querySelector('.sc-b').onclick=()=>startRecruit(
+        {id:q.id,name:q.name,bats:'R',con:30,pow:25,eye:35,spd:40,def:40,arm:60,
+         pos:['P'],pitch:{stf:q.stf,ctl:q.ctl,sta:q.sta}}, t, pitcherValue(q));
+      pc.appendChild(row);
+    });
+    wireNames(pc);
+    c.appendChild(pc);
+  }
+}
+/* 투수 몸값 — 야수와 같은 눈금으로 맞춘다 */
+function pitcherValue(q){
+  if(!q) return 0;
+  const g=(q.stf*1.3 + q.ctl*1.5 + q.sta*0.7)/3.5;   // 제구를 제일 높게 친다
+  return Math.max(3, Math.round(g*0.42*10)/10);
 }
 /* =========================================================
    영입 — 삼국지 등용 방식

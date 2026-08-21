@@ -54,12 +54,16 @@ node soaktest.js
 | `savediet` | 세이브 감량이 무손실인지 |
 | `perftest` | 화면 렌더 · 경기 시뮬 속도 (참고용) |
 | `wintest` | 승리·패전투수 판정 (결승점 기준) |
+| `dectest` | 직접 지휘 판단창 — 오늘 기록 표시 · 상황별 지시 |
+| `scouttest` | 스카우트 투수 · 선수 카드 몸값 |
+| `begtest` | 인원 부족 대응 — 사정하기 확률·순서 · 라인업 보존 |
+| `itptest` | 그라운드 홈런 — 주력 조건 · 리그 비율 |
 
 ## 가끔 실패하는 것
 
 확률 기반 단정문이 들어 있어 간헐적으로 실패한다. **3회 재실행해서 판단한다.**
 
-`advtest` `traintest2` `wltest` `recruittest` `fintest`
+`advtest` `traintest2` `wltest` `recruittest` `fintest` `awardtest` `mgrtest`
 
 ## 구버전 테스트
 
