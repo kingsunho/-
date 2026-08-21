@@ -164,6 +164,9 @@ button{font-family:inherit;cursor:pointer}
 .pcs-today{background:rgba(201,162,39,.10);border:1px solid rgba(201,162,39,.25);
   border-radius:8px;padding:8px 10px;margin:0 4px 10px;font-size:12px}
 .pcs-today b{font-size:13px}
+.award.king .aw-l{color:var(--gold)}
+.cotag{font-style:normal;font-size:9px;background:rgba(201,162,39,.2);color:var(--gold);
+  border-radius:4px;padding:1px 4px;margin-left:5px}
 .featcard{border:1px solid rgba(201,162,39,.35)}
 .feat-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
 .feat-row:first-of-type{border-top:0}
@@ -2745,9 +2748,18 @@ function sparkOf(ST,pid){
 function sparkFuse(pid){
   const m=META[pid]||{traits:[]};
   const tr=m.traits||[];
-  if(tr.includes('불만러'))return 3;
-  if(tr.includes('성실'))return 5;
-  return 4;
+  let f = tr.includes('불만러')?3:(tr.includes('성실')?5:4);
+  /* 라이벌 관계는 서로를 더 신경 쓴다.
+     내가 그 사람의 라이벌로 적혀 있으면 참는 폭이 한 칸 좁아진다. */
+  const me=(typeof ST!=='undefined'&&ST)?(ST.playerId||MYID):null;
+  if(me && m.rival===me) f=Math.max(2,f-2);
+  return f;
+}
+/* 불만 판정에서 아예 빼는 사람 */
+function unhappyExempt(ST,pid){
+  const me=ST.playerId||MYID;
+  if(pid===me) return true;                 // 감독 자리에 앉은 본인
+  return false;
 }
 function sparkLabel(sp){
   if(!sp||!sp.n)return '';
@@ -2791,16 +2803,25 @@ function updateUnhappy(ST, uSlots, ctx){
   const msgs=[];
   const meId=ST.playerId||'ksh';
   const order={}; uSlots.forEach((s,i)=>{ if(order[s.id]==null) order[s.id]=(s.ord!=null?s.ord+1:i+1); });
+  /* 그날 마운드에 올라간 사람. 던지고 온 날은 타순이 어디였든,
+     타석이 아예 안 돌아왔든 불만을 잡지 않는다.
+     사회인야구에서 등판은 밀리는 게 아니라 기회를 받은 것이다. */
+  const pitched={};
+  ((ctx.pbox&&Object.keys(ctx.pbox))||[]).forEach(pid=>{
+    const l=ctx.pbox[pid]; if(l&&l.bf) pitched[pid]=true;
+  });
   TBYID['wwzw'].players.forEach(p=>{
     const m=META[p.id]; if(!m)return;
     if(typeof isMerc==='function'&&isMerc(p.id))return;
+    if(unhappyExempt(ST,p.id)) return;
     const played=uSlots.some(s=>s.id===p.id);
     const u=ST.unhappy[p.id]||{level:0,streak:0};
     const sp=ST.spark[p.id]||{n:0,why:[]};
 
     /* 오늘 마음에 안 들었던 것 — 하나만 잡는다 */
     let gripe=null;
-    if(!played && !ST.injury[p.id] && !(ST.absent&&ST.absent[p.id])) gripe='벤치';
+    if(pitched[p.id]) gripe=null;                    // 던지고 왔으면 됐다
+    else if(!played && !ST.injury[p.id] && !(ST.absent&&ST.absent[p.id])) gripe='벤치';
     else if(played && order[p.id]>=7 && effCA(p.id)>=45) gripe='하위타순';
     else if(played && ctx.blowout && sp.n>=1) gripe='대패';   // 대패는 이미 쌓인 게 있는 사람만 건드린다
 
@@ -2912,6 +2933,7 @@ function rollSabotage(ST, evts, rng){
   us.players.forEach(p=>{
     if(isMerc(p.id))return;
     if(ST.injury[p.id])return;
+    if(unhappyExempt(ST,p.id))return;
     let acts=sabotage(ST,p.id,rng);
     if(!acts)return;
     acts=acts.filter(a=>{
@@ -2952,6 +2974,7 @@ function tickUltimatum(ST){
   if(!ST.ultimatum)ST.ultimatum={};
   us.players.forEach(p=>{
     if(isMerc(p.id))return;
+    if(unhappyExempt(ST,p.id))return;
     const u=ST.unhappy&&ST.unhappy[p.id];
     const lv=u?u.level:0;
     if(lv>=4){
@@ -4153,8 +4176,8 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.8.0';
-const APP_VERSION_NOTE = '진기록 보관 · 수상 근거 포디움 · 라인스코어 버그 수정 · 갤럭시 대응';
+const APP_VERSION = '1.9.0';
+const APP_VERSION_NOTE = '타자상·투수상 wRC+/WAR · 시즌 종합왕 · 불만 업데이트';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -4586,8 +4609,8 @@ function runMiniAwards(ST){
      그 사실이 어디에도 안 보여서 결과만 이상하게 남았다.
      이제 후보 순위를 통째로 들고 다니면서 누가 왜 밀렸는지까지 남긴다. */
   const rank=(obj,filt,score,fmt)=>{
-    return Object.keys(obj).filter(id=>filt(obj[id]))
-      .map(id=>({pid:id, s:score(obj[id]), v:fmt?fmt(obj[id]):''}))
+    return Object.keys(obj).filter(id=>filt(obj[id],id))
+      .map(id=>({pid:id, s:score(obj[id],id), v:fmt?fmt(obj[id],id):''}))
       .sort((a,b)=>b.s-a.s);
   };
   /* 상은 기록으로만 준다. 한 사람이 여러 개 받아도 그대로 준다 —
@@ -4629,17 +4652,24 @@ function runMiniAwards(ST){
   }
   const noMgr={}; Object.keys(B).forEach(id=>{ if(!mgrP||id!==mgrP.id) noMgr[id]=B[id]; });
 
+  /* 타자상·투수상은 안타/ERA 같은 날것 대신 wRC+ · WAR 로 뽑는다.
+     타순과 등판 상황에 덜 휘둘리고, 실제로 팀에 얼마나 보탰는지에 가깝다. */
   const eraOf=l=>l.outs?((l.er*7)/(l.outs/3)):99;
-  give('mvp', rank(B,b=>b.pa>=5,opsOf,b=>`OPS ${opsOf(b).toFixed(3)}`),
-       '이 구간 OPS 1위 · 5타석 이상');
+  const wbA=(typeof leagueWoba==='function')?leagueWoba():null;   // 이 함수 뒤쪽에 lgw 가 이미 있다
+  const erA=(typeof leagueEra==='function')?leagueEra():8.5;
+  const warB=(b,id)=>warOf(id,b,wbA);
+  give('mvp', rank(B,b=>b.pa>=5,warB,(b,id)=>`WAR ${warB(b,id).toFixed(2)} · OPS ${opsOf(b).toFixed(3)}`),
+       '이 구간 WAR 1위 · 5타석 이상 (타격 + 수비 + 포지션)');
   give('avg', rank(B,b=>b.ab>=6,b=>b.h/b.ab,b=>`타율 ${fmt3(b.h/b.ab)} (${b.h}/${b.ab})`),
        '이 구간 타율 1위 · 6타수 이상');
-  give('bat', rank(B,b=>b.h>=1,b=>(b.h||0)*1.0+(b.rbi||0)*0.8,b=>`${b.h}안타 ${b.rbi}타점`),
-       '안타 + 타점×0.8 이 가장 높은 사람');
+  give('bat', rank(B,b=>b.pa>=5,b=>wrcPlus(b,wbA),
+       b=>`wRC+ ${wrcPlus(b,wbA)} · ${b.h}안타 ${b.rbi}타점`),
+       '이 구간 wRC+ 1위 · 5타석 이상 (리그 평균 100 기준 타격 생산력)');
   give('sb',  rank(B,b=>(b.sb||0)>=2,b=>b.sb,b=>`${b.sb}도루`),
        '이 구간 도루 1위 · 2개 이상');
-  give('pit', rank(P,l=>l.outs>=6,l=>-eraOf(l),l=>`ERA ${eraOf(l).toFixed(2)} · ${ipStr(l)}이닝 ${l.er}자책`),
-       '이 구간 ERA 1위 · 2이닝 이상 (7이닝 환산)');
+  give('pit', rank(P,l=>l.outs>=6,l=>warPit(l,erA),
+       l=>`WAR ${warPit(l,erA).toFixed(2)} · ERA ${eraOf(l).toFixed(2)} · ${ipStr(l)}이닝`),
+       '이 구간 투수 WAR 1위 · 2이닝 이상 (ERA 만으로는 짧게 던진 사람이 유리해서 이닝을 같이 본다)');
   give('team', rank(noMgr,b=>b.pa>=4,b=>(b.rbi||0)+(b.r||0),b=>`${b.rbi}타점 ${b.r}득점`),
        '타점 + 득점 합계 1위 · 4타석 이상');
 
@@ -4740,18 +4770,51 @@ function buildAwards(ST){
     const b=list.slice().sort((x,y)=>fn(y)-fn(x))[0];
     A.push({label,name:b.name,value:fmt(b)});
   };
-  pick(qual,p=>ops(ST.bat[p.id]),'시즌 MVP',p=>`OPS ${ops(ST.bat[p.id]).toFixed(3)}`);
-  pick(qual,p=>avg(ST.bat[p.id]),'타격상',p=>`타율 ${fmt3(avg(ST.bat[p.id]))}`);
-  pick(us.players,p=>(ST.bat[p.id]||{}).rbi||0,'타점상',p=>`${ST.bat[p.id].rbi}타점`);
-  pick(us.players,p=>(ST.bat[p.id]||{}).sb||0,'도루상',p=>`${ST.bat[p.id].sb}도루`);
+  const lw=leagueWoba(), le=leagueEra();
+  pick(qual,p=>warOf(p.id,ST.bat[p.id],lw),'시즌 MVP',
+       p=>`WAR ${warOf(p.id,ST.bat[p.id],lw).toFixed(2)} · OPS ${ops(ST.bat[p.id]).toFixed(3)}`);
+  pick(qual,p=>wrcPlus(ST.bat[p.id],lw),'타격상',
+       p=>`wRC+ ${wrcPlus(ST.bat[p.id],lw)} · 타율 ${fmt3(avg(ST.bat[p.id]))}`);
   pick(us.players,p=>(ST.bat[p.id]||{}).g||0,'개근상',p=>`${ST.bat[p.id].g}경기`);
   const pit=us.pitchers.filter(p=>(ST.pit[p.id]||{}).outs>=21);
   if(pit.length){
-    const b=pit.slice().sort((x,y)=>era(ST.pit[x.id])-era(ST.pit[y.id]))[0];
-    A.push({label:'투수상',name:b.name,value:`ERA ${era(ST.pit[b.id]).toFixed(2)}`});
-    const w=pit.slice().sort((x,y)=>ST.pit[y.id].w-ST.pit[x.id].w)[0];
-    A.push({label:'다승상',name:w.name,value:`${ST.pit[w.id].w}승`});
+    const b=pit.slice().sort((x,y)=>warPit(ST.pit[y.id],le)-warPit(ST.pit[x.id],le))[0];
+    A.push({label:'투수상',name:b.name,
+      value:`WAR ${warPit(ST.pit[b.id],le).toFixed(2)} · ERA ${era(ST.pit[b.id]).toFixed(2)}`});
   }
+
+  /* ---- 종합왕 ----
+     구간 시상은 WAR·wRC+ 같은 종합 지표로 간다. 그러면 홈런·도루·삼진처럼
+     "그냥 많이 한 사람"을 기리는 자리가 사라진다. 그건 시즌 끝에 몰아서 준다.
+     야구에서 타이틀홀더라고 부르는 그 자리다.                            */
+  const KINGS=[
+    {label:'수위타자', min:b=>b.pa>=20, v:b=>avg(b),      f:b=>`타율 ${fmt3(avg(b))}`},
+    {label:'홈런왕',   min:b=>b.hr>=1,  v:b=>b.hr,        f:b=>`${b.hr}홈런`},
+    {label:'타점왕',   min:b=>b.rbi>=1, v:b=>b.rbi,       f:b=>`${b.rbi}타점`},
+    {label:'득점왕',   min:b=>b.r>=1,   v:b=>b.r,         f:b=>`${b.r}득점`},
+    {label:'최다안타', min:b=>b.h>=1,   v:b=>b.h,         f:b=>`${b.h}안타`},
+    {label:'도루왕',   min:b=>b.sb>=1,  v:b=>b.sb,        f:b=>`${b.sb}도루`},
+    {label:'출루왕',   min:b=>b.pa>=20, v:b=>obp(b),      f:b=>`출루율 ${fmt3(obp(b))}`},
+    {label:'장타왕',   min:b=>b.ab>=20, v:b=>slg(b),      f:b=>`장타율 ${fmt3(slg(b))}`},
+    {label:'선구왕',   min:b=>b.pa>=20, v:b=>bbk(b),      f:b=>`BB/K ${bbk(b).toFixed(2)} (${b.bb}볼넷 ${b.k}삼진)`},
+  ];
+  const PKINGS=[
+    {label:'삼진왕',   min:l=>l.k>=1,     v:l=>l.k,        f:l=>`${l.k}탈삼진`},
+    {label:'평균자책왕',min:l=>l.outs>=21, v:l=>-era(l),    f:l=>`ERA ${era(l).toFixed(2)}`},
+    {label:'다승왕',   min:l=>l.w>=1,     v:l=>l.w,        f:l=>`${l.w}승`},
+    {label:'이닝왕',   min:l=>l.outs>=9,  v:l=>l.outs,     f:l=>`${ipStr(l)}이닝`},
+    {label:'WHIP왕',   min:l=>l.outs>=21, v:l=>-whip(l),   f:l=>`WHIP ${whip(l).toFixed(2)}`},
+  ];
+  const kingOf=(list,get,defs)=>defs.forEach(k=>{
+    const c=list.filter(p=>{const o=get(p); return o&&k.min(o);});
+    if(!c.length)return;
+    const top=Math.max(...c.map(p=>k.v(get(p))));
+    const winners=c.filter(p=>Math.abs(k.v(get(p))-top)<1e-9);
+    winners.forEach(wp=>A.push({label:k.label,name:wp.name,value:k.f(get(wp)),
+      king:true, co:winners.length>1?winners.length:0}));
+  });
+  kingOf(us.players, p=>ST.bat[p.id], KINGS);
+  kingOf(us.pitchers, p=>ST.pit[p.id], PKINGS);
   /* 리그 전체 시즌 1위 — 남의 팀이 받았어도 보여준다 */
   leagueAwards(null).forEach(a=>{
     const t=leagueOwner(a.pid);
@@ -7119,8 +7182,10 @@ function renderHome(){
       const byName={}; TBYID['wwzw'].players.forEach(p=>byName[p.name]=p.id);
       ST.awards.forEach(a=>{
         const pid=byName[a.name]; if(!pid)return;    // 남의 팀 수상은 전시장에 안 남는다
-        ST.hall.push({season:ST.seasonNo||1,year:ST.year||2026,at:null,kind:'season',
-          label:a.label,pid,name:a.name,value:a.value,scope:'시즌'});
+        ST.hall.push({season:ST.seasonNo||1,year:ST.year||2026,at:null,
+          kind:a.king?'king':'season',
+          label:a.label,pid,name:a.name,value:a.value,scope:'시즌',
+          criteria:a.king?'시즌 전체 1위 · 부문별 타이틀홀더':'시즌 종합 성적 1위'});
         ST.awardBonus[pid]=(ST.awardBonus[pid]||0)+1;
       });
       const po=ST.playoff;
@@ -7135,13 +7200,33 @@ function renderHome(){
     }
     const aw=el('div','card');
     aw.appendChild(el('div','card-h','시즌 시상식'));
-    ST.awards.forEach(a=>{
+    ST.awards.filter(a=>!a.king).forEach(a=>{
       const r=el('div','award');
-      if(a.league)r.classList.add('lg'+(a.ours?' ours':''));
+      /* [버그 이력] classList.add('lg ours') — 토큰에 공백이 들어가면
+         InvalidCharacterError 가 나면서 시상식 화면 렌더가 통째로 죽었다.
+         우리 팀 선수가 리그 시즌상을 받는 순간 시즌 종료 화면이 안 떴다. */
+      if(a.league){ r.classList.add('lg'); if(a.ours) r.classList.add('ours'); }
       r.innerHTML=`<span class="aw-l">${a.league?'리그 · ':''}${a.label}</span><span class="aw-n">${a.name}</span><span class="aw-v">${a.value}</span>`;
       aw.appendChild(r);
     });
     c.appendChild(aw);
+
+    /* 종합왕 — 부문별로 그 시즌에 제일 많이 한 사람 */
+    const kings=ST.awards.filter(a=>a.king);
+    if(kings.length){
+      const kc=el('div','card');
+      kc.appendChild(el('div','card-h','종합왕 · 타이틀홀더'));
+      kc.appendChild(el('p','muted',
+        '구간 시상은 WAR·wRC+ 같은 종합 지표로 간다. 홈런·도루·삼진처럼 '+
+        '"그냥 제일 많이 한 사람"을 기리는 자리는 시즌 끝에 여기서 몰아 준다.'));
+      kings.forEach(a=>{
+        const r=el('div','award king');
+        r.innerHTML=`<span class="aw-l">👑 ${a.label}${a.co?`<i class="cotag">공동 ${a.co}</i>`:''}</span>`+
+          `<span class="aw-n">${a.name}</span><span class="aw-v">${a.value}</span>`;
+        kc.appendChild(r);
+      });
+      c.appendChild(kc);
+    }
     const d=el('div','card');
     const po=ST.playoff;
     d.innerHTML=`<div class="card-h">시즌 종료</div><p class="muted">정규시즌 ${st.w}승 ${st.l}패 ${st.t}무 · 리그 ${leagueRank('wwzw')}위`
@@ -7690,7 +7775,7 @@ function personaLines(pid){
 
 /* ================= 전시장 =================
    내가 고른 선수가 받은 상을 트로피로 늘어놓는다. 스크린샷 찍으라고 만든 화면이다. */
-const TROPHY_ICON={mvp:'🏆',bat:'🏏',avg:'🎯',pit:'⚾',mgr:'📋',team:'🤝',sb:'💨',
+const TROPHY_ICON={king:'👑',mvp:'🏆',bat:'🏏',avg:'🎯',pit:'⚾',mgr:'📋',team:'🤝',sb:'💨',
   lgmvp:'👑',lgavg:'🥇',lgpit:'🎖️',
   season:'🏅',champ:'👑',runner:'🥈',third:'🥉'};
 let hallWho=null;
@@ -10012,7 +10097,8 @@ function commitGame(res,usSide,thSide,uSlots){
     if(isMerc(p.id))return;
     ST.valuePrev[p.id]=playerValue(p,META[p.id],ST.bat[p.id]);
   });
-  const unhMsgs = updateUnhappy(ST, uUniq, {blowout: (thSide.runs-usSide.runs)>=10, won, tie});
+  const unhMsgs = updateUnhappy(ST, uUniq,
+    {blowout: (thSide.runs-usSide.runs)>=10, won, tie, pbox:res.pbox});
   const starters = (ST.gameStarters&&ST.gameStarters.length)?ST.gameStarters
     :uAll.filter(u=>u.starter).map(u=>u.id);
   const promiseMsgs = checkPromises(ST, starters, uIds, absentIds);
