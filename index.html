@@ -939,7 +939,7 @@ const WWZW = [
   {id:'khg',name:'김한규',bats:'R',no:52,con:48,pow:20,eye:62,spd:30,def:40,arm:44,
    pos:['3B','DH','LF'],pitch:{stf:44,ctl:34,sta:44},
    real:{g:12,pa:27,ab:22,h:7,d2:0,d3:0,hr:0,bb:4,hbp:1,k:3,sb:1,cs:0,rbi:7,r:4},
-   note:'BB/K 1.33 팀 2위. 22타수 장타 0'},
+   note:'BB/K 1.33 팀 2위. 22타수 장타 0 · 27타석 도루 1 — 똑딱이 · 똥차'},
   {id:'ujh',name:'우진혁',bats:'R',no:10,con:34,pow:20,eye:46,spd:40,def:40,arm:40,
    pos:['RF','2B','LF'],pitch:null,
    real:{g:6,pa:14,ab:11,h:3,d2:0,d3:0,hr:0,bb:2,hbp:1,k:5,sb:3,cs:1,rbi:3,r:3},
@@ -1038,14 +1038,32 @@ const WWZW_TEND = { id:'wwzw', name:'우완좌완', ops:0.982, avg:.378,
   t:[1.29,0.60,0.70,1.09,0.90], err:1.18 };
 
 /* ---------- 이름 생성 ---------- */
-const SUR=['김','이','박','최','정','강','조','윤','장','임','한','오','서','신','권','황','안','송','전','홍','고','문','손','양','배','백','허','유','남','심'];
-const GIV=['민수','성호','지훈','현우','준영','태양','승현','재우','성민','우진','건우','정호','상현','대호','기범','성진','영수','인성','종민','기훈','창우','명석','세영','한별','도현','수빈','재현','병철','원준','규성'];
+/* 이름 풀 — 프로 중계에서 들리는 결의 이름을 목표로 넓혀뒀다.
+   외자 이름(곽빈·원준 같은)이 섞여야 '○○ 1선발' 같은 자리표가 안 남는다. */
+const SUR=['김','이','박','최','정','강','조','윤','장','임','한','오','서','신','권','황','안','송','전','홍','고','문','손','양','배','백','허','유','남','심',
+  '곽','노','하','차','주','지','채','원','구','도','석','성','표','명','천','방','옥','현','변','염'];
+const GIV=['민수','성호','지훈','현우','준영','태양','승현','재우','성민','우진','건우','정호','상현','대호','기범','성진','영수','인성','종민','기훈','창우','명석','세영','한별','도현','수빈','재현','병철','원준','규성',
+  '태인','광현','재환','정후','도영','승호','규현','민호','진혁','시환','상원','영웅','주환','건희','승엽','기주','유찬','현종','재영','승우','동원','상수','정우','민석','호준','세진','찬규'];
+/* 외자 — 이 리그에도 한 명씩은 있다 */
+const GIV1=['빈','준','훈','현','진','민','호','건','찬','율','결','솔','원','규','열','석'];
+/* 성 + 외자가 단어로 읽혀버리는 조합. 나오면 다시 뽑는다. */
+const BAD_NAME=new Set(['구성','고성','성인','조건','문건','안건','신용','주정','도주','원수','정상',
+  '최고','문상','유산','배후','백열','노열','방열','전열','대열','서열','도열','임원','직원','천민',
+  '고열','한열','석열','현금','현물','장원','차별','허준','유비','조조']);
 function genName(rng,used){
-  for(let i=0;i<80;i++){
-    const n=SUR[(rng()*SUR.length)|0]+GIV[(rng()*GIV.length)|0];
-    if(!used.has(n)){used.add(n);return n;}
+  for(let i=0;i<120;i++){
+    const g = rng()<0.22 ? GIV1[(rng()*GIV1.length)|0] : GIV[(rng()*GIV.length)|0];
+    const n=SUR[(rng()*SUR.length)|0]+g;
+    if(!used.has(n) && !BAD_NAME.has(n)){used.add(n);return n;}
   }
   const n='선수'+((rng()*9000+1000)|0); used.add(n); return n;
+}
+/* '사신 1선발' 같은 자리표 이름을 실제 이름처럼 바꿔준다.
+   실측 기록이 있는 투수(권태기·고진선·김재용…)는 실명이라 그대로 둔다. */
+function aceName(raw, rng, used){
+  const n=String(raw||'');
+  if(!n || /\d\s*선발$/.test(n) || used.has(n)) return genName(rng,used);
+  used.add(n); return n;
 }
 
 const POS9=['C','1B','2B','3B','SS','LF','CF','RF','DH'];
@@ -1127,12 +1145,12 @@ function buildAI(def,seed){
     });
     if(pitchers.length<2){
       const b=def.aces[1]||def.aces[0];
-      pitchers.push({id:def.id+'_pb',name:genName(rng,used),
+      pitchers.push({id:def.id+'_pb',name:aceName(b[0],rng,used),
         stf:Math.round(clamp(b[1]-6,20,70)),ctl:Math.round(clamp(b[2]-6,18,70)),
         sta:Math.round(clamp(38+rng()*12,25,58))});
     }
   } else {
-    pitchers=def.aces.map((a,i)=>({id:def.id+'_p'+i,name:a[0],stf:a[1],ctl:a[2],sta:a[3]}));
+    pitchers=def.aces.map((a,i)=>({id:def.id+'_p'+i,name:aceName(a[0],rng,used),stf:a[1],ctl:a[2],sta:a[3]}));
   }
   pitchers.push({id:def.id+'_p9',name:genName(rng,used),
     stf:Math.round(clamp((pitchers[pitchers.length-1].stf||40)-6-rng()*6,20,70)),
@@ -1173,8 +1191,11 @@ function buildAllTeams(){
 }
 
 /* ---------- 타석 ---------- */
-function simPA(bat,pit,offTeam,defTeam,rng,tac,cond,park){
+/* mods — 특성처럼 타자 개인에게만 붙는 배수. 안 넘기면 아무 일도 안 한다.
+   {k:삼진배수, pow:장타배수}                                            */
+function simPA(bat,pit,offTeam,defTeam,rng,tac,cond,park,mods){
   const m=offTeam.mean;
+  mods = mods || {};
   tac = tac || {bat:'normal'};
   park = park || {hr:1,d2:1,d3:1,err:1,babip:1};
   const cf = (cond==null?70:cond);           // 컨디션 0~100 (70=기준)
@@ -1199,7 +1220,7 @@ function simPA(bat,pit,offTeam,defTeam,rng,tac,cond,park){
   if(tac.bat==='patient'){ tK=1.18; tBB=1.45; tBip=0.97; }
   else if(tac.bat==='aggressive'){ tK=0.86; tBB=0.58; tBip=1.03; tPow=1.06; }
   else if(tac.bat==='contact'){ tK=0.74; tBB=0.92; tBip=1.02; tPow=0.86; }
-  let kR  = clamp(LG.K  * offTeam.tend.k  * fK  * pK * tK , 0.01, 0.55);
+  let kR  = clamp(LG.K  * offTeam.tend.k  * fK  * pK * tK * (mods.k||1), 0.01, 0.55);
   let bbR = clamp(LG.BB * offTeam.tend.bb * fBB * pBB * tBB, 0.01, 0.42);
   const hbpR = LG.HBP;
 
@@ -1216,7 +1237,7 @@ function simPA(bat,pit,offTeam,defTeam,rng,tac,cond,park){
   const babip = clamp(LG.BABIP * offTeam.tend.babip * fBip * pBip * dFactor * tBip * park.babip, 0.15, 0.75);
   if(rng()>=babip) return {type:'OUT', gb: rng()<0.56};
 
-  const pw = offTeam.tend.pow * fPow * tPow;
+  const pw = offTeam.tend.pow * fPow * tPow * (mods.pow||1);
   let p2=LG.H2*pw*park.d2, p3=LG.H3*Math.pow(pw,0.4)*park.d3, phr=LG.HR*Math.pow(pw,1.7)*park.hr;
   const tot=p2+p3+phr;
   if(tot>0.85){const s=0.85/tot;p2*=s;p3*=s;phr*=s;}
@@ -1459,7 +1480,7 @@ const META = {
     desc:'주전 포수. 어깨는 좋은데 마운드에만 올라가면 스트라이크가 안 들어간다. 김한규와 쌍둥이.'},
 
   khg:{born:2000,speech:'ban',throws:'R',car:false,school:'군포고',drink:1,attend:0.92,loyal:52,pot:6,
-    traits:['불만러','분석가','유리몸','쌍둥이','좁은범위','더위약함'],friends:[],rival:'kig',coach:{},
+    traits:['불만러','분석가','유리몸','쌍둥이','좁은범위','더위약함','똥차','똑딱이'],friends:[],rival:'kig',coach:{},
     pos:PR({P:50,'3B':48,SS:34,'2B':34,C:0,'1B':0,LF:0,CF:0,RF:0}),
     desc:'3루·투수. 스카우팅 담당. 상대 분석 자료는 다 이 사람 손에서 나온다. 김인규와 쌍둥이.'},
 
@@ -1574,6 +1595,8 @@ const TRAIT_INFO = {
   '외야미숙':'외야에 서면 수비가 떨어진다',
   '포수부담':'포수로 나가면 타격이 떨어진다',
   '영입':'외부에서 데려온 선수',
+  '똥차':'발이 느리다. 도루를 거의 안 하고 1루에서 병살에 걸리기 쉽다',
+  '똑딱이':'배트에 맞히긴 잘하는데 장타가 안 나온다. 삼진이 적고 단타 위주다',
 };
 
 /* ---------- 경기장 ---------- */
@@ -3908,8 +3931,8 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.6.0';
-const APP_VERSION_NOTE = '경기 후 전 타자 기록(대타 포함) · 선수 이름 눌러 스탯 카드 · 이건 너프';
+const APP_VERSION = '1.7.0';
+const APP_VERSION_NOTE = '투수는 투수 성적으로 · 상대 투수 실명화 · 김한규 똥차/똑딱이';
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
   const a=String(v||'0.0.0').split('.').map(x=>parseInt(x,10)||0);
@@ -5186,6 +5209,9 @@ LiveGame.prototype.stepPA = function(){
       let runMul=1;
       if(off.tac.run==='aggressive')runMul=1.6;
       else if(off.tac.run==='hold')runMul=0.12;
+      /* 똥차 — 발이 느려서 애초에 스타트를 끊지 않는다 */
+      const rmm=(typeof META!=='undefined')?META[rn.id]:null;
+      if(rmm && rmm.traits.includes('똥차')) runMul*=0.35;
       const att=clamp(LG.SB_PER_PA*5.64*off.team.tend.sb*runMul*Math.exp((rn.spd-46)*0.020),0,0.85);
       if(rng()<att){
         const su=clamp(LG.SB_SUCCESS+(rn.spd-50)*0.0030-(def.cArm-46)*0.0060,0.45,0.99);
@@ -5325,7 +5351,9 @@ LiveGame.prototype.stepPA = function(){
             * (off.isUser ? this.fricUs : this.fricOpp)
             * (off.isUser ? (this.mgr.boost||1) : 1);
   if(gjM!==1) parkE={...parkE, babip:parkE.babip*gjM};
-  const res = simPA(batE, pitE, off.team, def.team, rng, off.tac, cond, parkE);
+  /* 똑딱이 — 배트에 맞히는 건 잘하는데(삼진 적음) 담장 근처를 못 간다 */
+  const pmods = (mm && mm.traits.includes('똑딱이')) ? {k:0.82, pow:0.55} : null;
+  const res = simPA(batE, pitE, off.team, def.team, rng, off.tac, cond, parkE, pmods);
   // 번트 앤 런은 주자가 한 베이스 더 간다
   const advOdds = (off.isUser && this._buntRun) ? 0.62 : 0.35;
 
@@ -5367,7 +5395,8 @@ LiveGame.prototype.stepPA = function(){
     bl.ab++;pl.outs++;this.outs++;
     const dpB = def.isUser ? (typeof dpBonus==='function'?dpBonus(def.slots).bonus:0) : 0;
     // 번트 앤 런은 굴러가면 주자가 걸릴 위험이 조금 더 크다
-    const dpRisk = 0.030 + dpB + ((off.isUser&&this._buntRun)?0.050:0);
+    const dpRisk = 0.030 + dpB + ((off.isUser&&this._buntRun)?0.050:0)
+      + ((mm && mm.traits.includes('똥차'))?0.045:0);   // 똥차는 1루에서 못 산다
     if(res.gb&&this.bases[0]&&this.outs<3&&rng()<dpRisk){this.bases[0]=null;pl.outs++;this.outs++;
       this.dpCount=(this.dpCount||0)+1;
       events.push({text:`${bat.name} 병살타`,cls:'out'});
@@ -7456,13 +7485,16 @@ function openPlayer(pid){ profileId=pid; go('player'); }
    표 안의 이름을 누르면 열린다. 우리 팀이든 상대 팀이든 똑같이 뜬다.
    상대 팀 선수는 META·성장 데이터가 없으니 능력치와 기록만 보여준다.   */
 function findAnyPlayer(pid){
+  /* 상대 팀은 같은 사람이라도 타자 엔트리와 투수 엔트리의 id 가 다르다
+     (ansanutd_3 / ansanutd_p0). 그래서 id 로 못 찾으면 이름으로 이어 붙인다. */
   for(const t of (TEAMS||[])){
     const b=(t.players||[]).find(x=>x.id===pid);
-    if(b) return {p:b, team:t, pit:(t.pitchers||[]).find(x=>x.id===pid)||null};
+    if(b) return {p:b, team:t,
+      pit:(t.pitchers||[]).find(x=>x.id===pid||x.name===b.name)||null};
   }
   for(const t of (TEAMS||[])){
     const q=(t.pitchers||[]).find(x=>x.id===pid);
-    if(q) return {p:null, team:t, pit:q};
+    if(q) return {p:(t.players||[]).find(x=>x.name===q.name)||null, team:t, pit:q};
   }
   return null;
 }
@@ -7481,6 +7513,14 @@ function openPlayerCard(pid){
   const nm=p?p.name:pit.name;
   $('#sheet-title').textContent=`${nm} · ${team.name}`;
 
+  /* 투수로 볼지 타자로 볼지 — 오늘 던졌으면 무조건 투수 카드다.
+     투타 겸업(송승민·이건)은 던진 날엔 투수, 안 던진 날엔 타자로 연다. */
+  const todayPit=(typeof LIVE!=='undefined'&&LIVE&&cardGameBox&&cardGameBox.pbox
+                  &&cardGameBox.pbox[pid]&&cardGameBox.pbox[pid].bf)?true:false;
+  const seasonPit=(ST&&ST.lgPit&&ST.lgPit[pid]&&ST.lgPit[pid].outs>0)?true:false;
+  const pitFirst = !!pit && (todayPit || !p || seasonPit
+                   || (ours&&META[pid]&&(META[pid].pos||{}).P>=45));
+
   const m=(ours&&typeof META!=='undefined'&&META[pid])?META[pid]:null;
   const main=p?PF_ORDER.filter(k=>ours?posFit(pid,k)>0:(p.pos||[]).includes(k))
                         .sort((x,y)=>ours?(posFit(pid,y)-posFit(pid,x)):0)[0]:null;
@@ -7490,7 +7530,7 @@ function openPlayerCard(pid){
   top.innerHTML=`<div class="pcs-av">${ours?avatarHTML(pid):clayAvatar(pid)}</div>
     <div>
       <div class="pcs-n1">${nm}${p&&p.no!=null?`<i>#${p.no}</i>`:''}${ours&&formTag(pid)?`<span class="ftag">${formTag(pid)}</span>`:''}</div>
-      <div class="pcs-n2">${team.name} · ${p?(main?POSNAMES[main]:(pit?'투수':'지명타자')):'투수'}`+
+      <div class="pcs-n2">${team.name} · ${pitFirst?'투수':(p?(main?POSNAMES[main]:'지명타자'):'투수')}`+
       `${p?` · 타 ${p.bats==='L'?'좌':'우'}`:''}${m?` · ${2026-m.born}세`:''}</div>
       ${ours&&nickOf(pid)?`<div class="pcs-n2">'${nickOf(pid)}'</div>`:''}
     </div>`;
@@ -7500,32 +7540,43 @@ function openPlayerCard(pid){
   const gb=(typeof LIVE!=='undefined'&&LIVE)?cardGameBox:null;   // 확정 전 경기만 '오늘'이다
   if(gb){
     const b=gb.box&&gb.box[pid], l=gb.pbox&&gb.pbox[pid];
-    let t='';
-    if(b&&b.pa) t+=`<div><b>${b.ab}타수 ${b.h}안타</b> · ${b.rbi}타점 ${b.r}득점`+
-      `${b.d2?` · 2루타 ${b.d2}`:''}${b.d3?` · 3루타 ${b.d3}`:''}${b.hr?` · 홈런 ${b.hr}`:''}`+
-      `${b.bb?` · 볼넷 ${b.bb}`:''}${b.hbp?` · 사구 ${b.hbp}`:''}${b.k?` · 삼진 ${b.k}`:''}`+
-      `${b.sb?` · 도루 ${b.sb}`:''}${b.cs?` · 도루자 ${b.cs}`:''}</div>`;
-    if(l&&l.bf) t+=`<div${b&&b.pa?' style="margin-top:4px"':''}><b>${ipStr(l)}이닝</b> ${l.h}피안타 ${l.r}실점 ${l.er}자책 ${(l.bb||0)+(l.hbp||0)}사사구 ${l.k}삼진</div>`;
+    const decTag = (gb.wp===pid?' <b>승</b>':(gb.lp===pid?' <b>패</b>':''));
+    const batLine = (b&&b.pa)
+      ? `<div><b>${b.ab}타수 ${b.h}안타</b> · ${b.rbi}타점 ${b.r}득점`+
+        `${b.d2?` · 2루타 ${b.d2}`:''}${b.d3?` · 3루타 ${b.d3}`:''}${b.hr?` · 홈런 ${b.hr}`:''}`+
+        `${b.bb?` · 볼넷 ${b.bb}`:''}${b.hbp?` · 사구 ${b.hbp}`:''}${b.k?` · 삼진 ${b.k}`:''}`+
+        `${b.sb?` · 도루 ${b.sb}`:''}${b.cs?` · 도루자 ${b.cs}`:''}</div>` : '';
+    const pitLine = (l&&l.bf)
+      ? `<div><b>${ipStr(l)}이닝 ${l.er}자책</b>${decTag} · ${l.h}피안타 ${l.r}실점 `+
+        `${(l.bb||0)+(l.hbp||0)}사사구 ${l.k}삼진 · 상대 ${l.bf}타자`+
+        `<br><span class="pcs-n2">ERA ${era(l).toFixed(2)} · WHIP ${whip(l).toFixed(2)}`+
+        `${l.sbA?` · 도루 허용 ${l.sbA}`:''}</span></div>` : '';
+    const parts=(pitFirst?[pitLine,batLine]:[batLine,pitLine]).filter(Boolean);
+    const t=parts.map((x,i)=>i?x.replace('<div>','<div style="margin-top:6px">'):x).join('');
     if(t) body.appendChild(Object.assign(el('div','pcs-today'),{innerHTML:'<div class="pcs-n2" style="margin:0 0 4px">오늘 경기</div>'+t}));
   }
 
   const grid=el('div','ot-grid');
   const add=html=>{ const d=document.createElement('div'); d.innerHTML=html; if(d.firstElementChild)grid.appendChild(d.firstElementChild); };
 
-  /* ---- 능력치 ---- */
-  if(p){
+  /* ---- 능력치 ---- 투수면 피칭을 위에 세운다 ---- */
+  const addBatRating=()=>{
+    if(!p) return;
     let bat='';
     [['컨택','con'],['파워','pow'],['선구','eye'],['주루','spd'],['수비','def'],['어깨','arm']]
       .forEach(([n,k])=>{ bat+=otBar(n, p[k], ours?otPotential(pid,k,p[k]):null); });
     add(otSec('배팅 레이팅', bat, ours?'현재 / 잠재':'현재'));
-  }
-  if(pit){
+  };
+  const addPitRating=()=>{
+    if(!pit) return;
     let pb='';
     pb+=otBar('구위', pit.stf, null);
     pb+=otBar('제구', pit.ctl, null);
     pb+=otBar('체력', pit.sta, null);
     add(otSec('피칭 레이팅', pb));
-  }
+  };
+  if(pitFirst){ addPitRating(); addBatRating(); }
+  else { addBatRating(); addPitRating(); }
 
   /* ---- 상태 (우리 팀만) ---- */
   if(ours){
@@ -7539,19 +7590,22 @@ function openPlayerCard(pid){
 
   /* ---- 올 시즌 (리그 누적은 모든 선수에게 쌓인다) ---- */
   const lgw=(typeof leagueWoba==='function')?leagueWoba():null;
+  const lgE=(typeof leagueEra==='function')?leagueEra():null;
   const sb2=(ST&&ST.lgBat&&ST.lgBat[pid])||null;
-  const sp2=(ST&&ST.lgPit&&ST.lgPit[pid])||null;
-  let rec='';
-  if(sb2&&sb2.pa){
-    rec+=`<div class="ot-tbl"><table><thead><tr><th>G</th><th>PA</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>RBI</th><th>SB</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th>${lgw!=null?'<th>wRC+</th>':''}</tr></thead>
+  // 우리 투수는 ST.pit 이 정본이다. 상대는 리그 누적(ST.lgPit)밖에 없다.
+  const sp2=(ours&&ST&&ST.pit&&ST.pit[pid]&&ST.pit[pid].outs)
+              ? ST.pit[pid] : ((ST&&ST.lgPit&&ST.lgPit[pid])||null);
+  const batTbl = (sb2&&sb2.pa)
+    ? `<div class="ot-tbl"><table><thead><tr><th>G</th><th>PA</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>RBI</th><th>SB</th><th>BB</th><th>K</th><th>AVG</th><th>OPS</th>${lgw!=null?'<th>wRC+</th>':''}</tr></thead>
       <tbody><tr><td>${sb2.g}</td><td>${sb2.pa}</td><td>${sb2.h}</td><td>${sb2.d2}</td><td>${sb2.d3}</td><td>${sb2.hr}</td><td>${sb2.rbi}</td><td>${sb2.sb}</td><td>${sb2.bb}</td><td>${sb2.k}</td>
-      <td>${fmt3(avg(sb2))}</td><td>${ops(sb2).toFixed(3)}</td>${lgw!=null?`<td>${wrcPlus(sb2,lgw)}</td>`:''}</tr></tbody></table></div>`;
-  }
-  if(sp2&&sp2.outs){
-    rec+=`<div class="ot-tbl"><table><thead><tr><th>G</th><th>W</th><th>L</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>K</th><th>ERA</th></tr></thead>
-      <tbody><tr><td>${sp2.g}</td><td>${sp2.w||0}</td><td>${sp2.l||0}</td><td>${ipStr(sp2)}</td><td>${sp2.h}</td><td>${sp2.r}</td><td>${sp2.er}</td><td>${(sp2.bb||0)+(sp2.hbp||0)}</td><td>${sp2.k}</td><td>${era(sp2).toFixed(2)}</td></tr></tbody></table></div>`;
-  }
-  if(!rec) rec='<p class="ot-note">올 시즌 출전 기록이 아직 없다.</p>';
+      <td>${fmt3(avg(sb2))}</td><td>${ops(sb2).toFixed(3)}</td>${lgw!=null?`<td>${wrcPlus(sb2,lgw)}</td>`:''}</tr></tbody></table></div>` : '';
+  const pitTbl = (sp2&&sp2.outs)
+    ? `<div class="ot-tbl"><table><thead><tr><th>G</th><th>W</th><th>L</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>K</th><th>ERA</th><th>WHIP</th><th>K/9</th>${lgE!=null?'<th>WAR</th>':''}</tr></thead>
+      <tbody><tr><td>${sp2.g||0}</td><td>${sp2.w||0}</td><td>${sp2.l||0}</td><td>${ipStr(sp2)}</td><td>${sp2.h}</td><td>${sp2.r}</td><td>${sp2.er}</td><td>${(sp2.bb||0)+(sp2.hbp||0)}</td><td>${sp2.k}</td>
+      <td>${era(sp2).toFixed(2)}</td><td>${whip(sp2).toFixed(2)}</td><td>${k9(sp2).toFixed(1)}</td>${lgE!=null?`<td>${warPit(sp2,lgE).toFixed(2)}</td>`:''}</tr></tbody></table></div>`
+      +`<p class="ot-note">ERA 는 이 리그 기준 7이닝 환산이다. K/9 는 통상대로 9이닝 기준.</p>` : '';
+  const rec=(pitFirst?[pitTbl,batTbl]:[batTbl,pitTbl]).filter(Boolean).join('')
+    || '<p class="ot-note">올 시즌 출전 기록이 아직 없다.</p>';
   add(otSec('올 시즌 기록', rec));
 
   /* ---- 실제 2026 기록 (우리 팀 실존 선수만) ---- */
@@ -7559,6 +7613,12 @@ function openPlayerCard(pid){
     const r=p.real;
     let src=`<div class="ot-tbl"><table><thead><tr><th>G</th><th>PA</th><th>AB</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>BB</th><th>HBP</th><th>K</th><th>SB</th><th>RBI</th><th>R</th></tr></thead>
       <tbody><tr><td>${r.g}</td><td>${r.pa}</td><td>${r.ab}</td><td>${r.h}</td><td>${r.d2}</td><td>${r.d3}</td><td>${r.hr}</td><td>${r.bb}</td><td>${r.hbp}</td><td>${r.k}</td><td>${r.sb}</td><td>${r.rbi}</td><td>${r.r}</td></tr></tbody></table></div>`;
+    if(p.realPit){
+      const q=p.realPit;
+      const pt=`<div class="ot-tbl"><table><thead><tr><th>G</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>K</th><th>ERA</th></tr></thead>
+        <tbody><tr><td>${q.g}</td><td>${ipDot(q.ip)}</td><td>${q.h}</td><td>${q.r}</td><td>${q.er}</td><td>${q.bb}</td><td>${q.k}</td><td>${q.era.toFixed(2)}</td></tr></tbody></table></div>`;
+      src = pitFirst ? (pt+src) : (src+pt);
+    }
     if(p.note) src+=`<p class="ot-note">${p.note}</p>`;
     add(otSec('능력치 산출 근거 · 실제 2026 기록', src));
   }
@@ -9369,7 +9429,7 @@ function showResult(){
   const usSide=next.homeGame?res.home:res.away;
   const thSide=next.homeGame?res.away:res.home;
   const stage=$('#stage');
-  cardGameBox={box:res.box, pbox:res.pbox};    // 선수 카드에 '오늘 경기'를 띄우기 위해
+  cardGameBox={box:res.box, pbox:res.pbox, wp:res.wp, lp:res.lp};   // 선수 카드의 '오늘 경기'용
   const dec=$('#decision'); if(dec){dec.innerHTML='';dec.classList.remove('on');}
   const lc=$('#livectl'); if(lc)lc.innerHTML='';
   flushLog(); updateLiveUI();
