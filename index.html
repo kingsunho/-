@@ -10,7 +10,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>우완좌완 야구 매니저</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<!-- 폰트는 있으면 좋고 없어도 그만이다. CDN 이 느린 망(일부 통신사·갤럭시 기본 브라우저)에서
+     이 <link> 가 렌더를 붙잡고 있으면 흰 화면이 오래 간다. 그래서 비동기로 받는다. -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all';this.onload=null"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"></noscript>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -30,11 +35,18 @@ button{font-family:inherit;cursor:pointer}
 .topbar{position:sticky;top:0;z-index:20;background:rgba(13,16,21,.94);
   backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
   padding:12px 16px;display:flex;align-items:baseline;gap:8px}
-.topbar h1{font-size:15px;margin:0;letter-spacing:-.02em;font-weight:800}
-.topbar span{font-size:11px;color:var(--dim)}
+.topbar h1{font-size:15px;margin:0;letter-spacing:-.02em;font-weight:800;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar span{font-size:11px;color:var(--dim);flex:0 1 auto;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* [제보] 갤럭시에서 버전이 안 보인다 — 시스템 글자 크기를 키워 쓰면
+   제목이 헤더를 다 먹고 배지가 0폭으로 찌그러졌다. 배지는 안 줄인다. */
 .topbar .ver{margin-left:auto;font-size:10px;font-weight:700;color:var(--dim);
-  border:1px solid var(--line);border-radius:4px;padding:2px 6px;letter-spacing:.02em}
+  border:1px solid var(--line);border-radius:4px;padding:2px 6px;letter-spacing:.02em;
+  flex:0 0 auto;white-space:nowrap}
 .topbar .ver.new{color:#0d1015;background:var(--gold);border-color:var(--gold)}
+@media(max-width:360px){ .topbar span{display:none} }
+@media(max-width:300px){ .topbar h1{font-size:13px} }
 
 #view{padding:14px 14px 20px}
 
@@ -152,6 +164,37 @@ button{font-family:inherit;cursor:pointer}
 .pcs-today{background:rgba(201,162,39,.10);border:1px solid rgba(201,162,39,.25);
   border-radius:8px;padding:8px 10px;margin:0 4px 10px;font-size:12px}
 .pcs-today b{font-size:13px}
+.featcard{border:1px solid rgba(201,162,39,.35)}
+.feat-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.feat-row:first-of-type{border-top:0}
+.ft-i{font-size:24px;flex:none;line-height:1.1}
+.ft-b{min-width:0}
+.ft-k{font-size:13.5px;font-weight:800}
+.ft-k em{font-style:normal;font-size:9.5px;background:var(--gold);color:#0d1015;
+  border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;font-weight:800}
+.ft-v{font-size:12px;color:var(--gold);margin-top:2px}
+.ft-d{font-size:10.5px;color:var(--dim);margin-top:2px;line-height:1.5}
+.tro.tap{cursor:pointer}
+.tro.tap:active{opacity:.6}
+.aw-top{display:flex;gap:12px;align-items:center;padding:4px 4px 12px;
+  border-bottom:1px solid var(--line);margin-bottom:8px}
+.aw-i{font-size:34px;flex:none}
+.aw-l{font-size:11px;color:var(--dim)}
+.aw-n{font-size:17px;font-weight:800}
+.aw-v{font-size:12.5px;color:var(--gold);font-weight:700;margin-top:2px}
+.pod{margin:2px 0 4px}
+.pod-r{display:flex;align-items:center;gap:8px;padding:8px 4px;
+  border-bottom:1px solid var(--line);font-size:12.5px}
+.pod-r:last-child{border-bottom:0}
+.pod-r.win{background:rgba(201,162,39,.10);border-radius:6px}
+.pod-n{flex:none;width:22px;text-align:center;font-size:13px;color:var(--dim)}
+.pod-p{flex:none;min-width:56px;font-weight:700}
+.pod-v{flex:1;color:var(--dim);font-size:11.5px}
+.pod-t{flex:none;font-size:10px;color:var(--gold)}
+.pod-r.win .pod-t{font-weight:800}
+.diag{background:var(--panel2);border-radius:8px;padding:4px 10px;margin-top:6px}
+.diag .ot-r{border-bottom:1px solid var(--line)}
+.diag .ot-r:last-child{border-bottom:0}
 .pick-row{display:flex;align-items:center;justify-content:space-between;width:100%;
   background:transparent;border:0;border-bottom:1px solid var(--line);
   padding:12px 8px;text-align:left;color:var(--ink)}
@@ -896,9 +939,9 @@ const LG = {
 /* ---------- 우완좌완 실제 선수 ---------- */
 const WWZW = [
   {id:'swm',name:'송승민',bats:'R',no:37,con:87,pow:74,eye:60,spd:58,def:60,arm:65,
-   pos:['P','SS','C','3B'],pitch:{stf:60,ctl:44,sta:56},
+   pos:['SS','P','C','3B','1B','2B','LF','CF','RF'],pitch:{stf:60,ctl:44,sta:56},
    real:{g:7,pa:20,ab:15,h:10,d2:5,d3:0,hr:0,bb:2,hbp:3,k:2,sb:5,cs:0,rbi:12,r:10},
-   note:'투타 겸업 에이스. OPS 1.750'},
+   note:'투타 겸업 에이스. OPS 1.750 · 유격 최다 출전, 전 포지션 소화'},
   {id:'ksh',name:'김선호',bats:'R',no:1,con:67,pow:55,eye:36,spd:66,def:38,arm:50,
    pos:['2B','SS'],pitch:null,
    real:{g:12,pa:37,ab:33,h:17,d2:0,d3:3,hr:1,bb:4,hbp:0,k:7,sb:11,cs:0,rbi:15,r:17},
@@ -1434,8 +1477,11 @@ const META = {
   swm:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:0.54,loyal:88,pot:6,
     traits:['리더','에이스','성실','유틸'],friends:['lg','jms','ujh'],rival:null,
     coach:{all:70},
-    pos:PR({P:70,'1B':62,C:61,'2B':0,'3B':0,SS:0,LF:0,CF:0,RF:0}),
-    desc:'투타 겸업 에이스. 포수·내야 어디든 선다.'},
+    /* 실제로는 유격을 제일 많이 봤고, 그날 빈 자리 아무 데나 들어간다.
+       예전 값은 유격·3루·외야가 전부 0이라 "설 수 없는 자리"로 잡혀 있었다.
+       로스터의 pos 배열(P/SS/C/3B)과도 앞뒤가 안 맞았다. 전 포지션을 연다. */
+    pos:PR({P:70,SS:64,C:61,'3B':60,'1B':62,'2B':58,CF:52,LF:54,RF:54,DH:56}),
+    desc:'투타 겸업 에이스. 유격을 제일 많이 봤고, 그날 비는 자리면 어디든 들어간다. 사실상 전 포지션.'},
 
   lg:{born:1999,speech:'ban',throws:'R',car:true,school:'군포고',drink:2,attend:1.0,loyal:92,pot:4,
     traits:['리더','감독','철강','장비담당'],friends:['swm','jms','ujh'],rival:null,
@@ -2168,6 +2214,124 @@ function accrueCareer(ST, res, uSlots, won, tie, dpCount){
   out.forEach(m=>ST.milestones.push(m));
   if(ST.milestones.length>240)ST.milestones=ST.milestones.slice(-240);
   return out;
+}
+
+/* =========================================================
+   진기록
+   ---------------------------------------------------------
+   확률이 낮아서 평생 한 번 볼까 말까 한 것들이다.
+   나오면 그날 축하하고, 전시장과 기록실에 영구 보관한다.
+   판정은 전부 박스스코어에서 뽑는다. 박스스코어만으로 못 잡는
+   만루홈런·끝내기는 엔진(LiveGame.feats)이 따로 올려준다.
+   ========================================================= */
+const FEAT_INFO = {
+  '사이클링 히트':{icon:'🔄',rare:5,d:'한 경기에서 단타·2루타·3루타·홈런을 다 쳤다'},
+  '퍼펙트게임'   :{icon:'💎',rare:5,d:'완투하면서 한 명도 1루를 밟게 하지 않았다'},
+  '노히트 노런'  :{icon:'🚫',rare:5,d:'완투 무피안타 무실점'},
+  '만루홈런'     :{icon:'💣',rare:3,d:'주자 만루에서 넘겼다'},
+  '완봉승'       :{icon:'🛡️',rare:4,d:'완투하고 한 점도 안 줬다'},
+  '무사사구 완투':{icon:'🎯',rare:4,d:'완투하면서 볼넷·사구를 하나도 안 줬다'},
+  '두 자릿수 탈삼진':{icon:'🔥',rare:3,d:'한 경기 10탈삼진 이상'},
+  '한 경기 5안타':{icon:'🏏',rare:4,d:'한 경기에서 5안타 이상'},
+  '한 경기 2홈런':{icon:'💥',rare:4,d:'한 경기에서 홈런 2개 이상'},
+  '한 경기 6타점':{icon:'🎁',rare:3,d:'한 경기에서 6타점 이상'},
+  '한 경기 4도루':{icon:'💨',rare:3,d:'한 경기에서 도루 4개 이상'},
+  '전 타석 출루' :{icon:'🧲',rare:3,d:'4타석 이상 나가서 한 번도 아웃되지 않았다'},
+  '끝내기'       :{icon:'🎆',rare:3,d:'마지막 회 말에 뒤집고 끝냈다'},
+  '팀 합작 노히트':{icon:'🧱',rare:5,d:'투수 여럿이 이어 던져 안타를 하나도 안 맞았다'},
+  '한 경기 20득점':{icon:'📈',rare:3,d:'팀이 한 경기에서 20점 이상 냈다'},
+  '한 경기 3병살':{icon:'🔗',rare:3,d:'수비에서 병살을 3개 이상 잡았다'},
+};
+/* 완투 판정 — 그날 우리 팀 아웃카운트를 혼자 다 잡았는가 */
+function isCompleteGame(l, allOuts){
+  return l && l.outs>0 && l.outs===allOuts && l.outs>=12;
+}
+/* 그날 나온 진기록을 전부 찾아온다 */
+function detectFeats(ST, res, usSide, thSide, uIds, gRot, dpCount){
+  const out=[];
+  const push=(kind,pid,detail)=>out.push({kind,pid:pid||null,detail:detail||''});
+
+  /* ---- 타자 ---- */
+  uIds.forEach(id=>{
+    const b=res.box[id]; if(!b||!b.pa)return;
+    const s1=(b.h||0)-(b.d2||0)-(b.d3||0)-(b.hr||0);      // 단타
+    if(s1>=1&&b.d2>=1&&b.d3>=1&&b.hr>=1) push('사이클링 히트',id,`${b.h}안타`);
+    if((b.h||0)>=5) push('한 경기 5안타',id,`${b.h}안타 ${b.ab}타수`);
+    if((b.hr||0)>=2) push('한 경기 2홈런',id,`${b.hr}홈런 ${b.rbi}타점`);
+    if((b.rbi||0)>=6) push('한 경기 6타점',id,`${b.rbi}타점`);
+    if((b.sb||0)>=4) push('한 경기 4도루',id,`${b.sb}도루`);
+    if((b.pa||0)>=4 && (b.h||0)+(b.bb||0)+(b.hbp||0)===b.pa)
+      push('전 타석 출루',id,`${b.pa}타석 ${b.h}안타 ${b.bb+b.hbp}사사구`);
+  });
+
+  /* ---- 투수 ---- */
+  const rot=(gRot&&gRot.length)?gRot:[];
+  const lines=rot.map(pid=>res.pbox[pid]).filter(l=>l&&l.bf);
+  const allOuts=lines.reduce((a,l)=>a+(l.outs||0),0);
+  const teamH=lines.reduce((a,l)=>a+(l.h||0),0);
+  const teamFree=lines.reduce((a,l)=>a+(l.bb||0)+(l.hbp||0),0);
+  rot.forEach(pid=>{
+    const l=res.pbox[pid]; if(!l||!l.bf)return;
+    const cg=isCompleteGame(l,allOuts);
+    const free=(l.bb||0)+(l.hbp||0);
+    const ip=ipStr(l);
+    if(cg && l.h===0 && l.r===0){
+      if(free===0 && l.bf===l.outs) push('퍼펙트게임',pid,`${ip}이닝 ${l.k}탈삼진 · 상대 ${l.bf}타자`);
+      else push('노히트 노런',pid,`${ip}이닝 ${free}사사구 ${l.k}탈삼진`);
+    } else if(cg && l.r===0){
+      push('완봉승',pid,`${ip}이닝 ${l.h}피안타 ${l.k}탈삼진`);
+    }
+    if(cg && free===0 && !(l.h===0&&l.r===0)) push('무사사구 완투',pid,`${ip}이닝 ${l.h}피안타 ${l.er}자책`);
+    if((l.k||0)>=10) push('두 자릿수 탈삼진',pid,`${l.k}탈삼진 ${ip}이닝`);
+  });
+  /* 여러 명이 이어 던져 만든 노히트 */
+  if(lines.length>=2 && teamH===0 && allOuts>=12)
+    push('팀 합작 노히트',null,`${lines.length}명 · ${teamFree}사사구`);
+
+  /* ---- 팀 ---- */
+  if((usSide.runs||0)>=20) push('한 경기 20득점',null,`${usSide.runs}득점`);
+  if((dpCount||0)>=3) push('한 경기 3병살',null,`${dpCount}병살`);
+
+  /* ---- 엔진이 올려준 것 (만루홈런·끝내기) ---- */
+  (res.feats||[]).filter(f=>f.us).forEach(f=>push(f.kind,f.pid,f.detail));
+
+  /* 같은 종류는 한 경기에 한 번만 */
+  const seen={};
+  return out.filter(f=>{ const k=f.kind+'/'+(f.pid||''); if(seen[k])return false; seen[k]=1; return true; });
+}
+/* 찾은 진기록을 영구 보관하고 단톡 메시지를 만든다 */
+function recordFeats(ST, feats){
+  if(!Array.isArray(ST.feats))ST.feats=[];
+  const msgs=[];
+  const date=`${ST.year||2026}-${String(ST.round+1).padStart(2,'0')}`;
+  feats.forEach(f=>{
+    const info=FEAT_INFO[f.kind]||{icon:'⭐',rare:3,d:''};
+    const first=!ST.feats.some(x=>x.kind===f.kind);      // 구단 최초인가
+    const rec={kind:f.kind, pid:f.pid, name:f.pid?nameOf(f.pid):'팀',
+      detail:f.detail, date, game:(ST.teamCareer&&ST.teamCareer.g)||0,
+      season:ST.seasonNo||1, year:ST.year||2026, first, icon:info.icon, rare:info.rare};
+    ST.feats.push(rec);
+    const who=f.pid?`${nameOf(f.pid)} `:'';
+    msgs.push({who:'lg',type:'record',
+      text:`${info.icon} ${first?'구단 최초 — ':''}${f.kind}
+${who}${f.detail}`});
+    /* 축하 — 본인이 아닌 사람이 한다 */
+    const cheer = f.pid==='lg' ? 'swm' : 'lg';
+    if(TBYID['wwzw'].players.some(x=>x.id===cheer)){
+      const c=pickOne(FEAT_CHEER);
+      msgs.push({who:cheer, text:f.pid?sayTo(cheer,f.pid,c[0],c[1]):say(cheer,c[0],c[1]), mood:'happy'});
+    }
+    ST.notices=ST.notices||[];
+    ST.notices.push({type:'feat',title:`${info.icon} ${f.kind}`,
+      body:`${who}${f.detail}`, effect:first?'구단 최초':'진기록'});
+    if(f.pid){
+      ST.morale[f.pid]=Math.min(100,(ST.morale[f.pid]||70)+(info.rare>=5?12:6));
+      if(ST.bond&&f.pid!==(ST.playerId||MYID))
+        ST.bond[f.pid]=Math.min(100,(ST.bond[f.pid]||50)+1);
+    }
+  });
+  if(ST.feats.length>300)ST.feats=ST.feats.slice(-300);
+  return msgs;
 }
 
 /* 병살 시너지 */
@@ -3464,18 +3628,30 @@ const POST_BIGWIN=[
   ['상대한테 좀 미안하네 ㅋㅋ','상대팀한테 좀 미안하네요 ㅋㅋ'],
   ['이런 날도 있어야지','이런 날도 있어야죠'],
   ['다음 주도 이대로 가자','다음 주도 이대로 가시죠'],
+  ['오늘 같은 날은 영상 남겼어야 되는데','오늘 같은 날은 영상 남겼어야 되는데요'],
+  ['타순이 한 바퀴를 두 번 돌더라','타순이 한 바퀴를 두 번 돌았습니다'],
+  ['상대 벤치가 조용해지는 게 보였다','상대 벤치가 조용해지는 게 보이더라고요'],
+  ['이런 날 사진 안 찍은 게 제일 아깝다','이런 날 사진 안 찍은 게 제일 아깝네요'],
+  ['모처럼 야구다운 야구 했다','모처럼 야구다운 야구 했습니다'],
 ];
 const POST_CLOSEWIN=[
   ['심장 떨려 죽는 줄 알았다','심장 떨려 죽는 줄 알았습니다'],
   ['이런 경기 이기는 게 진짜 크다','이런 경기 이기는 게 진짜 큽니다'],
   ['한 점 차는 그만하자 진짜','한 점 차는 그만하시죠 진짜'],
   ['마지막에 다들 집중 잘했다','마지막에 다들 집중 잘하셨습니다'],
+  ['마지막 아웃까지 앉지도 못했다','마지막 아웃까지 앉지도 못했습니다'],
+  ['이겨놓고도 손이 떨린다','이겨놓고도 손이 떨리네요'],
+  ['이런 걸 이겨야 시즌이 풀린다','이런 걸 이겨야 시즌이 풀립니다'],
+  ['수명 줄어드는 소리 났다','수명 줄어드는 소리 났습니다'],
 ];
 const POST_COMEBACK=[
   ['뒤집었다 ㅋㅋㅋ 이 맛에 야구한다','뒤집었네요 ㅋㅋㅋ 이 맛에 야구하죠'],
   ['포기 안 한 게 컸다','포기 안 한 게 컸습니다'],
   ['중간에 진짜 접었는데','중간에 진짜 접었었는데'],
   ['역전승은 언제 해도 좋다','역전승은 언제 해도 좋네요'],
+  ['짐 싸던 사람 누구냐','짐 싸시던 분 누구시죠'],
+  ['벤치에서 소리 지르다 목이 나갔다','벤치에서 소리 지르다 목이 나갔습니다'],
+  ['야구는 진짜 끝날 때까지 모른다','야구는 진짜 끝날 때까지 모르네요'],
 ];
 const POST_BLOWOUT=[
   ['오늘은 그냥 잊자','오늘은 그냥 잊으시죠'],
@@ -3483,67 +3659,113 @@ const POST_BLOWOUT=[
   ['이건 뭐 할 말이 없다','이건 뭐 할 말이 없습니다'],
   ['다음 주에 갚자','다음 주에 갚읍시다'],
   ['오늘 나온 사람들 고생 많았다','오늘 나오신 분들 고생 많으셨습니다'],
+  ['오늘은 조용히 씻고 가자','오늘은 조용히 씻고 가시죠'],
+  ['이런 날은 회식도 안 당긴다','이런 날은 회식도 안 당기네요'],
+  ['영상은 안 올리는 걸로 하자','영상은 안 올리는 걸로 하시죠'],
+  ['다 같이 못했으니까 누구 탓은 하지 말자','다 같이 못했으니까 누구 탓은 하지 마시죠'],
 ];
 const POST_CLOSELOSS=[
   ['한 점이 이렇게 크다','한 점이 이렇게 크네요'],
   ['아까 그 이닝이 아쉽다','아까 그 이닝이 아쉽습니다'],
   ['이런 건 이겨야 되는데','이런 건 이겨야 되는데요'],
   ['다 잡은 경기였는데','다 잡은 경기였는데요'],
+  ['한 개만 더 쳤으면 됐는데','한 개만 더 쳤으면 됐는데요'],
+  ['오늘 진 게 제일 아프다','오늘 진 게 제일 아픕니다'],
+  ['졌는데 이상하게 기분은 나쁘지 않다','졌는데 이상하게 기분은 나쁘지 않네요'],
 ];
 const POST_MERCY_WIN=[
   ['콜드로 끝냈다 ㅋㅋ','콜드로 끝냈네요 ㅋㅋ'],
   ['일찍 끝나서 밥이나 먹으러 가자','일찍 끝나서 밥이나 먹으러 가시죠'],
+  ['해 지기 전에 끝난 거 처음이다','해 지기 전에 끝난 거 처음입니다'],
+  ['다음 이닝 준비하다가 끝났다','다음 이닝 준비하다가 끝났습니다'],
 ];
 const POST_MERCY_LOSS=[
   ['콜드는 좀 그렇다 진짜','콜드는 좀 그렇네요 진짜'],
   ['경기가 일찍 끝나서 더 허무하다','경기가 일찍 끝나서 더 허무합니다'],
+  ['구장비가 아깝다','구장비가 아깝습니다'],
+  ['몸도 안 풀렸는데 끝났다','몸도 안 풀렸는데 끝났습니다'],
 ];
 /* 개인 성적 반응 */
 const POST_MULTI=[
   ['오늘 방망이 잘 돌더라','오늘 방망이 잘 돌았습니다'],
   ['공이 수박만 하게 보였다','공이 수박만 하게 보이더라고요'],
   ['이런 날이 일 년에 몇 번 없다','이런 날이 일 년에 몇 번 없죠'],
+  ['오늘은 눈이 좀 트였다','오늘은 눈이 좀 트였습니다'],
+  ['배팅장 다닌 보람이 있다','배팅장 다닌 보람이 있네요'],
+  ['타석에 서는 게 안 무서웠다','타석에 서는 게 안 무서웠습니다'],
+  ['오늘 폼 그대로 다음 주까지만 가자','오늘 폼 그대로 다음 주까지만 갔으면 좋겠습니다'],
 ];
 const POST_HR=[
   ['넘어갔다 ㅋㅋㅋ','넘어갔습니다 ㅋㅋㅋ'],
   ['맞는 순간 알았다','맞는 순간 알았습니다'],
   ['다리 아파서 천천히 돌았다','다리 아파서 천천히 돌았습니다'],
+  ['공 못 찾았으면 어쩔 뻔했냐','공 못 찾았으면 어쩔 뻔했습니까'],
+  ['담장 넘긴 게 몇 년 만이냐','담장 넘긴 게 몇 년 만인지 모르겠습니다'],
+  ['베이스 도는데 실감이 안 났다','베이스 도는데 실감이 안 났습니다'],
 ];
 const POST_HITLESS=[
   ['오늘 하나도 못 쳤다 미안하다','오늘 하나도 못 쳤습니다 죄송합니다'],
   ['타이밍이 계속 늦더라','타이밍이 계속 늦었습니다'],
   ['다음 주엔 배팅장 좀 가야겠다','다음 주엔 배팅장 좀 가야겠습니다'],
   ['방망이를 바꿔야 하나','방망이를 바꿔야 하나요'],
+  ['공이 안 보이더라 진짜','공이 안 보이더라고요 진짜'],
+  ['눈이 나빠진 것 같다','눈이 나빠진 것 같습니다'],
+  ['오늘은 그냥 나온 걸로 만족한다','오늘은 그냥 나온 걸로 만족합니다'],
 ];
 const POST_ERR=[
   ['아까 그거 내가 잡았어야 했다','아까 그건 제가 잡았어야 했습니다'],
   ['글러브에 넣었다 뺐다 ㅜ','글러브에 넣었다 뺐습니다 ㅜ'],
   ['수비 연습 좀 해야겠다','수비 연습 좀 해야겠습니다'],
+  ['땅이 이상했다고 하고 싶다','땅이 이상했다고 하고 싶습니다'],
+  ['투수한테 제일 미안하다','투수분한테 제일 죄송합니다'],
+  ['글러브를 새로 사야 하나','글러브를 새로 사야 하나요'],
 ];
 const POST_SB=[
   ['오늘 다리가 좀 살아 있더라','오늘 다리가 좀 살아 있었습니다'],
   ['상대 포수가 안 던지길래 계속 뛰었다','상대 포수가 안 던지길래 계속 뛰었습니다'],
+  ['뛰라고 안 했는데 그냥 뛰었다','뛰라고 안 하셨는데 그냥 뛰었습니다'],
+  ['내일 허벅지 못 걸을 것 같다','내일 허벅지 못 걸을 것 같습니다'],
 ];
 /* 투수 반응 */
 const POST_GEM=[
   ['오늘 공 좋았다','오늘 공 좋았습니다'],
   ['수비가 다 잡아줘서 편했다','수비가 다 잡아주셔서 편했습니다'],
   ['이런 날은 던지는 맛이 난다','이런 날은 던지는 맛이 납니다'],
+  ['포수 리드가 좋았다','포수분 리드가 좋았습니다'],
+  ['어깨가 오랜만에 안 아프다','어깨가 오랜만에 안 아픕니다'],
+  ['제구가 되니까 야구가 쉽더라','제구가 되니까 야구가 쉽더라고요'],
 ];
 const POST_WILD=[
   ['볼넷이 너무 많았다 미안하다','볼넷이 너무 많았습니다 죄송합니다'],
   ['스트라이크가 안 들어가더라','스트라이크가 안 들어갔습니다'],
   ['수비 오래 세워놔서 미안하다','수비 오래 세워놔서 죄송합니다'],
+  ['오늘은 마운드가 유독 높게 느껴졌다','오늘은 마운드가 유독 높게 느껴졌습니다'],
+  ['다음엔 야수로 나가겠다','다음엔 야수로 나가겠습니다'],
+  ['팔이 안 따라오더라','팔이 안 따라왔습니다'],
 ];
 /* 연승·연패 */
 const POST_STREAK_W=[
   ['이거 분위기 좋다','이거 분위기 좋습니다'],
   ['이 기세 이어가자','이 기세 이어가시죠'],
+  ['요새 나오는 사람이 많아서 그런 것 같다','요새 나오시는 분이 많아서 그런 것 같습니다'],
+  ['순위표 좀 보고 살자 이제','순위표 좀 보고 삽시다 이제'],
 ];
 const POST_STREAK_L=[
   ['뭐가 문제인지 한 번 얘기해보자','뭐가 문제인지 한 번 얘기해봤으면 합니다'],
   ['이러다 시즌 끝난다','이러다 시즌 끝납니다'],
   ['훈련 한 번 제대로 하자','훈련 한 번 제대로 하시죠'],
+  ['사람이 안 나오니까 이렇게 된다','사람이 안 나오니까 이렇게 되는 겁니다'],
+  ['일단 다 같이 밥이나 한 번 먹자','일단 다 같이 밥이나 한 번 먹으시죠'],
+];
+/* 진기록 축하 */
+const FEAT_CHEER=[
+  ['이건 진짜 남는 기록이다','이건 진짜 남는 기록입니다'],
+  ['4부에서 이걸 보네 ㅋㅋ','4부에서 이걸 보네요 ㅋㅋ'],
+  ['오늘 건 액자에 걸어야 된다','오늘 건 액자에 걸어야 됩니다'],
+  ['전시장에 박제됐다','전시장에 박제됐습니다'],
+  ['평생 우려먹어도 된다','평생 우려먹으셔도 됩니다'],
+  ['이런 날 회식 안 하면 언제 하냐','이런 날 회식 안 하면 언제 합니까'],
+  ['다음에 또 하라고는 안 하겠다','다음에 또 하시라고는 안 하겠습니다'],
 ];
 /* 날씨·구장 */
 const POST_WX={
@@ -3931,12 +4153,36 @@ function rollBossTalk(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '1.7.0';
-const APP_VERSION_NOTE = '투수는 투수 성적으로 · 상대 투수 실명화 · 김한규 똥차/똑딱이';
+const APP_VERSION = '1.8.0';
+const APP_VERSION_NOTE = '진기록 보관 · 수상 근거 포디움 · 라인스코어 버그 수정 · 갤럭시 대응';
+/* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
+function browserTag(){
+  const u=navigator.userAgent||'';
+  const parts=[];
+  if(/SamsungBrowser\/([\d.]+)/.test(u)) parts.push('삼성인터넷 '+RegExp.$1);
+  else if(/EdgA?\/([\d.]+)/.test(u)) parts.push('엣지 '+RegExp.$1);
+  else if(/FxiOS|Firefox\/([\d.]+)/.test(u)) parts.push('파이어폭스');
+  else if(/CriOS\/([\d.]+)/.test(u)) parts.push('크롬(iOS) '+RegExp.$1);
+  else if(/Chrome\/([\d.]+)/.test(u)) parts.push('크롬 '+RegExp.$1);
+  else if(/Version\/([\d.]+).*Safari/.test(u)) parts.push('사파리 '+RegExp.$1);
+  if(/Android ([\d.]+)/.test(u)) parts.push('안드로이드 '+RegExp.$1);
+  else if(/(iPhone|iPad).*OS (\d+[_\d]*)/.test(u)) parts.push('iOS '+RegExp.$2.replace(/_/g,'.'));
+  if(/SM-|Galaxy/.test(u)) parts.push('갤럭시');
+  if(window.matchMedia && matchMedia('(display-mode: standalone)').matches) parts.push('홈화면앱');
+  return parts.length?parts.join(' · '):'알 수 없음';
+}
 /* '1.2.3' → 10203 로 바꿔서 크기 비교 */
 function verNum(v){
   const a=String(v||'0.0.0').split('.').map(x=>parseInt(x,10)||0);
   return (a[0]||0)*10000+(a[1]||0)*100+(a[2]||0);
+}
+/* 배지만 먼저 찍는다. 세이브 로드나 다른 초기화가 실패해도
+   "지금 무슨 버전을 보고 있는지"는 항상 보여야 한다. */
+function paintVersionBadge(){
+  const badge=document.getElementById('appver');
+  if(!badge) return;
+  badge.textContent='v'+APP_VERSION;
+  badge.title='버전 '+APP_VERSION;
 }
 function checkVersion(){
   const badge=document.getElementById('appver');
@@ -4335,11 +4581,33 @@ function runMiniAwards(ST){
   us.pitchers.forEach(p=>{ P[p.id]=snapDiff(ST.pit[p.id]||blankPit(),snap&&snap.pit[p.id],PK); });
 
   const won=[];
-  const give=(kind,pid,value)=>{ if(!pid||won.some(w=>w.pid===pid))return; won.push({kind,pid,value}); };
-  const best=(obj,filt,score)=>{
-    const ids=Object.keys(obj).filter(id=>filt(obj[id]));
-    if(!ids.length)return null;
-    return ids.sort((a,b)=>score(obj[b])-score(obj[a]))[0];
+  /* [제보] "김한규가 ERA 12.68로 투수상을 탔는데 왜 탔는지 모르겠다".
+     한 사람이 상을 두 개 받지 않게 이미 받은 사람을 건너뛰는데,
+     그 사실이 어디에도 안 보여서 결과만 이상하게 남았다.
+     이제 후보 순위를 통째로 들고 다니면서 누가 왜 밀렸는지까지 남긴다. */
+  const rank=(obj,filt,score,fmt)=>{
+    return Object.keys(obj).filter(id=>filt(obj[id]))
+      .map(id=>({pid:id, s:score(obj[id]), v:fmt?fmt(obj[id]):''}))
+      .sort((a,b)=>b.s-a.s);
+  };
+  /* 상은 기록으로만 준다. 한 사람이 여러 개 받아도 그대로 준다 —
+     제일 잘한 사람이 MVP 도 타율상도 받는 게 맞다.
+     같은 값이면 공동 수상이다.                                     */
+  const give=(kind,list,criteria)=>{
+    if(!list||!list.length)return;
+    const top=list[0].s;
+    const co=list.filter(c=>Math.abs(c.s-top)<1e-9);      // 동률 = 공동 수상
+    /* 동점자는 같은 등수로 매긴다. 공동 1위가 셋이면 다음은 4등이다. */
+    let rk=0, prev=null;
+    const podium=list.slice(0,6).map((x,i)=>{
+      if(prev===null||Math.abs(x.s-prev)>1e-9){ rk=i+1; prev=x.s; }
+      return {rank:rk, pid:x.pid, v:x.v};
+    });
+    co.forEach(c=>{
+      won.push({kind, pid:c.pid, value:c.v, criteria, podium,
+        coWith: co.filter(x=>x.pid!==c.pid).map(x=>x.pid),
+        skipped:[], cand:list.length});
+    });
   };
   const opsOf=b=>{
     const ab=b.ab||0, pa=b.pa||0; if(!pa)return 0;
@@ -4354,29 +4622,26 @@ function runMiniAwards(ST){
   const gw=(stNow.w||0)-(rec0.w||0), gl=(stNow.l||0)-(rec0.l||0), gt=(stNow.t||0)-(rec0.t||0);
   let mgrGiven=false;
   if(mgrP && (gw+gl+gt)>0 && gw>=gl){
-    won.push({kind:'mgr',pid:mgrP.id,value:`${gw}승 ${gl}패${gt?` ${gt}무`:''}`});
+    won.push({kind:'mgr',pid:mgrP.id,value:`${gw}승 ${gl}패${gt?` ${gt}무`:''}`,
+      criteria:'감독(이건) 전용 · 이 구간 팀 성적이 5할 이상이면 준다',
+      podium:null, skipped:[], cand:1});
     mgrGiven=true;
   }
   const noMgr={}; Object.keys(B).forEach(id=>{ if(!mgrP||id!==mgrP.id) noMgr[id]=B[id]; });
 
-  give('mvp', best(B,b=>b.pa>=5,opsOf), null);
-  give('avg', best(B,b=>b.ab>=6,b=>b.h/b.ab), null);
-  give('bat', best(B,b=>b.h>=1,b=>(b.h||0)*1.0+(b.rbi||0)*0.8), null);
-  give('sb',  best(B,b=>(b.sb||0)>=2,b=>b.sb), null);
-  give('pit', best(P,l=>l.outs>=6,l=>-((l.er*7)/(l.outs/3))), null);
-  give('team', best(noMgr,b=>b.pa>=4,b=>(b.rbi||0)+(b.r||0)), null);
-
-  /* 값 문구 채우기 */
-  won.forEach(w=>{
-    const b=B[w.pid], l=P[w.pid];
-    if(w.kind==='mvp') w.value=`OPS ${opsOf(b).toFixed(3)}`;
-    else if(w.kind==='avg') w.value=`타율 ${fmt3(b.h/b.ab)}`;
-    else if(w.kind==='bat') w.value=`${b.h}안타 ${b.rbi}타점`;
-    else if(w.kind==='sb') w.value=`${b.sb}도루`;
-    else if(w.kind==='pit') w.value=`ERA ${(l.outs?((l.er*7)/(l.outs/3)):0).toFixed(2)}`;
-    else if(w.kind==='team') w.value=`${b.rbi}타점 ${b.r}득점`;
-    /* 감독상 값은 위에서 이미 넣었다 */
-  });
+  const eraOf=l=>l.outs?((l.er*7)/(l.outs/3)):99;
+  give('mvp', rank(B,b=>b.pa>=5,opsOf,b=>`OPS ${opsOf(b).toFixed(3)}`),
+       '이 구간 OPS 1위 · 5타석 이상');
+  give('avg', rank(B,b=>b.ab>=6,b=>b.h/b.ab,b=>`타율 ${fmt3(b.h/b.ab)} (${b.h}/${b.ab})`),
+       '이 구간 타율 1위 · 6타수 이상');
+  give('bat', rank(B,b=>b.h>=1,b=>(b.h||0)*1.0+(b.rbi||0)*0.8,b=>`${b.h}안타 ${b.rbi}타점`),
+       '안타 + 타점×0.8 이 가장 높은 사람');
+  give('sb',  rank(B,b=>(b.sb||0)>=2,b=>b.sb,b=>`${b.sb}도루`),
+       '이 구간 도루 1위 · 2개 이상');
+  give('pit', rank(P,l=>l.outs>=6,l=>-eraOf(l),l=>`ERA ${eraOf(l).toFixed(2)} · ${ipStr(l)}이닝 ${l.er}자책`),
+       '이 구간 ERA 1위 · 2이닝 이상 (7이닝 환산)');
+  give('team', rank(noMgr,b=>b.pa>=4,b=>(b.rbi||0)+(b.r||0),b=>`${b.rbi}타점 ${b.r}득점`),
+       '타점 + 득점 합계 1위 · 4타석 이상');
 
   const at=ST.schedule.filter(x=>x.played&&!x.po).length;
   if(!Array.isArray(ST.hall))ST.hall=[];
@@ -4387,12 +4652,16 @@ function runMiniAwards(ST){
   won.forEach(w=>{
     const label=MINI_LABELS[w.kind]||'수상';
     ST.hall.push({season:ST.seasonNo||1, year:ST.year||2026, at, kind:w.kind,
-      label, pid:w.pid, name:nameOf(w.pid), value:w.value, scope:'구간'});
+      label, pid:w.pid, name:nameOf(w.pid), value:w.value, scope:'구간',
+      criteria:w.criteria||'', podium:w.podium||null,
+      skipped:w.skipped||[], cand:w.cand||0, coWith:w.coWith||[]});
     ST.awardBonus[w.pid]=(ST.awardBonus[w.pid]||0)+1;
     ST.morale[w.pid]=Math.min(100,(ST.morale[w.pid]||70)+7);
     if(ST.bond&&w.pid!==meId)ST.bond[w.pid]=Math.min(100,(ST.bond[w.pid]||50)+1);
+    const coTxt=(w.coWith&&w.coWith.length)
+      ? `\n${w.coWith.map(nameOf).join(', ')}와(과) 공동 수상` : '';
     msgs.push({who:'lg',type:'notice',
-      text:`${at}경기 구간 시상 — ${label}\n${nameOf(w.pid)} · ${w.value}\n사기 +7 · 몸값 상승`});
+      text:`${at}경기 구간 시상 — ${label}\n${nameOf(w.pid)} · ${w.value}${coTxt}\n사기 +7 · 몸값 상승`});
     /* 축하 — 이건이 하고, 이건이 받으면 송승민이 한다 */
     const cheerer = (w.pid==='lg') ? 'swm' : 'lg';
     if(us.players.some(x=>x.id===cheerer)){
@@ -4985,6 +5254,11 @@ function LiveGame(cfg){
   this.form = cfg.form||{};          // 투수 폼 배수 {pid:0.93~1.07}
   this.benchPool = cfg.benchPool||[];   // 나왔는데 라인업엔 못 든 사람들
   this.dpCount=0; this.assists=0; this.wp=0;
+  /* [버그 이력] 이걸 초기화 안 해서 첫 득점 때 undefined++ 가 NaN 이 됐다.
+     endHalf 의 (this.curIR||0) 이 그 NaN 을 0 으로 눌러버려서
+     1회 초 득점이 라인스코어에서 통째로 사라졌다.
+     "R 은 5점인데 이닝을 더하면 2점"이 여기서 나왔다.            */
+  this.curIR=0;                    // 이번 반이닝 득점
   this.hot = !!cfg.hot;
   /* 판단창은 한 타석에 한 번만 뜬다.
      예전에는 지시를 고르고 나면 타석을 진행하기도 전에 같은 상황을 다시 검사해서
@@ -5027,6 +5301,7 @@ function LiveGame(cfg){
   this.gojinOpp = 1;     // 안산 BABIP 배수
   this.gojinWake = {};   // 각성 예약 {pid:true} — 두 명이 동시에 예약될 수 있다
   this.highlights = [];  // 이닝별 주요 장면 (2루타·3루타·홈런·도루자·병살타)
+  this.feats = [];       // 박스스코어만으로는 못 잡는 진기록 (만루홈런·끝내기)
   this.friction = {log:[],hbp:false,cleared:false,drunk:null,by:null,up:false,pending:false};
   this.drunkIds = cfg.drunkIds||[];   // 전날 마신 사람들
   this.fricUs = 1;       // 마찰 여파로 붙는 우리 BABIP 배수
@@ -5236,7 +5511,7 @@ LiveGame.prototype.stepPA = function(){
   if((this.bases[0]||this.bases[1]||this.bases[2]) && rng() < clamp(0.009+(42-pit.ctl)*0.0009, 0.002, 0.038)){
     for(let b=2;b>=0;b--){
       if(!this.bases[b])continue;
-      if(b===2){ this.box[this.bases[2]].r++; off.runs++; this.curIR++; pl.r++; pl.er++; this.bases[2]=null; }
+      if(b===2){ this.box[this.bases[2]].r++; off.runs++; this.curIR=(this.curIR||0)+1; pl.r++; pl.er++; this.bases[2]=null; }
       else { this.bases[b+1]=this.bases[b]; this.bases[b]=null; }
     }
     this.wp=(this.wp||0)+1;
@@ -5357,7 +5632,7 @@ LiveGame.prototype.stepPA = function(){
   // 번트 앤 런은 주자가 한 베이스 더 간다
   const advOdds = (off.isUser && this._buntRun) ? 0.62 : 0.35;
 
-  const score=(rid,e)=>{ if(!rid)return; this.box[rid].r++; off.runs++; this.curIR++; pl.r++; if(e)pl.er++; };
+  const score=(rid,e)=>{ if(!rid)return; this.box[rid].r++; off.runs++; this.curIR=(this.curIR||0)+1; pl.r++; if(e)pl.er++; };
   const adv=(n,e)=>{ for(let b=2;b>=0;b--){ if(this.bases[b]){ const nb=b+n;
     if(nb>=3){score(this.bases[b],e);bl.rbi++;} else this.bases[nb]=this.bases[b]; this.bases[b]=null; } } };
 
@@ -5445,8 +5720,11 @@ LiveGame.prototype.stepPA = function(){
       this.hl('d3',off,bat.name,'');}
     else{bl.hr++;let c=1;for(let b=0;b<3;b++)if(this.bases[b]){score(this.bases[b],true);c++;this.bases[b]=null;}
       score(bat.id,true);bl.rbi+=c;
-      events.push({text:`${bat.name} 홈런! ${c}점`,cls:'hr'});
-      this.hl('hr',off,bat.name,c>1?`${c}점 홈런`:'솔로 홈런');}
+      const slam=(c===4);
+      events.push({text:slam?`${bat.name} 만루홈런!! 4점`:`${bat.name} 홈런! ${c}점`,cls:'hr'});
+      this.hl('hr',off,bat.name,slam?'만루홈런':(c>1?`${c}점 홈런`:'솔로 홈런'));
+      if(slam) this.feats.push({kind:'만루홈런',pid:bat.id,us:!!off.isUser,
+        detail:`${this.inning}회 ${this.half===0?'초':'말'}`});}
   }
 
   off.order++;
@@ -5462,6 +5740,11 @@ LiveGame.prototype.stepPA = function(){
 
   // 끝내기
   if(this.half===1 && this.inning>=this.INN && this.home.runs>this.away.runs){
+    /* [버그 이력] 여기서 바로 finish() 로 빠져서 endHalf 를 안 거쳤다.
+       그래서 끝내기로 낸 점수가 라인스코어에 통째로 안 찍혔다.
+       R 은 12점인데 이닝을 더하면 8점이던 게 이것 때문이다.        */
+    this.off().line.push(this.curIR||0);
+    this.curIR=0;
     this.finish(); return {events, done:true};
   }
   if(this.outs>=3){ this.endHalf(); return {events, half:true}; }
@@ -5563,6 +5846,16 @@ LiveGame.prototype.finish = function(){
   const tie=this.away.runs===this.home.runs;
   const awayWin=this.away.runs>this.home.runs;
   const win=awayWin?this.away:this.home, lose=awayWin?this.home:this.away;
+  /* 끝내기 — 홈이 마지막 말 공격에서 뒤집어 이겼으면.
+     그 이닝 득점을 빼면 이기고 있지 않았어야 한다. */
+  if(!tie && !awayWin && this.half===1){
+    const li=this.home.line.length-1;
+    const last=li>=0?(this.home.line[li]||0):0;
+    if(last>0 && (this.home.runs-last) <= this.away.runs){
+      this.feats.push({kind:'끝내기',pid:null,us:!!this.home.isUser,
+        detail:`${this.inning}회 말 · ${last}점`});
+    }
+  }
   this.result={
     away:{team:this.away.team,runs:this.away.runs,hits:this.away.hits,errs:this.away.errs,bbs:this.away.bbs,sbAllowed:this.away.sbAllowed,line:this.away.line,used:this.away.used||[],slots:this.away.slots,rot:this.away.rot},
     home:{team:this.home.team,runs:this.home.runs,hits:this.home.hits,errs:this.home.errs,bbs:this.home.bbs,sbAllowed:this.home.sbAllowed,line:this.home.line,used:this.home.used||[],slots:this.home.slots,rot:this.home.rot},
@@ -5576,6 +5869,7 @@ LiveGame.prototype.finish = function(){
     gojin:this.gojin,
     friction:this.friction,
     highlights:this.highlights,
+    feats:this.feats||[],
   };
 };
 
@@ -7441,7 +7735,8 @@ function renderHall(){
   if(hall.length){
     let inner='<div class="tro-grid">';
     hall.slice().reverse().forEach(h=>{
-      inner+=`<div class="tro">
+      const i=(ST.hall||[]).indexOf(h);
+      inner+=`<div class="tro tap" data-hi="${i}">
         <div class="tro-i">${TROPHY_ICON[h.kind]||'🏆'}</div>
         <div class="tro-l">${h.label}</div>
         <div class="tro-v">${h.value||''}</div>
@@ -7449,7 +7744,7 @@ function renderHall(){
       </div>`;
     });
     inner+='</div>';
-    add(otSec('트로피', inner, `${hall.length}개`));
+    add(otSec('트로피', inner, `${hall.length}개 · 눌러보면 근거`));
   } else {
     add(otSec('트로피','<p class="ot-note">아직 받은 상이 없다. 5경기마다 구간 시상이 있고, 시즌이 끝나면 시상식이 있다.</p>'));
   }
@@ -7462,6 +7757,29 @@ function renderHall(){
     add(otSec('팀 타이틀', t));
   }
 
+  /* 진기록 */
+  const myFeats=(ST.feats||[]).filter(f=>f.pid===who);
+  const teamFeats=(ST.feats||[]).filter(f=>!f.pid);
+  if(myFeats.length){
+    let fi='';
+    myFeats.slice().reverse().forEach(f=>{
+      fi+=`<div class="feat-row"><div class="ft-i">${f.icon||'⭐'}</div>
+        <div class="ft-b"><div class="ft-k">${f.kind}${f.first?'<em>구단 최초</em>':''}</div>
+          <div class="ft-v">${f.detail||''}</div>
+          <div class="ft-d">${f.year||2026}년 · ${f.game?`통산 ${f.game}경기째`:''}</div></div></div>`;
+    });
+    add(otSec('진기록', fi, `${myFeats.length}개`));
+  } else {
+    add(otSec('진기록','<p class="ot-note">아직 없다. 사이클링 히트·노히트 노런 같은 게 나오면 여기 남는다.</p>'));
+  }
+  if(who===meId && teamFeats.length){
+    let ti='';
+    teamFeats.slice().reverse().forEach(f=>{
+      ti+=`<div class="ot-r"><span>${f.year||2026}</span><b>${f.icon||'⭐'} ${f.kind} · ${f.detail||''}</b></div>`;
+    });
+    add(otSec('팀 진기록', ti));
+  }
+
   /* 통산 */
   const cr=ST.career&&ST.career[who];
   if(cr){
@@ -7469,6 +7787,10 @@ function renderHall(){
       `<div class="ot-tbl"><table><thead><tr><th>G</th><th>PA</th><th>H</th><th>HR</th><th>RBI</th><th>SB</th></tr></thead>
        <tbody><tr><td>${cr.g||0}</td><td>${cr.pa||0}</td><td>${cr.h||0}</td><td>${cr.hr||0}</td><td>${cr.rbi||0}</td><td>${cr.sb||0}</td></tr></tbody></table></div>`));
   }
+  grid.addEventListener('click', ev=>{
+    const t=ev.target.closest('.tro[data-hi]'); if(!t) return;
+    openAward(Number(t.getAttribute('data-hi')));
+  });
   wrap.appendChild(grid);
   c.appendChild(wrap);
 
@@ -7476,6 +7798,69 @@ function renderHall(){
   const pb=el('button','btn','선수 프로필'); pb.onclick=()=>openPlayer(who);
   const bk=el('button','btn','홈으로'); bk.onclick=()=>go('home');
   act.appendChild(pb); act.appendChild(bk); c.appendChild(act);
+}
+
+/* ================= 수상 근거 =================
+   "왜 받았는지 모르겠다"가 제일 많이 나온 화면이다.
+   기준 · 후보 순위(포디움) · 밀린 사람까지 다 보여준다.        */
+function openAward(idx){
+  const h=(ST.hall||[])[idx];
+  const body=$('#sheet-body'); if(!body||!h) return;
+  body.innerHTML='';
+  $('#sheet-title').textContent=`${h.label} · ${h.year||2026}`;
+
+  const top=el('div','aw-top');
+  top.innerHTML=`<div class="aw-i">${TROPHY_ICON[h.kind]||'🏆'}</div>
+    <div><div class="aw-l">${h.label}</div>
+      <div class="aw-n">${h.name||nameOf(h.pid)}</div>
+      <div class="aw-v">${h.value||''}</div>
+      <div class="pcs-n2">${h.scope==='구간'?`${h.at}경기 구간`:'시즌'} · ${h.year||2026}</div></div>`;
+  body.appendChild(top);
+
+  const grid=el('div','ot-grid');
+  const add=html=>{const d=document.createElement('div');d.innerHTML=html;if(d.firstElementChild)grid.appendChild(d.firstElementChild);};
+
+  add(otSec('선정 기준',
+    h.criteria ? `<p class="ot-note">${h.criteria}</p>`
+      : '<p class="ot-note">이 상은 기준을 따로 남기지 않은 판에서 받았다. 다음 수상부터는 기준이 같이 남는다.</p>'));
+
+  if(h.podium && h.podium.length){
+    const coN=h.podium.filter(c=>c.rank===1).length;
+    let pod='<div class="pod">';
+    h.podium.forEach(c=>{
+      const meRow = c.pid===h.pid;
+      const co = c.rank===1 && coN>1;
+      pod+=`<div class="pod-r${meRow?' win':''}">
+        <span class="pod-n">${c.rank===1?'🥇':c.rank===2?'🥈':c.rank===3?'🥉':c.rank}</span>
+        <span class="pod-p">${nmLink(c.pid,nameOf(c.pid))}</span>
+        <span class="pod-v">${c.v||''}</span>
+        <span class="pod-t">${meRow?(co?'공동 수상':'수상'):(co?'공동 수상':'')}</span>
+      </div>`;
+    });
+    pod+='</div>';
+    let note='';
+    if(coN>1){
+      note=`<p class="ot-note">기록이 똑같아서 <b>${coN}명 공동 수상</b>이다.
+        상은 순전히 기록으로만 준다 — 한 사람이 MVP 와 타율상을 같이 받아도 그대로 준다.</p>`;
+    } else {
+      note=`<p class="ot-note">후보 ${h.cand||h.podium.length}명 중 1위다.
+        상은 순전히 기록으로만 준다 — 한 사람이 여러 개 받아도 그대로 준다.</p>`;
+    }
+    add(otSec('후보 순위', pod+note, `${h.cand||h.podium.length}명`));
+  } else if(h.kind!=='mgr'){
+    add(otSec('후보 순위',
+      '<p class="ot-note">이 상을 받은 판에는 후보 기록이 안 남아 있다. 이번 버전부터 쌓인다.</p>'));
+  }
+
+  body.appendChild(grid);
+  wireNames(body);
+  const act=el('div','btn-row');
+  const pb=el('button','btn primary','선수 카드');
+  pb.onclick=()=>{ openPlayerCard(h.pid); };
+  const cb=el('button','btn','닫기'); cb.onclick=closeSheet;
+  act.appendChild(pb); act.appendChild(cb);
+  body.appendChild(act);
+  $('#sheet').classList.add('open');
 }
 
 let profileId=null;
@@ -8553,6 +8938,10 @@ const TUTORIAL=[
      한 장에 뜬다. 능력치 옆의 흐린 칸이 잠재치다.<br><br>
      <b>플레이타임</b> — 홈과 설정에 누적 시간이 뜬다. 탭을 뒤로 보내면 안 센다.<br><br>
      <b>기록실</b> — 리그 전체 타격·투수 순위를 볼 수 있다. 우리 팀이 몇 등인지 확인해라.<br><br>
+     <b>진기록</b> — 사이클링 히트·노히트 노런·만루홈런 같은 게 나오면
+     기록실 <b>진기록</b> 탭과 전시장에 영구 보관된다. 아직 안 나온 목록도 같이 뜬다.<br><br>
+     <b>수상 근거</b> — 전시장에서 트로피를 누르면 무슨 기준으로,
+     누구를 제치고 받았는지 후보 순위까지 나온다. 기록이 같으면 공동 수상이다.<br><br>
      <b>선수 이름은 누를 수 있다</b> — 경기 결과 박스스코어든 리그 순위표든,
      이름을 누르면 그 선수의 능력치·올 시즌 기록이 카드로 뜬다. 상대 팀 선수도 된다.<br><br>
      <b>경기 결과</b> — 선발 타자 아래에 그날 들어간 대타·교체가 같은 타순으로 들여쓰여 붙는다.
@@ -9486,6 +9875,27 @@ function showResult(){
   }
   stage.appendChild(hc);
 
+  /* 진기록 — 나온 날에만 뜬다. 확정 전에도 보이게 미리 판정해서 보여준다. */
+  const uIdsNow=[...new Set(usedList(usSide).map(u=>u.id))];
+  const gRotNow=(ST.gameRotation&&ST.gameRotation.length)?ST.gameRotation:ST.rotation;
+  const featsNow=detectFeats(ST,res,usSide,thSide,uIdsNow,gRotNow,res.dpCount||0);
+  if(featsNow.length){
+    const fc=el('div','card featcard');
+    fc.appendChild(el('div','card-h','진기록'));
+    featsNow.forEach(f=>{
+      const info=FEAT_INFO[f.kind]||{icon:'⭐',d:''};
+      const first=!(ST.feats||[]).some(x=>x.kind===f.kind);
+      const r=el('div','feat-row');
+      r.innerHTML=`<div class="ft-i">${info.icon}</div>
+        <div class="ft-b"><div class="ft-k">${f.kind}${first?'<em>구단 최초</em>':''}</div>
+          <div class="ft-v">${f.pid?nmLink(f.pid,nameOf(f.pid))+' · ':''}${f.detail}</div>
+          <div class="ft-d">${info.d||''}</div></div>`;
+      fc.appendChild(r);
+    });
+    wireNames(fc);
+    stage.appendChild(fc);
+  }
+
   const uSlots=(next.homeGame?LIVE.home:LIVE.away).slots;
   /* 타격 박스스코어 — 선발이 먼저, 그 밑에 대타·교체가 붙는다.
      교체되면 slots 에서 선발이 지워지기 때문에 usedList 를 따로 본다. */
@@ -9608,8 +10018,13 @@ function commitGame(res,usSide,thSide,uSlots){
   const promiseMsgs = checkPromises(ST, starters, uIds, absentIds);
   const dpCount = res.dpCount||0;
   const miles = accrueCareer(ST,res,uUniq,won,tie,dpCount);
+  /* 진기록 — 사이클링 히트·노히트노런 같은 것들. 나오면 영구 보관한다. */
+  const feats = detectFeats(ST,res,usSide,thSide,uIds,gRot,dpCount);
+  ST.lastFeats = feats;
+  const featMsgs = recordFeats(ST, feats);
   ST.canParty = won;
   ST.kakaoPost = buildKakaoPost(ST,res,usSide,thSide,uUniq,miles);
+  featMsgs.forEach(m=>ST.kakaoPost.push(m));
   applyGojin(ST,res.gojin).forEach(m=>ST.kakaoPost.push(m));
   applyFriction(ST,res.friction).forEach(m=>ST.kakaoPost.push(m));
   promiseMsgs.forEach(m=>ST.kakaoPost.push(m));
@@ -10639,15 +11054,64 @@ let recTab='real';
 function renderRecords(){
   const c=$('#view'); c.innerHTML='';
   const tabs=el('div','subtabs');
-  [['real','실제 기록'],['mine','내 기록'],['career','통산'],['team','구단']].forEach(([k,n])=>{
+  [['real','실제 기록'],['feat','진기록'],['mine','내 기록'],['career','통산'],['team','구단']].forEach(([k,n])=>{
     const b=el('button','subtab'+(recTab===k?' on':''),n);
     b.onclick=()=>{recTab=k;renderRecords();}; tabs.appendChild(b);
   });
   c.appendChild(tabs);
   const us=TBYID['wwzw'];
 
+  /* ── 진기록 ── */
+  if(recTab==='feat'){
+    const all=(ST.feats||[]).slice().reverse();
+    const head=el('div','card');
+    head.innerHTML=`<div class="card-h">진기록</div>
+      <p class="muted">확률이 낮아서 평생 한 번 볼까 말까 한 것들이다.
+      나오면 그날 단톡방이 뒤집어지고 여기에 영구 보관된다.
+      선수 개인 것은 <b>전시장</b>에도 같이 남는다.</p>`;
+    c.appendChild(head);
+
+    if(all.length){
+      const card=el('div','card');
+      card.appendChild(el('div','card-h',`달성 기록 ${all.length}건`));
+      all.forEach(f=>{
+        const r=el('div','feat-row');
+        r.innerHTML=`<div class="ft-i">${f.icon||'⭐'}</div>
+          <div class="ft-b"><div class="ft-k">${f.kind}${f.first?'<em>구단 최초</em>':''}</div>
+            <div class="ft-v">${f.pid?nmLink(f.pid,f.name||nameOf(f.pid))+' · ':''}${f.detail||''}</div>
+            <div class="ft-d">${f.year||2026}년${f.game?` · 통산 ${f.game}경기째`:''}${f.date?` · ${f.date}`:''}</div></div>`;
+        card.appendChild(r);
+      });
+      wireNames(card);
+      c.appendChild(card);
+    } else {
+      c.appendChild(el('div','card','아직 나온 진기록이 없다.'));
+    }
+
+    /* 아직 안 나온 것들 — 뭘 노려야 하는지 보여준다 */
+    const todo=el('div','card');
+    todo.appendChild(el('div','card-h','아직 안 나온 기록'));
+    const doneKinds=new Set(all.map(f=>f.kind));
+    const left=Object.entries(FEAT_INFO).filter(([k])=>!doneKinds.has(k))
+      .sort((a,b)=>b[1].rare-a[1].rare);
+    if(left.length){
+      const t=el('table','box');
+      t.innerHTML='<tr><th>기록</th><th>조건</th><th>희귀도</th></tr>';
+      left.forEach(([k,v])=>{
+        const tr=el('tr');
+        tr.innerHTML=`<td class="nm">${v.icon} ${k}</td><td style="text-align:left;font-size:11px;color:var(--dim)">${v.d}</td>`+
+          `<td>${'★'.repeat(v.rare)}</td>`;
+        t.appendChild(tr);
+      });
+      todo.appendChild(t);
+    } else {
+      todo.appendChild(el('p','muted','전부 한 번씩은 나왔다. 이 팀이?'));
+    }
+    c.appendChild(todo);
+  }
+
   /* ── 실제 기록 ── */
-  if(recTab==='real'){
+  else if(recTab==='real'){
     const note=el('div','card realbox');
     note.innerHTML=`<div class="card-h">실제 기록</div>
       <p class="muted">여기는 <b>2026시즌 실제 경기 기록</b>이다. 게임 플레이로는 바뀌지 않는다.<br>
@@ -10890,8 +11354,7 @@ function renderMore(){
     작정하고 보려는 사람은 못 막는다.<br>
     진짜로 가리려면 <b>깃허브 저장소를 비공개</b>로 돌려야 한다.</p>`;
   const rb=el('button','btn','최신 버전으로 새로 받기');
-  rb.onclick=()=>{ saveGame(true);
-    location.replace(location.pathname+'?v='+Date.now()); };
+  rb.onclick=hardReload;
   gc.appendChild(rb);
   const gb=el('button','btn','이 기기에서 코드 다시 묻기');
   gb.onclick=()=>{ try{localStorage.removeItem(GATE_KEY);}catch(e){}
@@ -10907,7 +11370,54 @@ function renderMore(){
     ${ST.seasonNo||1}년차 ${ST.round}차전<br>
     상단 배지가 <b>금색</b>이면 방금 새 버전으로 올라왔다는 뜻이다.
     버전이 올라가도 기록은 그대로 남는다.</p>`;
+  const cb=el('button','btn primary','지금 새 버전 확인');
+  cb.onclick=async()=>{ cb.disabled=true; cb.textContent='확인 중…';
+    const found=await checkForUpdate(true);
+    cb.disabled=false; cb.textContent='지금 새 버전 확인';
+    if(found) renderMore();
+  };
+  vc.appendChild(cb);
+  const hb=el('button','btn','캐시 지우고 새로 받기');
+  hb.onclick=hardReload;
+  vc.appendChild(hb);
   c.appendChild(vc);
+
+  /* 환경 정보 — "내 폰에서만 안 된다"는 제보를 받았을 때
+     이 화면을 캡처해서 보내면 원인을 좁힐 수 있다. */
+  const dg=el('div','card');
+  dg.appendChild(el('div','card-h','환경 정보'));
+  dg.appendChild(el('p','muted','"내 폰에서만 이상하다" 싶으면 이 화면을 캡처해서 보내라.'));
+  const box=el('div','diag');
+  const row=(k,v,bad)=>`<div class="ot-r"><span>${k}</span><b${bad?' class="hot"':''}>${v}</b></div>`;
+  let store='정상';
+  try{ localStorage.setItem('wwzw_t','1'); localStorage.removeItem('wwzw_t'); }
+  catch(e){ store='막힘 ('+(e&&e.name||'error')+')'; }
+  const upd = lastUpdCheck
+    ? (lastUpdCheck.ok ? `최신 v${lastUpdCheck.latest}` : `실패 — ${lastUpdCheck.why}`)
+    : '아직 확인 안 함';
+  box.innerHTML =
+    row('앱 버전', 'v'+APP_VERSION) +
+    row('세이브에 적힌 판', ST.appVer||'-', ST.appVer&&ST.appVer!==APP_VERSION) +
+    row('업데이트 확인', upd, !!(lastUpdCheck&&!lastUpdCheck.ok)) +
+    row('저장소', store, store!=='정상') +
+    row('마지막 저장', lastSaveOk?(lastSaveAt?'성공':'아직 없음'):'실패', !lastSaveOk) +
+    row('화면 폭', `${window.innerWidth}px · 배율 ${(window.devicePixelRatio||1).toFixed(1)}`) +
+    row('주소', location.protocol.replace(':','')) +
+    row('브라우저', browserTag());
+  const ua=el('p','muted');
+  ua.style.wordBreak='break-all';
+  ua.style.fontSize='10.5px';
+  ua.textContent=navigator.userAgent;
+  dg.appendChild(box); dg.appendChild(ua);
+  const copyb=el('button','btn','환경 정보 복사');
+  copyb.onclick=async()=>{
+    const txt=`v${APP_VERSION} / 저장판 ${ST.appVer||'-'} / 저장소 ${store} / `+
+      `${window.innerWidth}px / ${upd}\n${navigator.userAgent}`;
+    try{ await navigator.clipboard.writeText(txt); toast('복사했다'); }
+    catch(e){ toast('복사가 막혔다 — 화면을 캡처해라'); }
+  };
+  dg.appendChild(copyb);
+  c.appendChild(dg);
 
   /* 장비 창고 — 언제든 사고 강화할 수 있다 */
   const gw=el('div','card');
@@ -11227,29 +11737,77 @@ function setupGate(){
    한참 동안 옛날 판이 그대로 떠 있었다. "고쳤다는데 왜 그대로냐"의 원인이다.
    열릴 때 자기 자신을 캐시 무시하고 한 번 받아서 버전을 비교하고,
    다르면 알려준다. 누르면 새로 받는다.                                 */
-async function checkForUpdate(){
+/* 새로 받기 — 그냥 리로드하면 브라우저 캐시가 옛날 판을 다시 준다.
+   [제보] 갤럭시에서 "새로 받기를 눌러도 그대로다".
+   그래서 서비스워커와 캐시 스토리지까지 털고, 캐시무력화 주소로 다시 연다. */
+let lastUpdCheck=null;      // 진단 패널에 보여줄 마지막 확인 결과
+async function hardReload(){
+  try{ if(ST) await saveGame(true); }catch(e){}
   try{
-    if(location.protocol==='file:')return;
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+      const rs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(rs.map(r=>r.unregister()));
+    }
+  }catch(e){}
+  try{
+    if(window.caches && caches.keys){
+      const ks=await caches.keys();
+      await Promise.all(ks.map(k=>caches.delete(k)));
+    }
+  }catch(e){}
+  location.replace(location.pathname+'?v='+Date.now());
+}
+async function fetchLatestVersion(){
+  if(location.protocol==='file:') return {ok:false,why:'file:// 로 열려 있다'};
+  try{
     const r=await fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'});
-    if(!r.ok)return;
+    if(!r.ok) return {ok:false,why:'서버 응답 '+r.status};
     const t=await r.text();
     const m=t.match(/const APP_VERSION = '([^']+)'/);
-    if(!m)return;
-    const latest=m[1];
-    if(verNum(latest)<=verNum(APP_VERSION))return;
+    if(!m) return {ok:false,why:'버전을 못 읽었다'};
+    return {ok:true, latest:m[1]};
+  }catch(e){
+    return {ok:false,why:'네트워크 실패 ('+(e&&e.name||'error')+')'};
+  }
+}
+async function checkForUpdate(manual){
+  const r=await fetchLatestVersion();
+  lastUpdCheck={at:Date.now(), ...r};
+  if(!r.ok){ if(manual)toast('확인 실패 — '+r.why); return false; }
+  if(verNum(r.latest)<=verNum(APP_VERSION)){
+    if(manual)toast(`v${APP_VERSION} — 이미 최신이다`);
+    return false;
+  }
+  if(!document.getElementById('updbar')){
     const bar=document.createElement('div');
     bar.id='updbar';
-    bar.innerHTML=`<b>새 버전 v${latest}</b> 이 나왔다. 지금 쓰는 건 v${APP_VERSION} 이다.
+    bar.innerHTML=`<b>새 버전 v${r.latest}</b> 이 나왔다. 지금 쓰는 건 v${APP_VERSION} 이다.
       <button id="updgo">새로 받기</button>`;
     document.body.appendChild(bar);
-    document.getElementById('updgo').onclick=()=>{
-      try{ if(ST) saveGame(true); }catch(e){}
-      location.replace(location.pathname+'?v='+Date.now());
-    };
-  }catch(e){/* 못 받아도 게임은 그대로 돌아간다 */}
+    document.getElementById('updgo').onclick=hardReload;
+  }
+  return true;
+}
+
+/* boot 이 중간에 터지면 로딩 화면이 그대로 남아 "아무것도 안 뜬다"가 된다.
+   [제보] 갤럭시. 재현이 안 되니 최소한 무엇이 터졌는지는 화면에 남긴다. */
+function bootFailed(e){
+  try{ paintVersionBadge(); }catch(_){}
+  const l=document.getElementById('loading');
+  if(l){
+    l.style.display='flex';
+    l.style.flexDirection='column';
+    l.style.padding='24px';
+    l.style.textAlign='center';
+    l.innerHTML=`<div style="font-size:13px;color:#e9e4d8;font-weight:700">시작하지 못했다</div>
+      <div style="font-size:11px;margin-top:8px;line-height:1.6;word-break:break-all">
+        v${APP_VERSION}<br>${String((e&&e.message)||e||'알 수 없는 오류')}</div>
+      <div style="font-size:11px;margin-top:10px">이 화면을 캡처해서 단톡방에 올려라.</div>`;
+  }
 }
 
 async function boot(){
+  paintVersionBadge();          // 뭐가 실패하든 버전은 먼저 보이게
   setupGate();
   TEAMS=buildAllTeams();
   TEAMS.forEach(t=>TBYID[t.id]=t);
@@ -11283,9 +11841,16 @@ async function boot(){
     const st0=ST.stand['wwzw']||{w:0,l:0};
     setTimeout(()=>toast(`이어서 진행한다 — ${ST.round}차전 · ${st0.w}승 ${st0.l}패`),300);
   }
-  setTimeout(checkForUpdate, 1500);      // 새 버전이 올라와 있으면 알려준다
+  setTimeout(()=>checkForUpdate(false), 1500);   // 새 버전이 올라와 있으면 알려준다
 }
-document.addEventListener('DOMContentLoaded',boot);
+document.addEventListener('DOMContentLoaded',()=>{
+  boot().catch(bootFailed);
+});
+window.addEventListener('error', e=>{
+  // 부팅 중에 터진 것만 잡는다. 게임이 뜬 뒤의 오류까지 가리면 오히려 헷갈린다.
+  const l=document.getElementById('loading');
+  if(l && l.style.display!=='none') bootFailed(e.error||e.message);
+});
 
 </script>
 </body>
