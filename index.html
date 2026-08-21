@@ -2370,7 +2370,7 @@ ${who}${f.detail}`});
     /* 축하 — 본인이 아닌 사람이 한다 */
     const cheer = f.pid==='lg' ? 'swm' : 'lg';
     if(TBYID['wwzw'].players.some(x=>x.id===cheer)){
-      const c=pickOne(FEAT_CHEER);
+      const c=pickFresh(FEAT_CHEER,'FEAT_CHEER');
       msgs.push({who:cheer, text:f.pid?sayTo(cheer,f.pid,c[0],c[1]):say(cheer,c[0],c[1]), mood:'happy'});
     }
     ST.notices=ST.notices||[];
@@ -2412,6 +2412,23 @@ function dpBonus(slots){
 'use strict';
 
 function pickOne(arr,rng){ return arr[(((rng||Math.random)())*arr.length)|0]; }
+/* ================= 같은 말 반복 방지 =================
+   풀이 작으면 "또 저 소리" 가 금방 온다. 방금 쓴 몇 줄은 빼고 뽑는다.
+   무엇을 썼는지는 세이브에 남겨서 접속을 새로 해도 이어진다.       */
+function pickFresh(arr, key, rng){
+  if(!arr||!arr.length) return null;
+  if(typeof ST==='undefined'||!ST) return pickOne(arr,rng);
+  if(!ST.saidLog)ST.saidLog={};
+  const keep=Math.max(1, Math.min(arr.length-1, Math.floor(arr.length*0.6)));
+  const used=ST.saidLog[key]||[];
+  let pool=arr.filter((_,i)=>used.indexOf(i)<0);
+  if(!pool.length){ pool=arr; ST.saidLog[key]=[]; }
+  const v=pickOne(pool,rng);
+  const idx=arr.indexOf(v);
+  const nu=(ST.saidLog[key]||[]).concat([idx]);
+  ST.saidLog[key]=nu.slice(-keep);
+  return v;
+}
 function uniqPush(msgs,m){
   if(msgs.some(x=>x.who===m.who&&x.text===m.text))return;
   msgs.push(m);
@@ -2528,7 +2545,7 @@ function rollWeekEvents(ST, rng){
     if(pals.length){
       const f=pickOne(pals,rng);
       evts.push({type:'drinkinvite',pid:f,title:`${nameOf(f)}에게서 연락`,
-        body:sayTo(f,meId,...pickOne(DRINK_INVITE,rng)),
+        body:sayTo(f,meId,...pickFresh(DRINK_INVITE,'DRINK_INVITE',rng)),
         effect:'수락 · 거절을 골라야 한다'});
     }
   }
@@ -2549,7 +2566,7 @@ function rollWeekEvents(ST, rng){
       else if(mo<50)pr*=1.7;       // 재미가 없으면 딴 데로 눈이 간다
       if(rng()<pr){
         evts.push({type:'soccer',pid,title:`${nameOf(pid)} 축구`,
-          body:sayTo(pid,ST.playerId||'ksh',...pickOne(SOCCER_LINES,rng)),
+          body:sayTo(pid,ST.playerId||'ksh',...pickFresh(SOCCER_LINES,'SOCCER_LINES',rng)),
           effect:'사기 하락 · 불만 불씨 누적 (당장 불만 단계가 오르지는 않는다)'});
       }
     });
@@ -2571,7 +2588,7 @@ function rollWeekEvents(ST, rng){
       const orderMax=3+((rng()*3)|0);                       // 1~5번 중 보장 요구
       evts.push({type:'poach',pid:v.id,orderMax:Math.min(5,orderMax),
         title:`${v.name} 타팀 영입 제안`,
-        body:sayTo(v.id,ST.playerId||'ksh',...pickOne(POACH_LINES,rng)),
+        body:sayTo(v.id,ST.playerId||'ksh',...pickFresh(POACH_LINES,'POACH_LINES',rng)),
         effect:`${Math.min(5,orderMax)}번 타순 이상 보장을 요구한다`});
     }
   }
@@ -2993,15 +3010,15 @@ function rollSabotage(ST, evts, rng){
     acts.forEach(a=>{
       if(a==='boycott') evts.push({type:'boycott',pid:p.id,
         title:`${p.name} 무단 결장`,
-        body:sayTo(p.id,ST.playerId||MYID,...pickOne(SABO_BOYCOTT,rng)),
+        body:sayTo(p.id,ST.playerId||MYID,...pickFresh(SABO_BOYCOTT,'SABO_BOYCOTT',rng)),
         effect:'출전 불가 · 전원 사기 하락'});
       else if(a==='carpool') evts.push({type:'nocar',pid:p.id,
         title:`${p.name} 카풀 거부`,
-        body:sayTo(p.id,ST.playerId||MYID,...pickOne(SABO_CARPOOL,rng)),
+        body:sayTo(p.id,ST.playerId||MYID,...pickFresh(SABO_CARPOOL,'SABO_CARPOOL',rng)),
         effect:'태워 오던 사람들이 못 올 수 있다'});
       else if(a==='gear') evts.push({type:'nogear',pid:p.id,
         title:`${p.name} 장비 안 챙김`,
-        body:sayTo(p.id,ST.playerId||MYID,...pickOne(SABO_GEAR,rng)),
+        body:sayTo(p.id,ST.playerId||MYID,...pickFresh(SABO_GEAR,'SABO_GEAR',rng)),
         effect:'포수 장비 없음'});
       else if(a==='scout') evts.push({type:'noscout',pid:p.id,
         title:`${p.name} 분석 거부`,
@@ -3009,7 +3026,7 @@ function rollSabotage(ST, evts, rng){
         effect:'상대 정보 없음'});
       else if(a==='snipe') evts.push({type:'snipe',pid:p.id,
         title:`${p.name} 단톡방 저격`,
-        body:sayTo(p.id,ST.playerId||MYID,...pickOne(SABO_SNIPE,rng)),
+        body:sayTo(p.id,ST.playerId||MYID,...pickFresh(SABO_SNIPE,'SABO_SNIPE',rng)),
         effect:'전원 사기 하락 · 주변 선동'});
     });
   });
@@ -3029,13 +3046,13 @@ function tickUltimatum(ST){
     if(lv>=4){
       if(ST.ultimatum[p.id]==null){
         ST.ultimatum[p.id]=3;
-        msgs.push({who:p.id,text:sayTo(p.id,ST.playerId||MYID,...pickOne(ULTIMATUM)),mood:'angry'});
+        msgs.push({who:p.id,text:sayTo(p.id,ST.playerId||MYID,...pickFresh(ULTIMATUM,'ULTIMATUM')),mood:'angry'});
         msgs.push({who:'lg',type:'notice',
           text:`${p.name} 최후통첩 — 3경기 안에 못 풀면 팀을 나간다`});
       } else {
         ST.ultimatum[p.id]--;
         if(ST.ultimatum[p.id]<=0){
-          msgs.push({who:p.id,text:sayTo(p.id,ST.playerId||MYID,...pickOne(LEAVE_LINE)),mood:'angry'});
+          msgs.push({who:p.id,text:sayTo(p.id,ST.playerId||MYID,...pickFresh(LEAVE_LINE,'LEAVE_LINE')),mood:'angry'});
           msgs.push(...leaveTeam(ST,p.id));
           return;
         }
@@ -3398,7 +3415,7 @@ function buildKakaoPre(ST){
       // 안산유나이티드전이면 고진선을 미리 경고한다.
       // 김한규가 언해피 3단계 이상이면 분석 자체를 안 하므로 이 정보도 못 본다.
       if(opp.id==='ansanutd')
-        uniqPush(msgs,{who:an.id,text:pickOne(GOJIN_SCOUT,rng),mood:'ok'});
+        uniqPush(msgs,{who:an.id,text:pickFresh(GOJIN_SCOUT,'GOJIN_SCOUT',rng),mood:'ok'});
       if(rng()<0.18){
         uniqPush(msgs,{who:an.id,text:pickOne([
           '상대 선발 볼넷 많다. 좀 봐도 된다',
@@ -3766,6 +3783,9 @@ const POST_MULTI=[
   ['배팅장 다닌 보람이 있다','배팅장 다닌 보람이 있네요'],
   ['타석에 서는 게 안 무서웠다','타석에 서는 게 안 무서웠습니다'],
   ['오늘 폼 그대로 다음 주까지만 가자','오늘 폼 그대로 다음 주까지만 갔으면 좋겠습니다'],
+  ['타순이 앞이라 기회가 많았다','타순이 앞이라 기회가 많았습니다'],
+  ['오늘은 배트에 맞는 소리가 달랐다','오늘은 배트에 맞는 소리가 달랐습니다'],
+  ['이게 얼마 만이냐 진짜','이게 얼마 만인지 모르겠습니다'],
 ];
 const POST_HR=[
   ['넘어갔다 ㅋㅋㅋ','넘어갔습니다 ㅋㅋㅋ'],
@@ -3797,6 +3817,11 @@ const POST_SB=[
   ['상대 포수가 안 던지길래 계속 뛰었다','상대 포수가 안 던지길래 계속 뛰었습니다'],
   ['뛰라고 안 했는데 그냥 뛰었다','뛰라고 안 하셨는데 그냥 뛰었습니다'],
   ['내일 허벅지 못 걸을 것 같다','내일 허벅지 못 걸을 것 같습니다'],
+  ['스타트가 오늘따라 잘 끊겼다','스타트가 오늘따라 잘 끊겼습니다'],
+  ['2루가 비어 있는데 안 뛰면 예의가 아니다','2루가 비어 있는데 안 뛰면 예의가 아니죠'],
+  ['슬라이딩하다 유니폼 다 갈았다','슬라이딩하다 유니폼 다 갈았습니다'],
+  ['도루는 발이 아니라 눈치다','도루는 발이 아니라 눈치입니다'],
+  ['다음엔 3루도 노려보겠다','다음엔 3루도 노려보겠습니다'],
 ];
 /* 투수 반응 */
 const POST_GEM=[
@@ -3828,6 +3853,189 @@ const POST_STREAK_L=[
   ['훈련 한 번 제대로 하자','훈련 한 번 제대로 하시죠'],
   ['사람이 안 나오니까 이렇게 된다','사람이 안 나오니까 이렇게 되는 겁니다'],
   ['일단 다 같이 밥이나 한 번 먹자','일단 다 같이 밥이나 한 번 먹으시죠'],
+];
+/* ================= 상황별 대사 (확장분) =================
+   같은 말이 두 번 나오면 사람들이 바로 안다. 상황을 잘게 쪼개고
+   줄 수를 늘려서, 시즌을 몇 번 돌려도 새 말이 나오게 한다.       */
+/* 상대가 강팀일 때 / 약팀일 때 */
+const POST_VS_STRONG_W=[
+  ['저 팀을 잡네 ㅋㅋㅋ','저 팀을 잡네요 ㅋㅋㅋ'],
+  ['오늘 건 자랑해도 된다','오늘 건 자랑하셔도 됩니다'],
+  ['상대 라인업 보고 겁먹었는데','상대 라인업 보고 겁먹었었는데요'],
+  ['이런 날은 기록으로 남겨야 한다','이런 날은 기록으로 남겨야 합니다'],
+];
+const POST_VS_STRONG_L=[
+  ['저긴 진짜 급이 다르더라','저긴 진짜 급이 다르더라고요'],
+  ['배운다 치자','배운다 치시죠'],
+  ['한 이닝만 버텼어도 달랐는데','한 이닝만 버텼어도 달랐는데요'],
+];
+const POST_VS_WEAK_L=[
+  ['이건 좀 창피하다','이건 좀 창피합니다'],
+  ['방심한 티가 났다','방심한 티가 났습니다'],
+  ['오늘은 할 말이 없다 진짜','오늘은 할 말이 없습니다 진짜'],
+];
+/* 구장 */
+const POST_PARK={
+  benamul:[['배나물은 진짜 넓다 공이 안 넘어간다','배나물은 진짜 넓네요 공이 안 넘어갑니다'],
+    ['갭만 노리면 3루타 나오는 구장이다','갭만 노리면 3루타 나오는 구장입니다'],
+    ['외야 뛰다가 다리 풀렸다','외야 뛰다가 다리 풀렸습니다']],
+  seonggok:[['성곡 좌측 담장은 진짜 가깝다','성곡 좌측 담장은 진짜 가깝네요'],
+    ['당겨치면 넘어갈 것 같은 기분이 든다','당겨치면 넘어갈 것 같은 기분이 듭니다'],
+    ['좌익수 자리가 제일 무섭다','좌익수 자리가 제일 무섭습니다']],
+  singil:[['신길 내야 흙이 오늘도 말썽이다','신길 내야 흙이 오늘도 말썽입니다'],
+    ['바운드가 튀어서 못 잡겠더라','바운드가 튀어서 못 잡겠더라고요'],
+    ['내야안타가 이렇게 많이 나오는 구장이','내야안타가 이렇게 많이 나오는 구장이']],
+};
+/* 수비 */
+const POST_DP=[
+  ['오늘 병살 잘 돌아갔다','오늘 병살 잘 돌아갔습니다'],
+  ['키스톤 호흡이 좋더라','키스톤 호흡이 좋더라고요'],
+  ['그 병살 하나로 이닝이 끝났다','그 병살 하나로 이닝이 끝났습니다'],
+  ['수비로 이긴 경기다','수비로 이긴 경기입니다'],
+  ['투수가 제일 좋아했을 거다','투수분이 제일 좋아하셨을 겁니다'],
+  ['병살 돌 때 소리가 좋다','병살 돌 때 소리가 좋습니다'],
+];
+const POST_SBALLOW=[
+  ['오늘 도루를 너무 많이 줬다','오늘 도루를 너무 많이 줬습니다'],
+  ['2루가 그냥 열려 있더라','2루가 그냥 열려 있더라고요'],
+  ['송구 연습 좀 해야겠다','송구 연습 좀 해야겠습니다'],
+  ['던져봐야 안 잡히니까 그냥 뒀다','던져봐야 안 잡히니까 그냥 뒀습니다'],
+  ['투수 퀵모션부터 손봐야 한다','투수 퀵모션부터 손봐야 합니다'],
+  ['상대가 우리 어깨를 아는 것 같다','상대가 우리 어깨를 아는 것 같습니다'],
+  ['도루 허용은 포수 혼자 잘못이 아니다','도루 허용은 포수 혼자 잘못이 아닙니다'],
+  ['다음엔 견제라도 좀 하자','다음엔 견제라도 좀 하시죠'],
+];
+const POST_WP=[
+  ['폭투가 너무 많았다','폭투가 너무 많았습니다'],
+  ['포수가 오늘 제일 고생했다','포수분이 오늘 제일 고생하셨습니다'],
+  ['공이 자꾸 원바운드로 갔다','공이 자꾸 원바운드로 갔습니다'],
+  ['블로킹 연습이 필요하다','블로킹 연습이 필요합니다'],
+  ['주자가 그냥 걸어서 들어왔다','주자가 그냥 걸어서 들어왔습니다'],
+];
+/* 시즌 흐름 */
+const POST_FIRSTWIN=[
+  ['드디어 이겼다!!','드디어 이겼습니다!!'],
+  ['첫 승이다 진짜 오래 걸렸네','첫 승입니다 진짜 오래 걸렸네요'],
+  ['이 맛에 계속 나온다','이 맛에 계속 나옵니다'],
+];
+const POST_HALF=[
+  ['벌써 반이 지났다','벌써 반이 지났네요'],
+  ['남은 경기 생각하면 정신 차려야 한다','남은 경기 생각하면 정신 차려야 합니다'],
+];
+const POST_LAST=[
+  ['이제 몇 경기 안 남았다','이제 몇 경기 안 남았습니다'],
+  ['마지막까지 나오는 사람이 진짜다','마지막까지 나오시는 분이 진짜입니다'],
+];
+/* 개인 — 조합·상황 */
+const POST_TWINS=[
+  ['쌍둥이 둘 다 쳤다 ㅋㅋ','쌍둥이 둘 다 쳤네요 ㅋㅋ'],
+  ['형제가 나란히 나가니까 보기 좋다','형제가 나란히 나가니까 보기 좋습니다'],
+];
+const POST_TIRED_HIT=[
+  ['컨디션 안 좋다더니 잘 치더라','컨디션 안 좋다시더니 잘 치시더라고요'],
+  ['몸이 무겁다면서 왜 이렇게 잘 치냐','몸이 무겁다시면서 왜 이렇게 잘 치세요'],
+  ['피곤할수록 잘 치는 유형이 있다','피곤할수록 잘 치는 유형이 있죠'],
+  ['그 몸으로 그렇게 치면 반칙이다','그 몸으로 그렇게 치시면 반칙입니다'],
+  ['쉬라고 했더니 안타를 치네','쉬시라고 했더니 안타를 치시네요'],
+  ['다음 주엔 진짜 쉬어라','다음 주엔 진짜 쉬세요'],
+];
+const POST_ME_GOOD=[
+  ['오늘 내가 좀 했다','오늘 제가 좀 했습니다'],
+  ['이런 날만 있으면 좋겠다','이런 날만 있으면 좋겠습니다'],
+  ['몸이 가벼웠다','몸이 가벼웠습니다'],
+];
+const POST_ME_BAD=[
+  ['오늘 내가 제일 못했다','오늘 제가 제일 못했습니다'],
+  ['다음엔 갚겠다','다음엔 갚겠습니다'],
+];
+const POST_OPP_ACE=[
+  ['상대 투수가 진짜 잘 던지더라','상대 투수가 진짜 잘 던지더라고요'],
+  ['그 공은 못 친다 인정','그 공은 못 칩니다 인정'],
+  ['4부에 저런 공이 있다니','4부에 저런 공이 있다니요'],
+];
+const POST_MANY_BB=[
+  ['오늘 볼넷으로만 나간 것 같다','오늘 볼넷으로만 나간 것 같습니다'],
+  ['골라 나가는 것도 실력이다','골라 나가는 것도 실력이죠'],
+];
+const POST_LOB=[
+  ['찬스에서 너무 못 쳤다','찬스에서 너무 못 쳤습니다'],
+  ['주자만 잔뜩 쌓아놓고 끝났다','주자만 잔뜩 쌓아놓고 끝났습니다'],
+  ['한 방이 없었다','한 방이 없었습니다'],
+];
+/* 잡담 — 경기랑 상관없는 소리. 이게 있어야 단톡방 같다 */
+const POST_SMALLTALK=[
+  ['다들 무릎 괜찮냐','다들 무릎 괜찮으세요'],
+  ['내일 출근 어떻게 하지','내일 출근 어떻게 하죠'],
+  ['샤워하고 싶다','샤워하고 싶습니다'],
+  ['배고프다 뭐 먹으러 갈 사람','배고픕니다 뭐 드시러 가실 분'],
+  ['유니폼 빨아야 되는데 귀찮다','유니폼 빨아야 되는데 귀찮네요'],
+  ['글러브 기름칠 언제 했더라','글러브 기름칠 언제 했더라'],
+  ['오늘 사진 찍은 사람 있냐','오늘 사진 찍으신 분 있나요'],
+  ['다음 주 몇 시더라','다음 주 몇 시였죠'],
+  ['주차 자리가 없어서 한참 돌았다','주차 자리가 없어서 한참 돌았습니다'],
+  ['배트 하나 새로 살까 고민된다','배트 하나 새로 살까 고민됩니다'],
+  ['어깨에 파스 붙이고 왔다','어깨에 파스 붙이고 왔습니다'],
+  ['프로 경기 보면 다 쉬워 보이는데','프로 경기 보면 다 쉬워 보이는데요'],
+];
+/* 마일스톤 반응 — 하드코딩 한 줄이면 시즌에 수십 번 같은 말이 나온다 */
+const MILE_CHEER=[
+  ['ㅋㅋ 축하한다','축하드립니다!'],
+  ['이야 진짜 축하한다','이야 진짜 축하드립니다'],
+  ['이런 건 단톡방에 남겨야지','이런 건 단톡방에 남겨야죠'],
+  ['오래 한 사람만 볼 수 있는 숫자다','오래 하신 분만 볼 수 있는 숫자입니다'],
+  ['오 이걸 하네','오 이걸 하시네요'],
+  ['대단하다 진짜','대단하십니다 진짜'],
+  ['꾸준히 나온 보람이 있다','꾸준히 나오신 보람이 있네요'],
+  ['숫자로 남는 게 제일 좋다','숫자로 남는 게 제일 좋죠'],
+  ['이건 캡처해둬야 한다','이건 캡처해두셔야 합니다'],
+  ['축하한다 오늘 주인공이다','축하드립니다 오늘 주인공이세요'],
+  ['다음 자릿수도 가자','다음 자릿수도 가시죠'],
+];
+const MILE_TEASE=[
+  ['근데 내야안타 몇 개냐','내야안타도 포함인가요 ㅋㅋ'],
+  ['경기를 많이 나갔으니까','경기를 많이 나가셨으니까요'],
+  ['오늘 한 잔 사라','한 잔 사주셔야죠'],
+  ['표본이 크면 다 된다','표본이 크면 다 되죠 ㅋㅋ'],
+  ['나도 그만큼 나가면 한다','저도 그만큼 나가면 합니다'],
+  ['축하는 하는데 좀 부럽다','축하는 드리는데 좀 부럽네요'],
+];
+const MILE_REPLY=[
+  ['기록은 기록이다','기록은 기록이죠 ㅎㅎ'],
+  ['운이 좋았다','운이 좋았습니다'],
+  ['다들 덕분이다','다들 덕분입니다'],
+  ['그만 놀려라 ㅋㅋ','그만 놀리세요 ㅋㅋ'],
+  ['다음 거 더 빨리 가겠다','다음 거 더 빨리 가겠습니다'],
+];
+/* 폼 변화 한마디 */
+const FORM_HOT_LINES=[
+  ['요새 진짜 뭘 해도 맞는다','요새 진짜 뭘 해도 맞습니다'],
+  ['공이 멈춰 보인다','공이 멈춰 보입니다'],
+  ['이 감각 안 사라졌으면 좋겠다','이 감각 안 사라졌으면 좋겠습니다'],
+  ['타석 들어가는 게 재밌다','타석 들어가는 게 재밌습니다'],
+  ['배팅장 다닌 게 이제 나오나 보다','배팅장 다닌 게 이제 나오나 봅니다'],
+];
+const FORM_COLD_LINES=[
+  ['슬럼프인가 싶다 진짜','슬럼프인가 싶습니다 진짜'],
+  ['방망이가 무겁다','방망이가 무겁습니다'],
+  ['머리로는 아는데 몸이 안 따라온다','머리로는 아는데 몸이 안 따라옵니다'],
+  ['한 번만 맞으면 풀릴 것 같은데','한 번만 맞으면 풀릴 것 같은데요'],
+  ['폼을 좀 바꿔봐야 하나','폼을 좀 바꿔봐야 하나요'],
+];
+/* 그날의 수훈 선수 놀리기·받아치기 */
+const MVP_TEASE=[
+  ['오늘은 운이었다 ㅋㅋ','오늘은 운이 좋으셨네요 ㅋㅋ'],
+  ['내야안타 몇 개냐 그거','내야안타 아니었나요'],
+  ['자꾸 그러면 다음에 못 친다','자꾸 그러시면 다음에 못 치십니다'],
+  ['상대 투수가 못 던진 거다','상대 투수가 못 던진 겁니다'],
+  ['오늘만 쳤지 뭐','오늘만 치셨죠 뭐'],
+  ['영상 있으면 올려봐라','영상 있으시면 올려보세요'],
+];
+const MVP_REPLY=[
+  ['운도 실력이다','운도 실력이죠 ㅎㅎ'],
+  ['부러우면 너도 쳐라','부러우시면 직접 치시죠'],
+  ['다음 주에도 이러면 인정할 거냐','다음 주에도 이러면 인정하실 겁니까'],
+  ['내야안타도 안타다','내야안타도 안타입니다'],
+  ['그래도 오늘은 내가 이겼다','그래도 오늘은 제가 이겼습니다'],
 ];
 /* 진기록 축하 */
 const FEAT_CHEER=[
@@ -3875,28 +4083,28 @@ function postFlavor(ST,res,usSide,thSide,uSlots,msgs){
       u+=(usSide.line[i]||0); t+=(thSide.line[i]||0);
       if(t-u>=3) behind=true;
     }
-    if(behind) speak(anyone(), pickOne(POST_COMEBACK,rng), 'happy');
+    if(behind) speak(anyone(), pickFresh(POST_COMEBACK,'POST_COMEBACK',rng), 'happy');
   }
 
   /* 3. 개인 성적 */
   uSlots.forEach(sl=>{
     const b=res.box&&res.box[sl.id]; if(!b)return;
-    if(b.hr>=1 && rng()<0.9) speak(sl.id, pickOne(POST_HR,rng), 'happy');
-    else if(b.h>=3 && rng()<0.7) speak(sl.id, pickOne(POST_MULTI,rng), 'happy');
-    else if(b.ab>=3 && b.h===0 && rng()<0.35) speak(sl.id, pickOne(POST_HITLESS,rng), 'sad');
-    if(b.sb>=2 && rng()<0.6) speak(sl.id, pickOne(POST_SB,rng), 'happy');
+    if(b.hr>=1 && rng()<0.9) speak(sl.id, pickFresh(POST_HR,'POST_HR',rng), 'happy');
+    else if(b.h>=3 && rng()<0.7) speak(sl.id, pickFresh(POST_MULTI,'POST_MULTI',rng), 'happy');
+    else if(b.ab>=3 && b.h===0 && rng()<0.35) speak(sl.id, pickFresh(POST_HITLESS,'POST_HITLESS',rng), 'sad');
+    if(b.sb>=2 && rng()<0.6) speak(sl.id, pickFresh(POST_SB,'POST_SB',rng), 'happy');
   });
   if((usSide.errs||0)>=3){
     const f=uSlots.filter(x=>isAvailable(x.id));
-    if(f.length) speak(pickOne(f,rng).id, pickOne(POST_ERR,rng), 'sad');
+    if(f.length) speak(pickOne(f,rng).id, pickFresh(POST_ERR,'POST_ERR',rng), 'sad');
   }
 
   /* 4. 투수 */
   (ST.gameRotation||[]).forEach(pid=>{
     const l=res.pbox&&res.pbox[pid]; if(!l||l.outs<6)return;
     const free=(l.bb||0)+(l.hbp||0);
-    if(l.er<=1 && free<=3 && rng()<0.85) speak(pid, pickOne(POST_GEM,rng), 'happy');
-    else if(free>=6 && rng()<0.8) speak(pid, pickOne(POST_WILD,rng), 'sad');
+    if(l.er<=1 && free<=3 && rng()<0.85) speak(pid, pickFresh(POST_GEM,'POST_GEM',rng), 'happy');
+    else if(free>=6 && rng()<0.8) speak(pid, pickFresh(POST_WILD,'POST_WILD',rng), 'sad');
   });
 
   /* 5. 연승·연패 */
@@ -3906,8 +4114,8 @@ function postFlavor(ST,res,usSide,thSide,uSlots,msgs){
     const allW=last3.every(x=>x.result.us>x.result.them);
     const allL=last3.every(x=>x.result.us<x.result.them);
     const ldr=us.players.find(p=>META[p.id]&&(META[p.id].traits||[]).includes('리더')&&isAvailable(p.id));
-    if(allW) speak(ldr?ldr.id:anyone(), pickOne(POST_STREAK_W,rng), 'happy');
-    else if(allL) speak(ldr?ldr.id:anyone(), pickOne(POST_STREAK_L,rng), 'angry');
+    if(allW) speak(ldr?ldr.id:anyone(), pickFresh(POST_STREAK_W,'POST_STREAK_W',rng), 'happy');
+    else if(allL) speak(ldr?ldr.id:anyone(), pickFresh(POST_STREAK_L,'POST_STREAK_L',rng), 'angry');
   }
 
   /* 6. 날씨 */
@@ -3919,10 +4127,85 @@ function postFlavor(ST,res,usSide,thSide,uSlots,msgs){
     if(!isAvailable(p.id))return;
     const t=formTag(p.id);
     if(t===FORM_HOT && rng()<0.20)
-      speak(p.id, ['요새 진짜 뭘 해도 맞는다','요새 진짜 뭘 해도 맞습니다'], 'happy');
+      speak(p.id, pickFresh(FORM_HOT_LINES,'FORM_HOT',rng), 'happy');
     else if(t===FORM_COLD && rng()<0.20)
-      speak(p.id, ['슬럼프인가 싶다 진짜','슬럼프인가 싶습니다 진짜'], 'sad');
+      speak(p.id, pickFresh(FORM_COLD_LINES,'FORM_COLD',rng), 'sad');
   });
+
+  /* ---------- 여기부터 확장분 ----------
+     같은 승패라도 상대가 누구였는지, 어디서 했는지, 무엇으로 졌는지에 따라
+     다른 말이 나와야 단톡방이 살아 있다.                              */
+  const opp=TBYID[(ST.schedule[ST.round]||{}).opp];
+
+  /* 8. 상대 수준 */
+  if(opp){
+    const strong=opp.ops>=1.05, weak=opp.ops<=0.92;
+    if(won && strong) speak(anyone(), pickFresh(POST_VS_STRONG_W,'VS_STRONG_W',rng), 'happy');
+    else if(!won && !tie && strong && diff>=5) speak(anyone(), pickFresh(POST_VS_STRONG_L,'VS_STRONG_L',rng), 'flat');
+    else if(!won && !tie && weak) speak(anyone(), pickFresh(POST_VS_WEAK_L,'VS_WEAK_L',rng), 'sad');
+  }
+
+  /* 9. 구장 — 그 구장답게 나온 날에만 */
+  const pk=POST_PARK[ST.park];
+  if(pk && rng()<0.35){
+    const line=(res.highlights||[]).filter(x=>x.us);
+    const fit = ST.park==='benamul' ? line.some(x=>x.kind==='d3')
+      : ST.park==='seonggok' ? line.some(x=>x.kind==='hr')
+      : (usSide.errs||0)+(thSide.errs||0)>=3;
+    if(fit) speak(anyone(), pickFresh(pk,'PARK_'+ST.park,rng), 'flat');
+  }
+
+  /* 10. 수비 — 병살·도루 허용·폭투 */
+  if((res.dpCount||0)>=2 && rng()<0.6) speak(anyone(), pickFresh(POST_DP,'DP',rng), 'happy');
+  if((usSide.sbAllowed||0)>=6 && rng()<0.6){
+    const c=uSlots.find(x=>x.pos==='C');
+    speak(c?c.id:anyone(), pickFresh(POST_SBALLOW,'SBALLOW',rng), 'sad');
+  }
+  if((res.wpCount||0)>=3 && rng()<0.6) speak(anyone(), pickFresh(POST_WP,'WP',rng), 'sad');
+
+  /* 11. 시즌 흐름 */
+  const doneN=ST.schedule.filter(x=>x.played&&x.result).length;
+  const wins=ST.schedule.filter(x=>x.played&&x.result&&x.result.us>x.result.them).length;
+  if(won && wins===1) speak(anyone(), pickFresh(POST_FIRSTWIN,'FIRSTWIN',rng), 'happy');
+  const total=regGames();
+  if(doneN===Math.floor(total/2)) speak(anyone(), pickFresh(POST_HALF,'HALF',rng), 'flat');
+  else if(total-doneN>0 && total-doneN<=3) speak(anyone(), pickFresh(POST_LAST,'LAST',rng), 'flat');
+
+  /* 12. 조합 · 개인 사정 */
+  const twins=['kig','khg'];
+  if(twins.every(id=>{ const b=res.box&&res.box[id]; return b&&b.h>0; }) && rng()<0.7)
+    speak(twins[(rng()*2)|0], pickFresh(POST_TWINS,'TWINS',rng), 'happy');
+  /* 한 경기에 한 번만. 전원을 돌면 같은 말이 여러 번 뜬다. */
+  const tired=uSlots.filter(sl=>{
+    const b=res.box&&res.box[sl.id];
+    return b&&b.h>=2&&(ST.cond[sl.id]||70)<50;
+  });
+  if(tired.length && rng()<0.5)
+    speak(anyone(tired[0].id), pickFresh(POST_TIRED_HIT,'TIRED_HIT',rng), 'happy');
+
+  /* 13. 내 선수 */
+  const meId2=ST.playerId||MYID;
+  const mb=res.box&&res.box[meId2];
+  if(mb&&mb.pa){
+    if((mb.h>=2||mb.hr>=1) && rng()<0.6) speak(meId2, pickFresh(POST_ME_GOOD,'ME_GOOD',rng), 'happy');
+    else if(mb.ab>=3&&mb.h===0 && rng()<0.4) speak(meId2, pickFresh(POST_ME_BAD,'ME_BAD',rng), 'sad');
+  }
+
+  /* 14. 상대 투수가 잘 던졌다 */
+  if(!won && usSide.runs<=3 && usSide.hits<=4 && rng()<0.7)
+    speak(anyone(), pickFresh(POST_OPP_ACE,'OPP_ACE',rng), 'flat');
+
+  /* 15. 볼넷으로 먹은 날 / 찬스에서 못 친 날 */
+  const teamBB=uSlots.reduce((a,x)=>a+((res.box[x.id]||{}).bb||0),0);
+  if(teamBB>=8 && rng()<0.6) speak(anyone(), pickFresh(POST_MANY_BB,'MANY_BB',rng), 'flat');
+  const teamH=usSide.hits||0;
+  if(teamH>=8 && usSide.runs<=4 && rng()<0.7) speak(anyone(), pickFresh(POST_LOB,'LOB',rng), 'sad');
+
+  /* 16. 잡담 — 경기랑 상관없는 소리. 이게 있어야 단톡방 같다 */
+  const chat=1+((rng()*2)|0);
+  for(let i=0;i<chat;i++){
+    if(rng()<0.75) speak(anyone(), pickFresh(POST_SMALLTALK,'SMALLTALK',rng), 'flat');
+  }
 }
 
 function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
@@ -3943,13 +4226,13 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
       const crowd=us.players.filter(p=>p.id!==m.pid&&isAvailable(p.id));
       if(crowd.length){
         const a=pickOne(crowd,rng);
-        uniqPush(msgs,{who:a.id,text:sayTo(a.id,m.pid,...pickOne(MILE_BIG_CHEER,rng)),mood:'happy'});
+        uniqPush(msgs,{who:a.id,text:sayTo(a.id,m.pid,...pickFresh(MILE_BIG_CHEER,'MILE_BIG_CHEER',rng)),mood:'happy'});
         const rest=crowd.filter(p=>p.id!==a.id);
         if(rest.length){
           const b2=pickOne(rest,rng);
-          uniqPush(msgs,{who:b2.id,text:sayTo(b2.id,m.pid,...pickOne(MILE_BIG_TEASE,rng)),mood:'happy'});
+          uniqPush(msgs,{who:b2.id,text:sayTo(b2.id,m.pid,...pickFresh(MILE_BIG_TEASE,'MILE_BIG_TEASE',rng)),mood:'happy'});
         }
-        uniqPush(msgs,{who:m.pid,text:say(m.pid,...pickOne(MILE_BIG_REPLY,rng)),mood:'happy'});
+        uniqPush(msgs,{who:m.pid,text:say(m.pid,...pickFresh(MILE_BIG_REPLY,'MILE_BIG_REPLY',rng)),mood:'happy'});
       }
     }
     /* 큰 기록이면 축하 + 놀리기 */
@@ -3957,16 +4240,12 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
       const others=us.players.filter(p=>p.id!==m.pid&&isAvailable(p.id));
       if(others.length){
         const a=pickOne(others,rng);
-        uniqPush(msgs,{who:a.id,text:sayTo(a.id,m.pid,
-          pickOne(['오 축하한다 ㅋㅋ','이걸 하네','대단하다 진짜'],rng),
-          pickOne(['축하드립니다!','대단하십니다','축하드려요 ㅎㅎ'],rng)),mood:'happy'});
+        uniqPush(msgs,{who:a.id,text:sayTo(a.id,m.pid,...pickFresh(MILE_CHEER,'MILE_CHEER',rng)),mood:'happy'});
         const rest=others.filter(p=>p.id!==a.id);
         if(rest.length&&rng()<0.6){
           const b=pickOne(rest,rng);
-          uniqPush(msgs,{who:b.id,text:sayTo(b.id,m.pid,
-            pickOne(['근데 내야안타 몇 개냐','경기를 많이 나갔으니까','오늘 한 잔 사라'],rng),
-            pickOne(['내야안타도 포함인가요 ㅋㅋ','한 잔 사주셔야죠'],rng)),mood:'happy'});
-          uniqPush(msgs,{who:m.pid,text:say(m.pid,'기록은 기록이다','기록은 기록이죠 ㅎㅎ'),mood:'happy'});
+          uniqPush(msgs,{who:b.id,text:sayTo(b.id,m.pid,...pickFresh(MILE_TEASE,'MILE_TEASE',rng)),mood:'happy'});
+          uniqPush(msgs,{who:m.pid,text:say(m.pid,...pickFresh(MILE_REPLY,'MILE_REPLY',rng)),mood:'happy'});
         }
       }
     }
@@ -3975,7 +4254,7 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
     const m0=milestones[0];
     if(m0.pid){
       const cg=us.players.find(p=>p.id!==m0.pid&&isAvailable(p.id));
-      if(cg)uniqPush(msgs,{who:cg.id,text:sayTo(cg.id,m0.pid,'ㅋㅋ 축하한다','축하드립니다!'),mood:'happy'});
+      if(cg)uniqPush(msgs,{who:cg.id,text:sayTo(cg.id,m0.pid,...pickFresh(MILE_CHEER,'MILE_CHEER2',rng)),mood:'happy'});
     }
   }
 
@@ -3990,10 +4269,8 @@ function buildKakaoPost(ST,res,usSide,thSide,uSlots,milestones){
     if(best&&rng()<0.6){
       const tz=us.players.find(p=>META[p.id]&&META[p.id].friends.includes(best));
       if(tz){
-        uniqPush(msgs,{who:tz.id,text:sayTo(tz.id,best,
-          pickOne(['오늘은 운이었다 ㅋㅋ','내야안타 몇 개냐 그거','자꾸 그러면 다음에 못 친다'],rng),
-          pickOne(['오늘은 운이 좋으셨네요 ㅋㅋ','내야안타 아니었나요'],rng)),mood:'happy'});
-        uniqPush(msgs,{who:best,text:say(best,'운도 실력이다','운도 실력이죠 ㅎㅎ'),mood:'happy'});
+        uniqPush(msgs,{who:tz.id,text:sayTo(tz.id,best,...pickFresh(MVP_TEASE,'MVP_TEASE',rng)),mood:'happy'});
+        uniqPush(msgs,{who:best,text:say(best,...pickFresh(MVP_REPLY,'MVP_REPLY',rng)),mood:'happy'});
       }
     }
   } else if(tie){
@@ -4657,8 +4934,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.3.0';
-const APP_VERSION_NOTE = '시상 전부 리그 전체 기준 · 통산 연도별/총합 분리 · 이름 어디서든 클릭';
+const APP_VERSION = '2.4.0';
+const APP_VERSION_NOTE = '단톡방 대사·상황 대폭 확장 — 같은 말 반복 안 하게';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -5201,7 +5478,7 @@ function runMiniAwards(ST){
         `${MINI_LABELS[x.kind]||'수상'} — ${x.name} (${x.team}) ${x.value}`).join('\n')});
     /* 우리가 하나도 못 받았으면 감독이 한마디 한다 */
     if(!won.some(x=>x.ours) && us.players.some(x=>x.id==='lg')){
-      msgs.push({who:'lg', text:sayTo('lg',meId,...pickOne(AWARD_NONE)), mood:'flat'});
+      msgs.push({who:'lg', text:sayTo('lg',meId,...pickFresh(AWARD_NONE,'AWARD_NONE')), mood:'flat'});
     }
   }
 
@@ -5223,14 +5500,14 @@ function runMiniAwards(ST){
     /* 축하 — 이건이 하고, 이건이 받으면 송승민이 한다. 우리 선수한테만. */
     const cheerer = (w.pid==='lg') ? 'swm' : 'lg';
     if(us.players.some(x=>x.id===cheerer)){
-      const c=pickOne(AWARD_CHEER);
+      const c=pickFresh(AWARD_CHEER,'AWARD_CHEER');
       msgs.push({who:cheerer, text:sayTo(cheerer, w.pid, c[0], c[1]), mood:'happy'});
     }
     /* 리그 상이면 다른 팀에서도 연락이 온다 */
     if(scope==='리그' && Math.random()<0.35){
       const other=TEAMS.filter(t=>t.id!=='wwzw');
       const t=pickOne(other);
-      const l2=pickOne(AWARD_OPP);
+      const l2=pickFresh(AWARD_OPP,'AWARD_OPP');
       msgs.push({who:'lg',type:'record',text:`${t.name}에서 단톡방에 연락이 왔다\n"${l2[0]}"`});
     }
   });
@@ -5244,7 +5521,7 @@ function runMiniAwards(ST){
     if(Math.random()<0.5){
       const t=pickOne(others);
       msgs.push({who:'lg',type:'record',
-        text:`${t.name} 감독\n"${nameOf(a.pid)} 선수, ${pickOne(OPP_PRAISE)}"`});
+        text:`${t.name} 감독\n"${nameOf(a.pid)} 선수, ${pickFresh(OPP_PRAISE,'OPP_PRAISE')}"`});
     }
     msgs.push({who:'lg',type:'notice',text:`${nameOf(a.pid)} 리그 수상 — 전원 사기 +3`});
   });
@@ -5626,7 +5903,7 @@ function applyGojin(ST, gj){
     });
     msgs.push({who:'lg',type:'notice',
       text:'벤치클리어링\n양 팀 컨디션 -6 · 우리 팀 사기 +8'});
-    const line=pickOne(GOJIN_CLEAR_MSG);
+    const line=pickFresh(GOJIN_CLEAR_MSG,'GOJIN_CLEAR_MSG');
     if(us.players.some(p=>p.id===line[0]))
       msgs.push({who:line[0],text:line[1],mood:'angry'});
   }
@@ -5635,12 +5912,12 @@ function applyGojin(ST, gj){
   (gj.mocked||[]).forEach(m=>{
     if(!us.players.some(p=>p.id===m.pid))return;
     ST.morale[m.pid]=Math.max(10,(ST.morale[m.pid]||70)-10);
-    const ex=exPool.length?exPool.splice((Math.random()*exPool.length)|0,1)[0]:pickOne(GOJIN_EXCUSE);
+    const ex=exPool.length?exPool.splice((Math.random()*exPool.length)|0,1)[0]:pickFresh(GOJIN_EXCUSE,'GOJIN_EXCUSE');
     msgs.push({who:m.pid,text:say(m.pid,ex[0],ex[1]),mood:'sad'});
     if(m.woke){
       // 각성했으면 사기 하락분을 되돌려주고 조금 더 얹는다
       ST.morale[m.pid]=Math.min(100,(ST.morale[m.pid]||70)+18);
-      const wk=pickOne(GOJIN_WAKE_MSG);
+      const wk=pickFresh(GOJIN_WAKE_MSG,'GOJIN_WAKE_MSG');
       msgs.push({who:m.pid,text:say(m.pid,wk[0],wk[1]),mood:'happy'});
       msgs.push({who:m.pid,type:'notice',text:`${nameOf(m.pid)} 각성 — 사기 회복 +8`});
     } else {
@@ -6144,7 +6421,7 @@ LiveGame.prototype.stepPA = function(){
        && !this.gojin.mocked.some(m=>m.pid===bat.id) && rng()<0.30){
       this.gojin.mocked.push({pid:bat.id,woke:false});
       this.gojin.log.push('mock');
-      this.log.push({t:'gojin',text:pickOne(GOJIN_MOCK,rng)[0].replace('${n}',bat.name)});
+      this.log.push({t:'gojin',text:pickFresh(GOJIN_MOCK,'GOJIN_MOCK',rng)[0].replace('${n}',bat.name)});
       if(rng()<0.35){ this.gojinWake[bat.id]=true;   // 확률적 각성
         this.log.push({t:'gojin',text:`${bat.name}이(가) 배트를 고쳐 잡았다`}); }
       else this.log.push({t:'gojin',text:`${bat.name}이(가) 아무 말도 못 했다`});
@@ -6154,7 +6431,7 @@ LiveGame.prototype.stepPA = function(){
        && (this.oppSide().runs - this.userSide().runs) <= -3 && rng()<0.10){
       this.gojin.cleared=true;
       this.gojin.log.push('clear');
-      this.log.push({t:'gojin',text:pickOne(GOJIN_CLEAR,rng)});
+      this.log.push({t:'gojin',text:pickFresh(GOJIN_CLEAR,'GOJIN_CLEAR',rng)});
       this.log.push({t:'gojin',text:'벤치클리어링 — 양 팀이 그라운드로 몰려나왔다'});
       this.log.push({t:'gojin',text:'심판이 경고만 주고 경기를 재개했다'});
       this.gojinOpp*=0.94; this.gojinUs*=0.96;   // 양 팀 다 흔들린다
@@ -6254,8 +6531,8 @@ LiveGame.prototype.stepPA = function(){
     if(this.gojin && !this.gojin.threw && !def.isUser && rng()<0.65){
       this.gojin.threw=true;
       this.gojin.log.push('throw');
-      this.log.push({t:'gojin',text:pickOne(GOJIN_THROW,rng)});
-      this.log.push({t:'gojin',text:pickOne(GOJIN_THROW_AFTER,rng)});
+      this.log.push({t:'gojin',text:pickFresh(GOJIN_THROW,'GOJIN_THROW',rng)});
+      this.log.push({t:'gojin',text:pickFresh(GOJIN_THROW_AFTER,'GOJIN_THROW_AFTER',rng)});
       this.gojinOpp*=0.92; this.gojinUs*=1.05;
     } }
   else if(res.type==='OUT'){
@@ -7636,7 +7913,7 @@ function renderHome(){
     const me=ST.playerId||MYID;
     const dc=el('div','card');
     dc.innerHTML=`<div class="card-h">${nmLink(pid,nameOf(pid))}에게서 연락</div>
-      <p class="muted">${ST.drinkInvite.line||sayTo(pid,me,...pickOne(DRINK_INVITE))}</p>
+      <p class="muted">${ST.drinkInvite.line||sayTo(pid,me,...pickFresh(DRINK_INVITE,'DRINK_INVITE'))}</p>
       <div class="pc-prom">지금 우정 ${bondLabel(bondOf(pid))} (${bondOf(pid)})</div>`;
     const g=el('div','tac-grid');
     [['yes','나간다','우정 +12 · 둘 다 사기 +10 / 다음 경기 컨디션 -18'],
@@ -7652,11 +7929,11 @@ function renderHome(){
             ST.cond[id]=Math.max(20,(ST.cond[id]||70)-18);
           });
           if(ST.unhappy[pid])ST.unhappy[pid].level=Math.max(0,ST.unhappy[pid].level-1);
-          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickOne(DRINK_YES)),mood:'happy'});
+          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickFresh(DRINK_YES,'DRINK_YES')),mood:'happy'});
           toast(`${nameOf(pid)}과(와) 한잔했다 — 사기↑ 컨디션↓`);
         } else {
           bondAdd(pid,-10);
-          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickOne(DRINK_NO)),mood:'sad'});
+          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickFresh(DRINK_NO,'DRINK_NO')),mood:'sad'});
           toast(`${nameOf(pid)} 약속 거절 — 우정 하락`);
         }
         ST.drinkInvite=null; saveGame(true); go('home');
@@ -7672,7 +7949,7 @@ function renderHome(){
     const me=ST.playerId||MYID;
     const pc2=el('div','card');
     pc2.innerHTML=`<div class="card-h">타팀 영입 제안 · ${nmLink(pid,nameOf(pid))}</div>
-      <p class="muted">${ST.poach.line||sayTo(pid,me,...pickOne(POACH_LINES))}</p>
+      <p class="muted">${ST.poach.line||sayTo(pid,me,...pickFresh(POACH_LINES,'POACH_LINES'))}</p>
       <div class="pc-prom">${om}번 타순 이상 · 5경기 보장을 요구한다</div>`;
     const g=el('div','tac-grid');
     [['keep',`${om}번 타순 이상 약속`,'5경기 보장. 어기면 사기 -20 · 불만 +2'],
@@ -7686,14 +7963,14 @@ function renderHome(){
           ST.morale[pid]=Math.min(100,(ST.morale[pid]||70)+12);
           if(ST.unhappy[pid])ST.unhappy[pid]={level:0,streak:0};
           bondAdd(pid,6);
-          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickOne(POACH_STAY)),mood:'happy'});
+          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickFresh(POACH_STAY,'POACH_STAY')),mood:'happy'});
           toast(`${nameOf(pid)} 잔류 — ${om}번 타순 이상 5경기`);
         } else {
           if(!ST.unhappy[pid])ST.unhappy[pid]={level:0,streak:0};
           ST.unhappy[pid].level=Math.min(4,ST.unhappy[pid].level+2);
           ST.morale[pid]=Math.max(10,(ST.morale[pid]||70)-12);
           bondAdd(pid,-12);
-          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickOne(POACH_LEAVE)),mood:'angry'});
+          ST.kakao.push({who:pid,text:sayTo(pid,me,...pickFresh(POACH_LEAVE,'POACH_LEAVE')),mood:'angry'});
           toast(`${nameOf(pid)} 불만 상승`);
         }
         ST.poach=null; saveGame(true); go('home');
