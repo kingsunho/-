@@ -5561,8 +5561,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.9.1';
-const APP_VERSION_NOTE = '지시없음은 판단 횟수를 안 먹는다 · 투수 교체 상시 버튼';
+const APP_VERSION = '2.9.2';
+const APP_VERSION_NOTE = '투수 바꾸면 내려간 투수가 타순에서도 빠진다 · 지명타자 소멸 처리';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -5583,6 +5583,13 @@ function browserTag(){
    업그레이드되면 이안·지우가 나와서 무엇이 바뀌었는지 알려준다.
    새 버전을 올릴 때 여기 한 줄 추가하는 걸 잊지 마라.        */
 const CHANGELOG=[
+  {v:'2.9.2', t:'투수를 바꾸면 타순도 같이 정리된다', items:[
+    '지명타자 없이 하면 마운드에서 내려간 투수가 타순에서도 빠진다 — 계속 타석에 서던 걸 고쳤다',
+    '올라온 구원투수가 그 타순을 물려받는다. 예전엔 벤치 투수가 타순에 영영 못 들어갔다',
+    '야수가 구원 등판하면 비는 수비 자리를 벤치가 메운다 — 투수 겸 유격수가 되던 걸 고쳤다',
+    '지명타자를 쓰다가 야수가 등판하면 규칙대로 지명타자가 소멸하고 수비로 나간다',
+    '교체할 때마다 누가 빠지고 지명타자가 어떻게 되는지 화면에 알려준다',
+  ]},
   {v:'2.9.1', t:'지시 안 해도 횟수가 깎이던 것 · 투수 교체를 아무 때나', items:[
     "'그대로 간다'를 눌러도 남은 공격 작전·수비 판단이 깎이던 걸 고쳤다",
     '수비 판단이 0이 되면 판단창이 아예 안 떠서 투수 교체를 못 하던 원인이었다',
@@ -6935,7 +6942,9 @@ LiveGame.prototype.checkPitcherChange = function(s){
       this.pending={kind:'pitcherChange', side:s, from:p.name, to:this.curPitcherNext(s)};
       return true;
     }
+    const outId=p.id;
     s.pIdx++;
+    this.applyPitcherSubs(s,outId,this.curPitcher(s).id);
     this.log.push({t:'sub',text:`투수 교체 · ${s.team.name}: ${p.name} → ${this.curPitcher(s).name}`});
   }
   return false;
@@ -7469,8 +7478,9 @@ LiveGame.prototype.applyDecision = function(choice){
   this.lastDecPA=this.paSeq;          // 이 타석은 물어봤다
   if(p && p.kind==='pitcherChange'){
     if(choice==='change'){
-      const old=this.curPitcher(p.side).name;
+      const outId=this.curPitcher(p.side).id, old=this.curPitcher(p.side).name;
       p.side.pIdx++;
+      this.applyPitcherSubs(p.side,outId,this.curPitcher(p.side).id);
       this.log.push({t:'sub',text:`투수 교체 · ${old} → ${this.curPitcher(p.side).name}`});
     } else {
       this.log.push({t:'sub',text:`교체 없이 계속 간다`});
@@ -7523,13 +7533,113 @@ LiveGame.prototype.applyDecision = function(choice){
   }
 };
 
+/* 투수를 바꾸면 타순·수비도 같이 정리한다
+   ---------------------------------------------------------
+   [제보] "지명타자 없이 했는데 투수 교체되면 걘 빠져야 되는 거 아닌가"
+   맞다. 예전에는 s.pIdx 만 올리고 타순(slots)은 손도 안 댔다. 그래서
+     · 마운드에서 내려간 투수가 계속 그 타순에서 타석에 섰고
+     · 이미 야수로 뛰던 사람이 구원 등판하면 투수와 그 수비 자리를 동시에 맡았다
+       (송승민 내리고 김한규 올렸더니 김한규가 투수 겸 유격수)
+     · 정작 벤치에 있던 다음 투수는 타순에 영영 못 들어갔다
+
+   야구 규칙대로 정리한다.
+     A. 새 투수가 벤치에 있던 사람
+        - 지명타자 미사용: 내려간 투수의 타순을 그대로 물려받는다. 내려간 투수는 경기 아웃.
+        - 지명타자 사용:   투수는 애초에 타순 밖이라 타순은 안 건드린다.
+     B. 새 투수가 이미 야수로 뛰던 사람 (김한규가 유격수인 채로 등판)
+        - 그 사람의 수비 위치를 P 로 바꾼다. 타순은 원래 자리 그대로.
+        - 비어버린 수비 자리는 벤치에서 메운다.
+          · 지명타자 미사용: 내려간 투수의 타순에 벤치를 넣는다. 벤치가 없으면
+            내려간 투수가 그 자리를 맡아 야수로 남는다(실제로도 이렇게 한다).
+          · 지명타자 사용: 벤치가 없으면 지명타자가 그 자리로 나간다 — 지명타자 소멸.
+            이때부터는 투수도 타순에 있으므로 타자 9명이 그대로 유지된다.        */
+LiveGame.prototype.applyPitcherSubs = function(s, outId, inId){
+  if(!s.slots || outId===inId) return;
+  const roster=s.team.players||[];
+  const has=id=>roster.some(q=>q.id===id);
+  /* 상대 23팀은 구원투수가 야수 명단(players)에 없는 경우가 많다.
+     그런 사람을 타순에 넣으면 batter() 가 못 찾아서 경기가 죽는다.
+     명단에 있는 사람만 타순을 건드린다.                              */
+  if(!has(inId)) return;
+
+  const bench=()=>roster
+    .filter(q=>!s.slots.some(x=>x.id===q.id) && q.id!==outId
+                && !(this.injuries||[]).some(iv=>iv.id===q.id))
+    .map(q=>q.id);
+  const fit=(id,pos)=>(typeof posFit==='function')?posFit(id,pos):1;
+  const bestFor=(pos,ids)=>{
+    const okd=ids.filter(id=>fit(id,pos)>0);
+    return (okd.length?okd:ids).slice().sort((a,b)=>fit(b,pos)-fit(a,pos))[0];
+  };
+  const enter=(idx,id,pos,how)=>{
+    const goneId=s.slots[idx].id;
+    s.slots[idx]={id,pos};
+    if(!this.box[id]) this.box[id]=newBoxL();
+    this.noteSub(s,idx,id,goneId,pos,how||'교체');
+  };
+
+  const pSlot =s.slots.findIndex(x=>x.pos==='P');    // 지명타자 미사용일 때만 있다
+  const inIdx =s.slots.findIndex(x=>x.id===inId);
+
+  /* --- A. 벤치에 있던 투수가 올라온다 --- */
+  if(inIdx<0){
+    if(pSlot>=0) enter(pSlot,inId,'P','투수 교체');   // 내려간 투수는 여기서 경기 아웃
+    return;                                          // 지명타자 사용 중이면 타순은 그대로
+  }
+
+  /* --- B. 이미 야수로 뛰던 사람이 마운드로 --- */
+  const vacated=s.slots[inIdx].pos;
+  if(vacated==='P') return;
+  s.slots[inIdx].pos='P';
+
+  if(pSlot>=0 && pSlot!==inIdx){
+    // 지명타자 미사용 — 내려간 투수 자리를 벤치가 물려받아 빈 수비를 맡는다
+    const rep=bestFor(vacated,bench());
+    if(rep) enter(pSlot,rep,vacated,'교체');
+    else {
+      // 벤치가 없다 — 내려간 투수가 야수로 남는다 (실제로도 이렇게 한다)
+      s.slots[pSlot]={id:outId,pos:vacated};
+      this.log.push({t:'sub',
+        text:`${this.nameOf(outId)}은(는) 마운드에서 내려와 ${POSNAMES[vacated]||vacated}로 간다 (벤치 없음)`});
+    }
+    return;
+  }
+
+  /* 지명타자 사용 중에 야수가 등판했다.
+     타순은 그대로인데 수비 한 자리가 빈다. 규칙대로 지명타자가 그 자리로 나가고
+     지명타자는 그 시점에 사라진다. 지명타자가 그 포지션을 못 보면 벤치로 메운다. */
+  const dhIdx=s.slots.findIndex(x=>x.pos==='DH');
+  if(dhIdx<0) return;
+  const dhId=s.slots[dhIdx].id;
+  if(fit(dhId,vacated)>0){
+    s.slots[dhIdx].pos=vacated;
+    this.dhLost=true;
+    this.log.push({t:'sub',
+      text:`지명타자 소멸 · ${this.nameOf(dhId)}이(가) ${POSNAMES[vacated]||vacated}(으)로 나간다`});
+    return;
+  }
+  const rep=bestFor(vacated,bench());
+  if(rep){
+    enter(dhIdx,rep,vacated,'교체');
+    this.dhLost=true;
+    this.log.push({t:'sub',
+      text:`지명타자 소멸 · ${this.nameOf(rep)}이(가) ${POSNAMES[vacated]||vacated}(으)로 들어간다`});
+  } else {
+    s.slots[dhIdx].pos=vacated;                      // 마지막 수단 — 지타가 어떻게든 선다
+    this.dhLost=true;
+    this.log.push({t:'sub',
+      text:`지명타자 소멸 · 사람이 없어 ${this.nameOf(dhId)}이(가) ${POSNAMES[vacated]||vacated}(으)로 나간다`});
+  }
+};
+
 /* 유저가 직접 투수를 바꾼다 */
 LiveGame.prototype.userPitcherChange = function(){
   const s=this.userSide();
   if(s.pIdx>=s.rot.length-1) return false;
-  const old=this.curPitcher(s).name;
+  const outId=this.curPitcher(s).id, old=this.curPitcher(s).name;
   s.pIdx++;
-  const now=this.curPitcher(s).name;
+  const inId=this.curPitcher(s).id, now=this.curPitcher(s).name;
+  this.applyPitcherSubs(s,outId,inId);
   this.log.push({t:'sub',text: this.off().isUser
     ? `투수 교체 예고 · ${old} → ${now} (다음 수비부터)`
     : `투수 교체 · ${old} → ${now}`});
@@ -11506,9 +11616,11 @@ function paintLiveCtl(){
   } else {
     pc.textContent=`🔄 투수 교체 → ${LIVE.curPitcherNext(sd)}`;
     pc.onclick=()=>{
+      const outN=LIVE.curPitcher(sd).name;
+      const hadDH=sd.slots.some(x=>x.pos==='DH');
       LIVE.applyDecision('pchange');
       flushLog(); updateLiveUI(); paintLiveCtl();
-      toast(LIVE.off().isUser?'다음 수비부터 바뀐다':'투수를 바꿨다');
+      toast(pchangeToast(sd,outN,hadDH));
     };
   }
   lc.appendChild(pc);
@@ -11682,8 +11794,29 @@ function pchangeBtn(box){
   b.innerHTML=`<b>투수 교체 → ${nxt}</b>`+
     `<span>${cur.name} · ${todayPit(cur.id)}`+
     `${st.t?` <i class="pst ${st.cls}">${st.t}</i>`:''}<br>작전 횟수 안 씀</span>`;
-  b.onclick=()=>{ LIVE.applyDecision('pchange'); decDone(box); };
+  b.onclick=()=>{
+    const outN=cur.name, hadDH=s.slots.some(x=>x.pos==='DH');
+    LIVE.applyDecision('pchange');
+    toast(pchangeToast(s,outN,hadDH));
+    decDone(box);
+  };
   return b;
+}
+
+/* 교체하고 나서 실제로 뭐가 바뀌었는지 한 줄로 알려준다.
+   [제보] "지명타자 없이 하면 내려간 투수는 빠져야 하는 거 아닌가",
+          "인게임 중 지명타자 소멸되는 걸 알아야 될 듯" — 둘 다 맞는 말이다.
+   규칙대로 처리는 하되, 처리했다는 걸 유저가 알 수 있게 띄운다.        */
+function pchangeToast(side, outName, hadDH){
+  const now=LIVE.curPitcher(side).name;
+  const gone=!side.slots.some(x=>x.id===LIVE.userSide().rot[LIVE.userSide().pIdx-1]);
+  const head=LIVE.off().isUser ? `다음 수비부터 ${outName} → ${now}` : `${outName} → ${now}`;
+  const tail=[];
+  if(hadDH && !side.slots.some(x=>x.pos==='DH'))
+    tail.push('지명타자 소멸 — 야수가 등판해서 지타가 수비로 나갔다');
+  else if(side.slots.some(x=>x.pos==='P') && gone)
+    tail.push(`${outName}은(는) 타순에서도 빠진다`);
+  return head + (tail.length?` · ${tail.join(' · ')}`:'');
 }
 
 function showDecision(d){
