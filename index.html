@@ -5561,8 +5561,8 @@ function toggleSound(){
    세이브에 마지막으로 돌린 버전을 남겨두고, 접속했을 때 다르면 알려준다.
    애들이 "업데이트된 거 맞냐"고 물을 때 상단 배지만 보면 되게 하려는 것이다.
    같은 링크면 기록은 그대로 남는다 — 버전이 올라가도 세이브는 안 건드린다.   */
-const APP_VERSION = '2.9.2';
-const APP_VERSION_NOTE = '투수 바꾸면 내려간 투수가 타순에서도 빠진다 · 지명타자 소멸 처리';
+const APP_VERSION = '2.9.3';
+const APP_VERSION_NOTE = '경기 중 다른 탭 갔다 와도 이어서 진행된다';
 /* 어느 브라우저인지 한 줄로. 제보를 좁히는 데만 쓴다. */
 function browserTag(){
   const u=navigator.userAgent||'';
@@ -5583,6 +5583,12 @@ function browserTag(){
    업그레이드되면 이안·지우가 나와서 무엇이 바뀌었는지 알려준다.
    새 버전을 올릴 때 여기 한 줄 추가하는 걸 잊지 마라.        */
 const CHANGELOG=[
+  {v:'2.9.3', t:'경기 중에 딴 데 눌러도 안 날아간다', items:[
+    '경기 도중 홈·선수단·라인업을 눌렀다가 돌아오면 이어서 진행된다',
+    '예전에는 경기가 통째로 리셋돼서 그때까지 친 게 전부 날아갔다',
+    '나갔다 오면 몇 회까지 쳤는지 알려주고 중계 기록도 그대로 복구된다',
+    '나갔다 들어와서 경기를 다시 굴리는 것도 이제 안 된다',
+  ]},
   {v:'2.9.2', t:'투수를 바꾸면 타순도 같이 정리된다', items:[
     '지명타자 없이 하면 마운드에서 내려간 투수가 타순에서도 빠진다 — 계속 타석에 서던 걸 고쳤다',
     '올라온 구원투수가 그 타순을 물려받는다. 예전엔 벤치 투수가 타순에 영영 못 들어갔다',
@@ -11408,7 +11414,15 @@ function renderGame(){
     c.appendChild(rb); c.appendChild(st);
     return;
   }
-  LIVE=null;                                  // 중간에 나갔던 경기는 버린다
+  /* 진행 중인 경기가 있으면 버리지 않고 이어서 본다 */
+  if(LIVE && !LIVE.over && LIVE.round===ST.round){
+    c.appendChild(el('div','warn',
+      `${LIVE.inning}회 ${LIVE.half===0?'초':'말'}까지 치른 경기가 있다. 이어서 진행한다.`));
+    c.appendChild(st);
+    resumeLive();
+    return;
+  }
+  LIVE=null;                                  // 다른 차전에서 남은 찌꺼기만 버린다
   const ctrl=el('div','btn-row');
   const b1=el('button','btn primary','직접 지휘');
   const b2=el('button','btn','자동 진행');
@@ -11547,12 +11561,10 @@ function makeLive(){
   });
 }
 
-function startLive(manual){
-  const sch0=ST.schedule[ST.round];
-  if(!sch0 || sch0.played){ toast('이미 끝난 경기다'); return; }
-  if(LIVE && LIVE.over){ toast('결과를 먼저 확정해라'); return; }
-  LIVE=makeLive(); LIVE.manual=manual;
-  const stage=$('#stage'); stage.innerHTML='';
+/* 중계 화면 뼈대. 경기를 시작할 때도, 나갔다 돌아와 이어볼 때도 쓴다. */
+function buildLiveStage(){
+  const stage=$('#stage'); if(!stage) return null;
+  stage.innerHTML='';
   const sb=el('div','scoreboard');
   sb.innerHTML=`<div class="sb-team"><span id="sb-tn">상대</span><b id="sb-them">0</b></div>
     <div class="sb-mid"><div id="sb-inn">1회 초</div><div class="sb-out" id="sb-out"></div></div>
@@ -11564,10 +11576,39 @@ function startLive(manual){
   const dec=el('div','decision'); dec.id='decision'; stage.appendChild(dec);
   const feed=el('div','feed'); feed.id='feed'; stage.appendChild(feed);
   const ctl=el('div','btn-row'); ctl.id='livectl'; stage.appendChild(ctl);
-  $('#sb-tn').textContent=(LIVE.userIsHome?LIVE.away:LIVE.home).team.name;
+  const tn=$('#sb-tn');
+  if(tn) tn.textContent=(LIVE.userIsHome?LIVE.away:LIVE.home).team.name;
+  return stage;
+}
+
+function startLive(manual){
+  const sch0=ST.schedule[ST.round];
+  if(!sch0 || sch0.played){ toast('이미 끝난 경기다'); return; }
+  if(LIVE && LIVE.over){ toast('결과를 먼저 확정해라'); return; }
+  LIVE=makeLive(); LIVE.manual=manual;
+  LIVE.round=ST.round;                 // 어느 차전 경기인지 — 이어보기 판정에 쓴다
+  buildLiveStage();
   LIVE._logSeen=0;
   flushLog();
   updateLiveUI();
+  runLive();
+}
+
+/* 경기 도중에 홈·선수단·라인업을 눌렀다가 돌아온 경우 이어서 본다.
+   [제보] "경기 중에 실수로 홈 누르고 다시 경기 오면 리셋된다"
+   예전에는 renderGame 이 LIVE=null 로 통째로 버리고 시작 버튼을 다시 띄웠다.
+   실수로 한 번 잘못 누르면 그때까지 친 게 전부 날아갔고, 반대로 결과가
+   마음에 안 들면 나갔다 들어와 다시 굴릴 수도 있었다. 둘 다 막는다.   */
+function resumeLive(){
+  buildLiveStage();
+  LIVE._logSeen=0;
+  flushLog();
+  updateLiveUI();
+  if(LIVE.manual){
+    // 판단창이 떠 있던 중에 나갔으면 그 판단부터 다시 물어본다
+    const d=LIVE.pending||LIVE.detectDecision();
+    if(d){ paintLiveCtl(); showDecision(d); return; }
+  }
   runLive();
 }
 
